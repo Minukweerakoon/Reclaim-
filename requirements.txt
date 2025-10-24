@@ -1,0 +1,40 @@
+# Core dependencies
+fastapi>=0.95.0
+uvicorn>=0.22.0
+python-multipart>=0.0.6
+pydantic>=1.10.7
+starlette>=0.27.0
+asyncio>=3.4.3
+
+# Validation dependencies
+torch>=2.0.0
+transformers>=4.28.1
+librosa>=0.10.0
+soundfile>=0.12.1
+numpy>=1.24.2
+sentence-transformers>=2.2.2
+spacy>=3.6.0
+opencv-python>=4.8.0.74
+ultralytics>=8.0.0
+
+# CLIP (OpenAI)
+# The official CLIP package is installed from GitHub. If your environment blocks VCS installs,
+# preinstall it or vendor the package.
+git+https://github.com/openai/CLIP.git
+ftfy>=6.1.1
+regex>=2023.6.3
+tqdm>=4.65.0
+
+# Language detection
+langdetect>=1.0.9
+
+# Image processing
+Pillow>=9.5.0
+
+# Logging and monitoring
+python-json-logger>=2.0.7
+
+# Security
+python-jose>=3.3.0
+passlib>=1.7.4
+bcrypt>=4.0.1
