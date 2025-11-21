@@ -8,7 +8,8 @@
 **Project Name**: Multimodal Input Validation and Quality Filtering Module  
 **Component Role**: Individual research component within AI-Powered Smart Lost and Found System  
 **Student**: Wijesundara W W M K U (IT22109026)  
-**Timeline**: 12 months (4 phases)  
+
+
 **Target**: Production-ready system with research publication potential
 
 ---

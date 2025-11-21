@@ -1,21 +1,821 @@
-import React, { useEffect } from 'react'
-import { ChatWindow } from './components/Chat/ChatWindow'
-import { useAppStore } from './state/store'
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
+import { ChatInterface } from './components/Chat/ChatWindow';
+import { FileUploadZone } from './components/Uploads/Dropzone';
+import { VoiceRecorder } from './components/Uploads/AudioRecorder';
+import { useWebSocket } from './hooks/useWebSocket';
+import { useValidation } from './hooks/useValidation';
+import { ChatInput } from './components/Chat/ChatInput';
 
-const App: React.FC = () => {
-  const setApiConfig = useAppStore(s => s.setApiConfig)
-  useEffect(() => {
-    setApiConfig({
-      baseUrl: import.meta.env.VITE_API_URL || 'http://localhost:8000',
-      apiKey: import.meta.env.VITE_API_KEY || 'test-api-key'
-    })
-  }, [setApiConfig])
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', background: '#0f172a', color: '#e2e8f0' }}>
-      <ChatWindow />
-    </div>
-  )
+const COLOR_KEYWORDS = [
+  'black',
+  'white',
+  'red',
+  'blue',
+  'green',
+  'yellow',
+  'brown',
+  'gray',
+  'grey',
+  'purple',
+  'orange',
+  'pink',
+  'silver',
+  'gold',
+] as const;
+
+type ConversationState =
+  | 'welcome'
+  | 'item_details'
+  | 'awaiting_image'
+  | 'awaiting_voice'
+  | 'resolving_mismatch'
+  | 'completed';
+
+interface Message {
+  id: string;
+  type: 'bot' | 'user';
+  content: string;
+  timestamp: Date;
+  metadata?: Record<string, unknown>;
 }
 
-export default App
+interface ValidationState {
+  itemType?: string;
+  colorHint?: string;
+  text?: string;
+  image?: File;
+  voice?: Blob;
+  textResult?: any;
+  imageResult?: any;
+  voiceResult?: any;
+  crossModalPreview?: any;
+  overallResult?: any;
+}
 
+interface ProgressEntry {
+  label: string;
+  value: string;
+}
+
+const formatPercent = (value?: number | null) => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return '--';
+  }
+  return `${Math.round(value * 100)}%`;
+};
+
+const formatSharpnessScore = (sharpness?: {
+  score?: number;
+  threshold?: number;
+}) => {
+  if (
+    !sharpness ||
+    typeof sharpness.score !== 'number' ||
+    typeof sharpness.threshold !== 'number' ||
+    sharpness.threshold <= 0
+  ) {
+    return '--';
+  }
+  const ratio = Math.min(sharpness.score / sharpness.threshold, 1);
+  return formatPercent(ratio);
+};
+
+const listOrFallback = (items?: string[] | null, fallback: string = 'None') => {
+  if (!items || items.length === 0) {
+    return fallback;
+  }
+  return items.join(', ');
+};
+
+const pickMentions = (
+  primary?: string[] | null,
+  secondary?: string[] | null
+): string[] | null => {
+  if (primary && primary.length > 0) {
+    return primary;
+  }
+  if (secondary && secondary.length > 0) {
+    return secondary;
+  }
+  return null;
+};
+
+const App: React.FC = () => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [conversationState, setConversationState] =
+    useState<ConversationState>('welcome');
+  const [validationState, setValidationState] = useState<ValidationState>({});
+  const validationStateRef = useRef<ValidationState>({});
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [progressLog, setProgressLog] = useState<ProgressEntry[]>([]);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+
+  const { sendMessage, wsConnected, lastMessage } = useWebSocket();
+  const { validateComplete, validateImage, validateText, validateVoice } =
+    useValidation();
+
+  const addBotMessage = useCallback((content: string, metadata?: any) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        type: 'bot',
+        content,
+        timestamp: new Date(),
+        metadata,
+      },
+    ]);
+  }, []);
+
+  const addUserMessage = useCallback((content: string) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        type: 'user',
+        content,
+        timestamp: new Date(),
+      },
+    ]);
+  }, []);
+
+  const updateValidationState = useCallback((updates: Partial<ValidationState>) => {
+    validationStateRef.current = {
+      ...validationStateRef.current,
+      ...updates,
+    };
+    setValidationState(validationStateRef.current);
+  }, []);
+
+  const pushProgress = useCallback((label: string, value: string) => {
+    setProgressLog((prev) => {
+      const filtered = prev.filter((entry) => entry.label !== label);
+      const next = [...filtered, { label, value }];
+      return next.slice(-7);
+    });
+  }, []);
+
+  useEffect(() => {
+    addBotMessage(
+      "Hi! I'm here to help you report your lost item using our multimodal validation system. What did you lose today?"
+    );
+  }, [addBotMessage]);
+
+  useEffect(() => {
+    if (!lastMessage) {
+      return;
+    }
+
+    if (typeof lastMessage.progress === 'number') {
+      const messageDetails =
+        lastMessage.message && lastMessage.message.length > 0
+          ? ` — ${lastMessage.message}`
+          : '';
+      pushProgress(
+        'Realtime validation',
+        `${Math.max(-1, lastMessage.progress)}%${messageDetails}`
+      );
+    }
+
+    if (typeof lastMessage.task_id === 'string') {
+      setActiveTaskId(lastMessage.task_id);
+    }
+
+    if (lastMessage.result) {
+      updateValidationState({ overallResult: lastMessage.result });
+      if (conversationState !== 'completed') {
+        addBotMessage(
+          'Realtime validation is complete. I have applied the final confidence score to your report.'
+        );
+        setConversationState('completed');
+      }
+    }
+  }, [
+    lastMessage,
+    pushProgress,
+    updateValidationState,
+    addBotMessage,
+    conversationState,
+  ]);
+
+
+  const detectColorFromText = useCallback((text: string): string | undefined => {
+    const lower = text.toLowerCase();
+    const match = COLOR_KEYWORDS.find((color) =>
+      lower.includes(color.toLowerCase())
+    );
+    return match;
+  }, []);
+
+  const handleItemTypeInput = useCallback(
+    async (itemType: string) => {
+      const inferredColor = detectColorFromText(itemType);
+      updateValidationState({
+        itemType,
+        colorHint: inferredColor ?? validationStateRef.current.colorHint,
+      });
+      pushProgress('Item category', itemType);
+      addBotMessage(
+        `Great! Let's capture the details of your ${itemType}. Please describe it including the color, brand, where you last saw it, and any unique features.`
+      );
+      setConversationState('item_details');
+    },
+    [updateValidationState, addBotMessage, pushProgress, detectColorFromText]
+  );
+
+  const handleDescriptionInput = useCallback(
+    async (description: string) => {
+      updateValidationState({ text: description });
+      setIsProcessing(true);
+      pushProgress('Description analysis', 'Running');
+
+      try {
+        const textResult = await validateText(description, {
+          itemTypeHint: validationStateRef.current.itemType,
+          colorHint: validationStateRef.current.colorHint,
+        });
+        updateValidationState({ textResult });
+
+        if (textResult?.valid) {
+          const mentions =
+            textResult?.entities?.item_mentions?.length > 0
+              ? textResult.entities.item_mentions.join(', ')
+              : 'the item';
+          addBotMessage(
+            `Excellent description! I noted ${mentions}. If you have a photo of the item, upload it so I can verify the visual details.`
+          );
+          pushProgress(
+            'Description analysis',
+            formatPercent(textResult.overall_score)
+          );
+          setConversationState('awaiting_image');
+        } else {
+          const missingDetails = listOrFallback(
+            textResult?.completeness?.missing_info,
+            'more context'
+          );
+          addBotMessage(
+            `Thanks! Could you expand the description by adding: ${missingDetails}? This helps match your report faster.`
+          );
+          pushProgress('Description analysis', 'Needs more detail');
+        }
+      } catch (error) {
+        addBotMessage(
+          'I could not analyse that description. Please try again or simplify the text.'
+        );
+        pushProgress('Description analysis', 'Failed');
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [validateText, updateValidationState, addBotMessage, pushProgress]
+  );
+
+  const handleImageUpload = useCallback(
+    async (file: File) => {
+      updateValidationState({ image: file });
+      setIsProcessing(true);
+      addBotMessage('Analyzing your photo now...');
+      pushProgress('Image analysis', 'Processing');
+
+      try {
+        const imageResult = await validateImage(
+          file,
+          validationStateRef.current.text
+        );
+        updateValidationState({ imageResult });
+        pushProgress(
+          'Image analysis',
+          formatPercent(imageResult?.overall_score)
+        );
+
+        if (imageResult?.valid) {
+          const detected =
+            imageResult?.objects?.detections?.[0]?.class || 'your item';
+
+          if (validationStateRef.current.text) {
+            const combined = await validateComplete({
+              image: file,
+              text: validationStateRef.current.text,
+            });
+
+            updateValidationState({
+              crossModalPreview: combined.cross_modal,
+            });
+
+            const imageText = combined?.cross_modal?.image_text;
+
+            if (imageText?.valid) {
+              addBotMessage(
+                `Nice! The photo clearly shows ${detected} and matches your description. A quick voice note can add even more context if you have time.`
+              );
+              setConversationState('awaiting_voice');
+            } else {
+              const similarity = formatPercent(imageText?.similarity);
+              addBotMessage(
+                `The photo highlights ${detected}, but it does not quite align with the written description (similarity ${similarity}). Could you clarify or update the description?`
+              );
+              setConversationState('resolving_mismatch');
+            }
+          } else {
+            addBotMessage(
+              `Great shot! I can see ${detected}. If you have not already, please describe the item so I can link the visual details.`
+            );
+          }
+        } else {
+          const issues: string[] = [];
+          if (!imageResult?.sharpness?.valid) {
+            issues.push('the image looks blurry');
+          }
+          if (!imageResult?.objects?.valid) {
+            issues.push('the main item is difficult to recognise');
+          }
+          addBotMessage(
+            `I could not confirm the photo because ${issues.join(
+              ' and '
+            )}. Try retaking the photo with better lighting and focus.`
+          );
+        }
+      } catch (error) {
+        addBotMessage(
+          'Something went wrong while processing that photo. Please try again with a different image.'
+        );
+        pushProgress('Image analysis', 'Failed');
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [
+      validateImage,
+      validateComplete,
+      addBotMessage,
+      updateValidationState,
+      pushProgress,
+    ]
+  );
+
+  const handleVoiceRecording = useCallback(
+    async (audioBlob: Blob) => {
+      updateValidationState({ voice: audioBlob });
+      setIsProcessing(true);
+      addBotMessage('Processing your voice note...');
+      pushProgress('Voice analysis', 'Processing');
+
+      try {
+        const voiceResult = await validateVoice(audioBlob);
+        updateValidationState({ voiceResult });
+
+        if (voiceResult?.valid) {
+          const transcription =
+            voiceResult?.transcription?.transcription || 'your description';
+          addBotMessage(
+            `I heard: "${transcription}". Let me confirm everything lines up.`
+          );
+          pushProgress(
+            'Voice analysis',
+            formatPercent(voiceResult?.overall_score)
+          );
+
+          if (validationStateRef.current.text) {
+            const combined = await validateComplete({
+              voice: audioBlob,
+              text: validationStateRef.current.text,
+            });
+
+            const voiceText = combined?.cross_modal?.voice_text;
+            updateValidationState({
+              crossModalPreview: {
+                ...(validationStateRef.current.crossModalPreview ?? {}),
+                voice_text: voiceText,
+              },
+            });
+
+            if (voiceText?.valid) {
+              addBotMessage(
+                'Great! Your voice message adds consistent details. I will now generate the final confidence score.'
+              );
+              await finalizeSubmission();
+            } else {
+              addBotMessage(
+                'I noticed some differences between what you said and what you wrote. Which version should I use?'
+              );
+            }
+          } else {
+            addBotMessage(
+              'Thanks! Once you add a text description I will align the two.'
+            );
+          }
+        } else {
+          const feedback =
+            voiceResult?.quality?.feedback ||
+            'the transcription quality was not sufficient';
+          addBotMessage(
+            `I could not understand the recording because ${feedback}. Could you try again in a quieter space?`
+          );
+          pushProgress('Voice analysis', 'Needs re-recording');
+        }
+      } catch (error) {
+        addBotMessage(
+          'I had trouble processing that recording. Please try again in a moment.'
+        );
+        pushProgress('Voice analysis', 'Failed');
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [
+      validateVoice,
+      validateComplete,
+      addBotMessage,
+      updateValidationState,
+      pushProgress,
+    ]
+  );
+
+  const finalizeSubmission = useCallback(async () => {
+    if (!validationStateRef.current.text) {
+      addBotMessage('Please provide a description before finalising the report.');
+      return;
+    }
+
+    setIsProcessing(true);
+    pushProgress('Full validation', 'Running');
+
+    try {
+      const payload: {
+        text?: string;
+        image?: File;
+        voice?: Blob;
+      } = {
+        text: validationStateRef.current.text,
+      };
+
+      if (validationStateRef.current.image) {
+        payload.image = validationStateRef.current.image;
+      }
+      if (validationStateRef.current.voice) {
+        payload.voice = validationStateRef.current.voice;
+      }
+
+      if (wsConnected) {
+        sendMessage({
+          type: 'validate',
+          text: validationStateRef.current.text,
+          image_path: validationStateRef.current.imageResult?.image_path,
+          audio_path: validationStateRef.current.voiceResult?.audio_path,
+          language: 'en',
+        });
+      }
+
+      const completeResult = await validateComplete(payload);
+      updateValidationState({ overallResult: completeResult });
+
+      const confidenceScore =
+        completeResult?.confidence?.overall_confidence ?? null;
+      const action = completeResult?.confidence?.action ?? 'review';
+
+      addBotMessage(
+        `All set! Your report scored ${formatPercent(
+          confidenceScore
+        )} confidence and will be ${action.replace('_', ' ')}. We will notify you as soon as we find a match.`
+      );
+
+      pushProgress('Full validation', formatPercent(confidenceScore));
+      setConversationState('completed');
+    } catch (error) {
+      addBotMessage(
+        'I was unable to finalise the report. Please try again once more.'
+      );
+      pushProgress('Full validation', 'Failed');
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [
+    validateComplete,
+    wsConnected,
+    sendMessage,
+    updateValidationState,
+    addBotMessage,
+    pushProgress,
+  ]);
+
+  const handleUserInput = useCallback(
+    async (input: string) => {
+      const trimmed = input.trim();
+      if (!trimmed || isProcessing) {
+        return;
+      }
+
+      addUserMessage(trimmed);
+
+      switch (conversationState) {
+        case 'welcome':
+          await handleItemTypeInput(trimmed);
+          break;
+        case 'item_details':
+        case 'resolving_mismatch':
+          await handleDescriptionInput(trimmed);
+          break;
+        case 'completed':
+          addBotMessage(
+            'Your report is already complete. If you need to start another report, refresh the page.'
+          );
+          break;
+        default:
+          addBotMessage(
+            "Let me finish the current step and I'll let you know what I need next."
+          );
+          break;
+      }
+    },
+    [
+      addUserMessage,
+      conversationState,
+      isProcessing,
+      addBotMessage,
+      handleItemTypeInput,
+      handleDescriptionInput,
+    ]
+  );
+
+  const stepSummary = useMemo(() => {
+    const steps = [
+      {
+        id: 'describe',
+        complete: Boolean(validationState.textResult),
+      },
+      {
+        id: 'image',
+        complete: Boolean(validationState.imageResult),
+      },
+      {
+        id: 'voice',
+        complete: Boolean(validationState.voiceResult),
+      },
+      {
+        id: 'final',
+        complete: Boolean(validationState.overallResult),
+      },
+    ];
+
+    const firstIncomplete = steps.findIndex((step) => !step.complete);
+    return steps.map((step, index) => ({
+      ...step,
+      active: firstIncomplete === index,
+    }));
+  }, [validationState]);
+
+  const summaryCards = useMemo(() => {
+    const textResult = validationState.textResult;
+    const imageResult = validationState.imageResult;
+    const voiceResult = validationState.voiceResult;
+    const overall = validationState.overallResult;
+    const crossModal =
+      overall?.cross_modal ?? validationState.crossModalPreview ?? {};
+
+    const itemMentions = pickMentions(
+      textResult?.entities?.item_mentions,
+      textResult?.completeness?.entities?.item_type
+    );
+    const colorMentions = pickMentions(
+      textResult?.entities?.color_mentions,
+      textResult?.completeness?.entities?.color
+    );
+
+    return [
+      {
+        id: 'text',
+        title: 'Description quality',
+        status: textResult
+          ? textResult.valid
+            ? 'Complete'
+            : 'Needs revision'
+          : 'Waiting',
+        metric: formatPercent(textResult?.overall_score),
+        details: textResult
+          ? [
+              `Completeness: ${formatPercent(
+                textResult?.completeness?.score ?? textResult?.overall_score
+              )}`,
+              `Mentioned items: ${listOrFallback(itemMentions)}`,
+              `Detected colors: ${listOrFallback(colorMentions)}`,
+              `Missing details: ${listOrFallback(
+                textResult?.completeness?.missing_info
+              )}`,
+            ]
+          : ['Add a descriptive summary of your item to begin.'],
+      },
+      {
+        id: 'image',
+        title: 'Image insights',
+        status: imageResult
+          ? imageResult.valid
+            ? 'Clear'
+            : 'Needs retake'
+          : 'Optional',
+        metric: formatPercent(imageResult?.overall_score),
+        details: imageResult
+          ? [
+              `Sharpness: ${formatSharpnessScore(imageResult?.sharpness)}`,
+              `Objects detected: ${listOrFallback(
+                (imageResult?.objects?.detections ?? []).map(
+                  (det: any) => det.class
+                )
+              )}`,
+            ]
+          : ['Upload a recent photo to boost match accuracy.'],
+      },
+      {
+        id: 'voice',
+        title: 'Voice transcription',
+        status: voiceResult
+          ? voiceResult.valid
+            ? 'Captured'
+            : 'Retry suggested'
+          : 'Optional',
+        metric: formatPercent(voiceResult?.overall_score),
+        details: voiceResult
+          ? [
+              `Duration: ${
+                voiceResult?.quality?.duration
+                  ? `${voiceResult.quality.duration.toFixed(1)}s`
+                  : 'Unknown'
+              }`,
+              `Transcript: ${
+                voiceResult?.transcription?.transcription ?? 'Unavailable'
+              }`,
+            ]
+          : ['Add a short voice note for extra context (optional).'],
+      },
+      {
+        id: 'confidence',
+        title: 'Confidence & routing',
+        status: overall
+          ? 'Ready'
+          : validationState.textResult
+          ? 'Pending final check'
+          : 'Waiting',
+        metric: formatPercent(overall?.confidence?.overall_confidence),
+        details: overall
+          ? [
+              `Action: ${overall?.confidence?.action ?? 'review'}`,
+              `Routing: ${overall?.confidence?.routing ?? 'manual'}`,
+              `Image/Text alignment: ${formatPercent(
+                crossModal?.image_text?.similarity
+              )}`,
+              `Voice/Text alignment: ${formatPercent(
+                crossModal?.voice_text?.similarity
+              )}`,
+            ]
+          : ['Run the full validation once you have shared all the evidence.'],
+      },
+    ];
+  }, [validationState]);
+
+  return (
+    <div className="app-shell">
+      <div className="app-shell__container">
+        <section className="chat-pane">
+          <header className="chat-header">
+            <h1 className="chat-title">Lost &amp; Found Smart Assistant</h1>
+            <p className="chat-subtitle">
+              Powered by multimodal validation technology
+            </p>
+            <div className="step-indicator">
+              {stepSummary.map((step) => (
+                <div
+                  key={step.id}
+                  className={[
+                    'step-indicator__dot',
+                    step.complete ? 'step-indicator__dot--complete' : '',
+                    !step.complete && step.active
+                      ? 'step-indicator__dot--active'
+                      : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                />
+              ))}
+            </div>
+          </header>
+
+          <ChatInterface messages={messages} isProcessing={isProcessing} />
+
+          {conversationState === 'awaiting_image' && (
+            <FileUploadZone
+              onUpload={handleImageUpload}
+              accept="image/*"
+              maxSize={10 * 1024 * 1024}
+            />
+          )}
+
+          {conversationState === 'awaiting_voice' && (
+            <VoiceRecorder
+              onRecordingComplete={handleVoiceRecording}
+              maxDuration={120}
+            />
+          )}
+
+          {conversationState === 'completed' && (
+            <button
+              type="button"
+              className="button button--quiet"
+              onClick={() =>
+                addBotMessage(
+                  'Report saved. If you need to resubmit, please refresh to start a new session.'
+                )
+              }
+            >
+              Report saved
+            </button>
+          )}
+
+          {!['awaiting_image', 'awaiting_voice', 'completed'].includes(
+            conversationState
+          ) && (
+            <div className="chat-input">
+              <ChatInput
+                onSend={handleUserInput}
+                disabled={isProcessing}
+                placeholder="Share the details here..."
+              />
+            </div>
+          )}
+        </section>
+
+        <aside className="summary-pane">
+          <div className="summary-header">
+            <h2 className="summary-title">Validation Summary</h2>
+            <span
+              className={[
+                'status-chip',
+                wsConnected ? 'status-chip--connected' : 'status-chip--disconnected',
+              ].join(' ')}
+            >
+              {wsConnected ? 'Realtime link active' : 'Realtime link offline'}
+            </span>
+          </div>
+
+          <div className="summary-grid">
+            {summaryCards.map((card) => (
+              <article key={card.id} className="summary-card">
+                <div className="summary-card__title">
+                  <span>{card.title}</span>
+                  <span className="summary-card__status">{card.status}</span>
+                </div>
+                <div className="summary-card__metric">{card.metric}</div>
+                <div className="summary-card__meta">
+                  {card.details[0]}
+                  {card.details.length > 1 && (
+                    <ul className="summary-card__list">
+                      {card.details.slice(1).map((detail, index) => (
+                        <li key={`${card.id}-detail-${index}`}>{detail}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+
+          {validationState.overallResult && (
+            <div className="validation-details">
+              <h3 className="validation-details__title">Full response JSON</h3>
+              <pre className="validation-details__json">
+                {JSON.stringify(validationState.overallResult, null, 2)}
+              </pre>
+            </div>
+          )}
+
+          <div className="progress-log">
+            {progressLog.length > 0 ? (
+              progressLog.map((entry) => (
+                <div className="progress-log__item" key={entry.label}>
+                  <p className="progress-log__message">{entry.label}</p>
+                  <span className="progress-log__value">{entry.value}</span>
+                </div>
+              ))
+            ) : (
+              <p className="progress-log__message">
+                Progress updates will appear here as you share more evidence.
+              </p>
+            )}
+            {activeTaskId && (
+              <p className="progress-log__message">
+                Tracking realtime task: {activeTaskId}
+              </p>
+            )}
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+};
+
+export default App;

@@ -1,37 +1,60 @@
-import { useEffect, useRef } from 'react'
-import { getWsUrl } from '../services/api'
-import { useAppStore } from '../state/store'
+import { useState, useEffect, useRef, useCallback } from 'react';
 
-export function useWebSocket() {
-  const clientId = useAppStore(s => s.clientId)
-  const addMessage = useAppStore(s => s.addMessage)
-  const setConfidence = useAppStore(s => s.setConfidence)
-  const wsRef = useRef<WebSocket | null>(null)
+interface WebSocketMessage {
+  type: string;
+  [key: string]: any;
+}
+
+export const useWebSocket = (url: string = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/validation') => {
+  const [wsConnected, setWsConnected] = useState(false);
+  const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
+  const ws = useRef<WebSocket | null>(null);
+  const clientIdRef = useRef<string>(`${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
+  const connect = useCallback(() => {
+    // Ensure URL contains required client_id suffix
+    const finalUrl = url.endsWith(clientIdRef.current)
+      ? url
+      : `${url.replace(/\/$/, '')}/${clientIdRef.current}`;
+    ws.current = new WebSocket(finalUrl);
+
+    ws.current.onopen = () => {
+      console.log('WebSocket connected');
+      setWsConnected(true);
+    };
+
+    ws.current.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      setLastMessage(message);
+    };
+
+    ws.current.onclose = () => {
+      console.log('WebSocket disconnected');
+      setWsConnected(false);
+      // Attempt to reconnect after a delay
+      setTimeout(connect, 3000);
+    };
+
+    ws.current.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      ws.current?.close();
+    };
+  }, [url]);
 
   useEffect(() => {
-    const url = getWsUrl(clientId)
-    const ws = new WebSocket(url)
-    wsRef.current = ws
-    ws.onopen = () => {
-      // can send initial messages if needed
-    }
-    ws.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(ev.data)
-        if (typeof data.confidence === 'number') {
-          setConfidence(data.confidence)
-        }
-        if (data.message && data.progress !== undefined) {
-          addMessage({ role: 'bot', text: `${data.message} (${data.progress}%)` })
-        }
-      } catch {}
-    }
-    ws.onerror = () => {}
-    ws.onclose = () => {}
+    connect();
     return () => {
-      ws.close()
-    }
-  }, [clientId])
+      ws.current?.close();
+    };
+  }, [connect]);
 
-  return wsRef
-}
+  const sendMessage = useCallback((message: WebSocketMessage) => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify(message));
+    } else {
+      console.warn('WebSocket not open. Message not sent:', message);
+    }
+  }, []);
+
+  return { wsConnected, lastMessage, sendMessage };
+};

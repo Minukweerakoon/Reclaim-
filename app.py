@@ -2,25 +2,110 @@ import os
 import time
 import logging
 import json
+import uuid
 from typing import Dict, List, Optional, Any, Union
+from functools import wraps
 from datetime import datetime
 
 import uvicorn
+import asyncio
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends, BackgroundTasks, WebSocket, WebSocketDisconnect, status, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader, APIKey
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import generate_latest
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel, Field, validator
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
+import redis
+from redis.exceptions import RedisError
 
-from multimodal_validator import MultimodalValidator
-from text_validator import TextValidator
-from audio_validator import AudioValidator
-from clip_validator import CLIPValidator
-from image_validator import ImageValidator
+# Initialize Redis client
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+redis_client = redis.from_url(REDIS_URL)
+_redis_available = True
+
+# Caching decorator
+def cached(ttl: int = 300):
+    def decorator(func):
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            # Generate cache key from function name and arguments
+            cache_key_parts = [func.__name__]
+            for arg in args:
+                cache_key_parts.append(str(arg))
+            for k, v in kwargs.items():
+                cache_key_parts.append(f"{k}={v}")
+            cache_key = ":".join(cache_key_parts)
+
+            # Try to retrieve from cache
+            global _redis_available
+            cached_result = None
+            if _redis_available:
+                try:
+                    cached_result = redis_client.get(cache_key)
+                except RedisError as redis_error:
+                    logger.warning(f"Redis unavailable, disabling cache (async path): {redis_error}")
+                    _redis_available = False
+            if cached_result:
+                logger.info(f"Cache hit for {cache_key}")
+                return json.loads(cached_result)
+
+            # If not in cache, execute function and store result
+            logger.info(f"Cache miss for {cache_key}")
+            result = await func(*args, **kwargs)
+            if _redis_available:
+                try:
+                    redis_client.setex(cache_key, ttl, json.dumps(result))
+                except RedisError as redis_error:
+                    logger.warning(f"Redis unavailable while setting cache (async path): {redis_error}")
+                    _redis_available = False
+            return result
+
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            # Generate cache key from function name and arguments
+            cache_key_parts = [func.__name__]
+            for arg in args:
+                cache_key_parts.append(str(arg))
+            for k, v in kwargs.items():
+                cache_key_parts.append(f"{k}={v}")
+            cache_key = ":".join(cache_key_parts)
+
+            # Try to retrieve from cache
+            global _redis_available
+            cached_result = None
+            if _redis_available:
+                try:
+                    cached_result = redis_client.get(cache_key)
+                except RedisError as redis_error:
+                    logger.warning(f"Redis unavailable, disabling cache: {redis_error}")
+                    _redis_available = False
+            if cached_result:
+                logger.info(f"Cache hit for {cache_key}")
+                return json.loads(cached_result)
+
+            # If not in cache, execute function and store result
+            logger.info(f"Cache miss for {cache_key}")
+            result = func(*args, **kwargs)
+            if _redis_available:
+                try:
+                    redis_client.setex(cache_key, ttl, json.dumps(result))
+                except RedisError as redis_error:
+                    logger.warning(f"Redis unavailable while setting cache: {redis_error}")
+                    _redis_available = False
+            return result
+
+        if asyncio.iscoroutinefunction(func):
+            return async_wrapper
+        else:
+            return sync_wrapper
+    return decorator
+
+import importlib
+import importlib.util
 
 # Configure logging
 logging.basicConfig(
@@ -45,10 +130,12 @@ RATE_LIMIT_WINDOW = 60  # seconds
 RATE_LIMIT_MAX_REQUESTS = 100  # requests per window
 rate_limit_storage = {}  # IP -> {count: int, reset_time: float}
 
-# CORS configuration
+# CORS configuration (explicit origins; wildcard + credentials is disallowed by browsers)
+_default_cors = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3001,http://127.0.0.1:3001"
+cors_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", _default_cors).split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Modify in production to specific origins
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -56,32 +143,117 @@ app.add_middleware(
 
 # File upload settings
 UPLOAD_DIR = "uploads"
-MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
+MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_AUDIO_FILE_SIZE = 5 * 1024 * 1024   # 5MB
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"]
 ALLOWED_AUDIO_TYPES = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/m4a"]
 
 # Create upload directory if it doesn't exist
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Initialize validators
-multimodal_validator = MultimodalValidator(enable_logging=True)
-text_validator = TextValidator()
-audio_validator = AudioValidator()
-clip_validator = CLIPValidator()
-image_validator = ImageValidator()
+# Lazy validator initialization to allow server to boot without heavy deps
+_consistency_engine = None
+_text_validator = None
+_voice_validator = None
+_clip_validator = None
+_image_validator = None
+_database_manager = None
+
+def get_text_validator():
+    global _text_validator
+    if _text_validator is None:
+        try:
+            mod = importlib.import_module('src.text.validator')
+            _text_validator = mod.TextValidator(enable_logging=True)
+        except Exception as e:
+            logger.warning(f"Text validator unavailable: {e}")
+            _text_validator = False
+    return _text_validator or None
+
+def get_voice_validator():
+    global _voice_validator
+    if _voice_validator is None:
+        try:
+            mod = importlib.import_module('src.voice.validator')
+            _voice_validator = mod.VoiceValidator(enable_logging=True)
+        except Exception as e:
+            logger.warning(f"Voice validator unavailable: {e}")
+            _voice_validator = False
+    return _voice_validator or None
+
+def get_image_validator():
+    global _image_validator
+    if _image_validator is None:
+        try:
+            mod = importlib.import_module('src.image.validator')
+            _image_validator = mod.ImageValidator(enable_logging=True)
+        except Exception as e:
+            logger.warning(f"Image validator unavailable: {e}")
+            _image_validator = False
+    return _image_validator or None
+
+def get_clip_validator():
+    global _clip_validator
+    if _clip_validator is None:
+        try:
+            mod = importlib.import_module('src.cross_modal.clip_validator')
+            _clip_validator = mod.CLIPValidator(enable_logging=True)
+        except Exception as e:
+            logger.warning(f"CLIP validator unavailable: {e}")
+            _clip_validator = False
+    return _clip_validator or None
+
+def get_consistency_engine():
+    global _consistency_engine
+    if _consistency_engine is None:
+        try:
+            mod = importlib.import_module('src.cross_modal.consistency_engine')
+            _consistency_engine = mod.ConsistencyEngine()
+        except Exception as e:
+            logger.warning(f"Consistency engine unavailable: {e}")
+            _consistency_engine = False
+    return _consistency_engine or None
+
+
+def get_database_manager():
+    global _database_manager
+    if _database_manager is None:
+        if DatabaseManager is None:
+            _database_manager = False
+            return None
+        try:
+            _database_manager = DatabaseManager()
+        except Exception as e:
+            logger.warning(f"Database unavailable: {e}")
+            _database_manager = False
+    return _database_manager or None
+
+
+def persist_validation_result(request_id: str, payload: Dict[str, Any]) -> None:
+    """Persist validation results to the database when available."""
+    db = get_database_manager()
+    if not db:
+        return
+    db.save_validation_result(request_id, payload)
 
 # Active WebSocket connections for progress updates
 active_connections = {}
 
-# Performance metrics
-metrics = {
-    "requests": 0,
-    "successful_validations": 0,
-    "failed_validations": 0,
-    "avg_response_time": 0,
-    "total_response_time": 0,
-    "start_time": time.time()
-}
+from src.monitoring.metrics_collector import MetricsCollector
+
+try:
+    from src.database import DatabaseManager
+except ImportError:  # pragma: no cover
+    DatabaseManager = None  # type: ignore
+
+# Initialize MetricsCollector
+metrics_collector = MetricsCollector()
+
+@app.on_event("startup")
+async def startup_event():
+    """Application startup event handler."""
+    # Start system metrics collection
+    metrics_collector.start_system_metrics_collection()
 
 # Background tasks in progress
 background_tasks_progress = {}
@@ -169,9 +341,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         logger.info(f"Response: {request.method} {request.url.path} - Status: {response.status_code} - Time: {process_time:.4f}s")
         
         # Update metrics
-        metrics["requests"] += 1
-        metrics["total_response_time"] += process_time
-        metrics["avg_response_time"] = metrics["total_response_time"] / metrics["requests"]
+        metrics_collector.request_counter.labels(endpoint=request.url.path, status=response.status_code).inc()
+        metrics_collector.response_time_histogram.labels(endpoint=request.url.path).observe(process_time)
         
         return response
 
@@ -179,21 +350,53 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 app.add_middleware(LoggingMiddleware)
 
 # Pydantic models for request/response validation
-class ValidationResponse(BaseModel):
+class ImageValidationResult(BaseModel):
+    """Image validation result model"""
+    image_path: str
+    timestamp: str
+    sharpness: dict
+    objects: dict
+    privacy: dict
+    overall_score: float
     valid: bool
-    confidence: float
-    confidence_interval: Optional[List[float]] = None
-    routing: Optional[str] = None
-    modal_scores: Dict[str, Any]
-    consistency: Optional[Dict[str, Any]] = None
-    feedback: Dict[str, Any]
-    processing_time: float
-    message: str
-    request_id: str = Field(default_factory=lambda: datetime.now().strftime("%Y%m%d%H%M%S%f"))
+
+class TextValidationResult(BaseModel):
+    """Text validation result model"""
+    text: str
+    timestamp: str
+    completeness: dict
+    coherence: dict
+    entities: dict
+    overall_score: float
+    valid: bool
+
+class VoiceValidationResult(BaseModel):
+    """Voice validation result model"""
+    audio_path: str
+    timestamp: str
+    quality: dict
+    transcription: dict
+    valid: bool
+    overall_score: float
+
+class ValidationResponse(BaseModel):
+    """Complete validation response model"""
+    request_id: str
+    timestamp: str
+    input_types: List[str]
+    image: Optional[ImageValidationResult] = None
+    text: Optional[TextValidationResult] = None
+    voice: Optional[VoiceValidationResult] = None
+    cross_modal: dict
+    confidence: dict
+    feedback: dict
 
 class TextValidationRequest(BaseModel):
     text: str
     language: str = "en"  # use "auto" to enable language detection
+    item_type_hint: Optional[str] = None
+    color_hint: Optional[str] = None
+    location_hint: Optional[str] = None
 
 class ErrorResponse(BaseModel):
     detail: str
@@ -243,60 +446,163 @@ async def cleanup_file(file_path: str, delay: int = 300):
     except Exception as e:
         logger.error(f"Error cleaning up file {file_path}: {str(e)}")
 
-async def update_progress(websocket_id: str, progress: int, message: str):
+async def update_progress(client_id: str, progress: int, message: str, extra: Optional[Dict[str, Any]] = None):
     """
     Send progress updates to a WebSocket client.
     """
-    if websocket_id in active_connections:
-        websocket = active_connections[websocket_id]
+    if client_id in active_connections:
+        websocket = active_connections[client_id]
         try:
-            await websocket.send_json({
+            payload = {
                 "progress": progress,
                 "message": message
-            })
+            }
+            if extra:
+                payload.update(extra)
+            await websocket.send_json(payload)
         except Exception as e:
             logger.error(f"Error sending progress update: {str(e)}")
 
-async def process_validation_background(task_id: str, text: Optional[str], image_path: Optional[str], audio_path: Optional[str], language: str):
+async def process_validation_background(client_id: str, task_id: str, text: Optional[str], image_path: Optional[str], audio_path: Optional[str], language: str):
     """
     Process validation in the background and update progress.
     """
     try:
         # Update progress to 10%
-        background_tasks_progress[task_id] = {"progress": 10, "message": "Starting validation"}
-        await update_progress(task_id, 10, "Starting validation")
+        background_tasks_progress[task_id] = {
+            "client_id": client_id,
+            "progress": 10,
+            "message": "Starting validation"
+        }
+        await update_progress(client_id, 10, "Starting validation", {"task_id": task_id})
         
-        # Update progress to 30%
-        background_tasks_progress[task_id] = {"progress": 30, "message": "Processing inputs"}
-        await update_progress(task_id, 30, "Processing inputs")
+        # Initialize results
+        text_result = None
+        image_result = None
+        voice_result = None
+        clip_image_text_result = None
+        voice_text_consistency_result = None
         
-        # Perform validation with progress callbacks
-        def cb(evt: dict):
-            # Stream intermediate confidence and stage updates
-            if "confidence" in evt:
-                background_tasks_progress[task_id] = {**background_tasks_progress.get(task_id, {}), "progress": background_tasks_progress.get(task_id, {}).get("progress", 50), "message": "Updating confidence", "confidence": evt.get("confidence"), "ci": evt.get("ci")}
-            elif evt.get("type") == "stage":
-                background_tasks_progress[task_id] = {**background_tasks_progress.get(task_id, {}), "message": evt.get("message", "Processing"), "stage": evt.get("stage")}
-            asyncio.create_task(update_progress(task_id, background_tasks_progress.get(task_id, {}).get("progress", 50), background_tasks_progress.get(task_id, {}).get("message", "Processing")))
+        input_types = []
 
-        result = multimodal_validator.validate(text, image_path, audio_path, language, progress_cb=cb)
+        # Process text if provided
+        if text:
+            input_types.append("text")
+            tv_bg = get_text_validator()
+            if tv_bg is None:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Text validator unavailable on this instance")
+            text_result = tv_bg.validate_text(text, language)
+            await update_progress(client_id, 20, "Text validated", {"task_id": task_id})
+        
+        # Process image if provided
+        if image_path:
+            input_types.append("image")
+            iv2 = get_image_validator()
+            if iv2 is None:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Image validator unavailable on this instance")
+            image_result = iv2.validate_image(image_path)
+            await update_progress(client_id, 40, "Image validated", {"task_id": task_id})
+        
+        # Process audio if provided
+        if audio_path:
+            input_types.append("voice")
+            vv_bg = get_voice_validator()
+            if vv_bg is None:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Voice validator unavailable on this instance")
+            voice_result = vv_bg.validate_voice(audio_path)
+            await update_progress(client_id, 60, "Voice validated", {"task_id": task_id})
+
+        # Perform cross-modal consistency checks
+        cross_modal_results = {}
+        if image_path and text:
+            cv_bg = get_clip_validator()
+            if cv_bg is None:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="CLIP validator unavailable on this instance")
+            clip_image_text_result = cv_bg.validate_image_text_alignment(image_path, text)
+            cross_modal_results["image_text"] = clip_image_text_result
+            await update_progress(client_id, 70, "Image-text consistency checked", {"task_id": task_id})
+        
+        if voice_result and text_result:
+            ce_bg = get_consistency_engine()
+            if ce_bg is None:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Consistency engine unavailable on this instance")
+            voice_text_consistency_result = ce_bg.validate_voice_text_consistency(voice_result["transcription"]["transcription"], text)
+            cross_modal_results["voice_text"] = voice_text_consistency_result
+            context_consistency = ce_bg.validate_context_consistency(text_result, voice_result)
+            cross_modal_results["context"] = context_consistency
+            await update_progress(client_id, 80, "Voice-text consistency checked", {"task_id": task_id})
+
+        # Calculate overall confidence
+        ce_bg2 = get_consistency_engine()
+        if ce_bg2 is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Consistency engine unavailable on this instance")
+        confidence_results = ce_bg2.calculate_overall_confidence(
+            image_result,
+            text_result,
+            voice_result,
+            cross_modal_results
+        )
+
+        # Prepare feedback (simplified for now, can be expanded)
+        feedback = {
+            "suggestions": [],
+            "missing_elements": [],
+            "message": "Validation complete."
+        }
+        if not confidence_results["individual_scores"].get("image", 0) > 0 and "image" in input_types:
+            feedback["suggestions"].append("Image quality could be improved.")
+        if not confidence_results["individual_scores"].get("text", 0) > 0 and "text" in input_types:
+            feedback["suggestions"].append("Text description could be more complete/coherent.")
+        if not confidence_results["individual_scores"].get("voice", 0) > 0 and "voice" in input_types:
+            feedback["suggestions"].append("Voice recording quality could be improved.")
+        if not confidence_results["cross_modal_scores"].get("clip_similarity", 0) > 0 and "image" in input_types and "text" in input_types:
+            feedback["suggestions"].append("Image and text description do not align well.")
+        if not confidence_results["cross_modal_scores"].get("voice_text_similarity", 0) > 0 and "voice" in input_types and "text" in input_types:
+            feedback["suggestions"].append("Voice and text description do not align well.")
+        if cross_modal_results.get("context") and not cross_modal_results["context"].get("valid", True):
+            feedback["suggestions"].append("Voice and text mention different locations or times.")
+        if cross_modal_results.get("context") and not cross_modal_results["context"].get("valid", True):
+            feedback["suggestions"].append("Location or time references differ between text and voice inputs.")
+
+        # Final response structure
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "input_types": input_types,
+            "image": image_result,
+            "text": text_result,
+            "voice": voice_result,
+            "cross_modal": cross_modal_results,
+            "confidence": confidence_results,
+            "feedback": feedback
+        }
         
         # Update progress to 90%
-        background_tasks_progress[task_id] = {"progress": 90, "message": "Finalizing results"}
-        await update_progress(task_id, 90, "Finalizing results")
+        background_tasks_progress[task_id] = {
+            "client_id": client_id,
+            "progress": 90,
+            "message": "Finalizing results"
+        }
+        await update_progress(client_id, 90, "Finalizing results", {"task_id": task_id})
         
         # Add task_id to result
         result["request_id"] = task_id
         
         # Update metrics
-        if result["valid"]:
-            metrics["successful_validations"] += 1
+        if confidence_results["overall_confidence"] >= 0.7:
+            metrics_collector.record_validation_result("multimodal", confidence_results["overall_confidence"], confidence_results["routing"])
         else:
-            metrics["failed_validations"] += 1
+            metrics_collector.record_validation_failure("multimodal", "low_confidence")
+
+        persist_validation_result(task_id, result)
         
         # Update progress to 100%
-        background_tasks_progress[task_id] = {"progress": 100, "message": "Validation complete", "result": result}
-        await update_progress(task_id, 100, "Validation complete")
+        background_tasks_progress[task_id] = {
+            "client_id": client_id,
+            "progress": 100,
+            "message": "Validation complete",
+            "result": result
+        }
+        await update_progress(client_id, 100, "Validation complete", {"task_id": task_id, "result": result})
         
         # Schedule cleanup for any uploaded files
         if image_path and os.path.exists(image_path):
@@ -306,8 +612,12 @@ async def process_validation_background(task_id: str, text: Optional[str], image
             
     except Exception as e:
         logger.error(f"Error in background validation: {str(e)}")
-        background_tasks_progress[task_id] = {"progress": -1, "message": f"Error: {str(e)}"}
-        await update_progress(task_id, -1, f"Error: {str(e)}")
+        background_tasks_progress[task_id] = {
+            "client_id": client_id,
+            "progress": -1,
+            "message": f"Error: {str(e)}"
+        }
+        await update_progress(client_id, -1, f"Error: {str(e)}", {"task_id": task_id})
 
 # Routes
 @app.get("/")
@@ -324,14 +634,16 @@ async def health_check():
         "timestamp": datetime.now().isoformat(),
         "components": {
             "api": "up",
+            "redis": "up" if redis_client.ping() else "down",
             "validators": {
-                "multimodal": "up",
-                "text": "up",
-                "audio": "up",
-                "clip": "up"
+                "image": "up" if importlib.util.find_spec('src.image.validator') else "down",
+                "text": "up" if importlib.util.find_spec('src.text.validator') else "down",
+                "voice": "up" if importlib.util.find_spec('src.voice.validator') else "down",
+                "clip": "up" if importlib.util.find_spec('src.cross_modal.clip_validator') else "down",
+                "consistency_engine": "up" if importlib.util.find_spec('src.cross_modal.consistency_engine') else "down"
             }
         },
-        "uptime": time.time() - metrics["start_time"]
+        "uptime": time.time() - metrics_collector.start_time
     }
     
     return health_status
@@ -339,13 +651,11 @@ async def health_check():
 @app.get("/metrics")
 async def get_metrics():
     """
-    Performance metrics endpoint.
+    Prometheus metrics endpoint.
     """
-    current_metrics = metrics.copy()
-    current_metrics["uptime"] = time.time() - metrics["start_time"]
-    current_metrics["timestamp"] = datetime.now().isoformat()
-    
-    return current_metrics
+    # Prometheus client automatically exposes metrics at /metrics
+    # This endpoint can be used for direct access or by Prometheus scraper
+    return Response(content=generate_latest().decode("utf-8"), media_type="text/plain")
 
 @app.get("/results/{request_id}")
 async def get_result(request_id: str):
@@ -365,62 +675,69 @@ async def validate_text(
     """
     Validate text input.
     """
+    start_time = time.time()
+    
+    # Auto-detect language if requested
+    language = request.language or 'en'
     try:
-        start_time = time.time()
-        
-        # Auto-detect language if requested
-        language = request.language
-        try:
-            if language.lower() == "auto":
-                from langdetect import detect
-                language = detect(request.text)
-                # Map to supported set
-                if language.startswith('en'):
-                    language = 'en'
-                elif language.startswith('si'):
-                    language = 'si'
-                elif language.startswith('ta'):
-                    language = 'ta'
-                else:
-                    language = 'en'
-        except Exception:
-            language = request.language or 'en'
+        if language.lower() == "auto":
+            from langdetect import detect
+            detected = detect(request.text)
+            if detected.startswith('en'):
+                language = 'en'
+            elif detected.startswith('si'):
+                language = 'si'
+            elif detected.startswith('ta'):
+                language = 'ta'
+            else:
+                language = 'en'
+    except Exception:
+        # Fallback to provided or default language
+        language = request.language or 'en'
 
-        # Validate text
-        text_result = text_validator.validate_text(request.text, language)
-        
-        # Format response
-        response = {
-            "valid": text_result.get("valid", False),
-            "confidence": text_result.get("confidence", 0.0),
-            "confidence_interval": None,
-            "routing": None,
-            "modal_scores": {"text": text_result},
-            "consistency": {},
-            "feedback": {
-                "suggestions": text_result.get("suggestions", []),
-                "missing_elements": [],
-                "message": text_result.get("message", "")
-            },
-            "processing_time": time.time() - start_time,
-            "message": text_result.get("message", "")
+    request_id = str(uuid.uuid4())
+
+    # Validate text using lazy-initialized validator
+    tv = get_text_validator()
+    if tv is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Text validator unavailable on this instance")
+    text_result = tv.validate_text(
+        request.text,
+        language,
+        item_type_hint=request.item_type_hint,
+        color_hint=request.color_hint,
+        location_hint=request.location_hint
+    )
+    
+    # Prepare response data
+    response_data = {
+        "request_id": request_id,
+        "timestamp": datetime.now().isoformat(),
+        "input_types": ["text"],
+        "text": text_result,
+        "cross_modal": {},
+        "confidence": {
+            "overall_confidence": text_result["overall_score"],
+            "routing": "high_quality" if text_result["valid"] else "low_quality",
+            "action": "forward_to_matching" if text_result["valid"] else "return_for_improvement",
+            "individual_scores": {"text": text_result["overall_score"]},
+            "cross_modal_scores": {}
+        },
+        "feedback": {
+            "suggestions": [],
+            "missing_elements": text_result["completeness"].get("missing_info", []),
+            "message": text_result["completeness"].get("feedback", "")
         }
-        
-        # Update metrics
-        metrics["requests"] += 1
-        if response["valid"]:
-            metrics["successful_validations"] += 1
-        else:
-            metrics["failed_validations"] += 1
-        
-        return response
-        
-    except Exception as e:
-        logger.error(f"Error validating text: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error validating text: {str(e)}"
-        )
+    }
+    
+    # Update metrics
+    if text_result["valid"]:
+        metrics_collector.record_validation_result("text", text_result["overall_score"], "high_quality")
+    else:
+        metrics_collector.record_validation_failure("text", "invalid")
+    
+    persist_validation_result(request_id, response_data)
+    return ValidationResponse(**response_data)
 
 @app.post("/validate/voice", response_model=ValidationResponse)
 async def validate_voice(
@@ -431,9 +748,11 @@ async def validate_voice(
     """
     Validate voice/audio input.
     """
+    start_time = time.time()
+    
+    request_id = str(uuid.uuid4())
+
     try:
-        start_time = time.time()
-        
         # Validate file type
         if not validate_file_type(audio_file, ALLOWED_AUDIO_TYPES):
             raise HTTPException(
@@ -442,10 +761,10 @@ async def validate_voice(
             )
         
         # Validate file size
-        if not validate_file_size(audio_file, MAX_FILE_SIZE):
+        if not validate_file_size(audio_file, MAX_AUDIO_FILE_SIZE):
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"File too large. Maximum size: {MAX_FILE_SIZE / (1024 * 1024)}MB"
+                detail=f"File too large. Maximum size: {MAX_AUDIO_FILE_SIZE / (1024 * 1024)}MB"
             )
         
         # Save uploaded file
@@ -455,34 +774,43 @@ async def validate_voice(
         background_tasks.add_task(cleanup_file, audio_path)
         
         # Validate audio
-        audio_result = audio_validator.validate_audio(audio_path)
+        vv = get_voice_validator()
+        if vv is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Voice validator unavailable on this instance")
+        voice_result = cached()(vv.validate_voice)(audio_path)
         
-        # Format response
-        response = {
-            "valid": audio_result.get("valid", False),
-            "confidence": audio_result.get("transcription", {}).get("confidence", 0.0),
-            "confidence_interval": None,
-            "routing": None,
-            "modal_scores": {"audio": audio_result},
-            "consistency": {},
-            "feedback": {
-                "suggestions": audio_result.get("recommendations", []),
-                "missing_elements": [],
-                "message": audio_result.get("message", "")
+        # Prepare response data
+        response_data = {
+            "request_id": request_id,
+            "timestamp": datetime.now().isoformat(),
+            "input_types": ["voice"],
+            "voice": voice_result,
+            "cross_modal": {},
+            "confidence": {
+                "overall_confidence": voice_result["overall_score"],
+                "routing": "high_quality" if voice_result["valid"] else "low_quality",
+                "action": "forward_to_matching" if voice_result["valid"] else "return_for_improvement",
+                "individual_scores": {"voice": voice_result["overall_score"]},
+                "cross_modal_scores": {}
             },
-            "processing_time": time.time() - start_time,
-            "message": audio_result.get("message", "")
+            "feedback": {
+                "suggestions": [],
+                "missing_elements": [],
+                "message": voice_result["quality"].get("feedback", "")
+            }
         }
         
         # Update metrics
-        metrics["requests"] += 1
-        if response["valid"]:
-            metrics["successful_validations"] += 1
+        if voice_result["valid"]:
+            metrics_collector.record_validation_result("voice", voice_result["overall_score"], "high_quality")
         else:
-            metrics["failed_validations"] += 1
+            metrics_collector.record_validation_failure("voice", "invalid")
         
-        return response
+        persist_validation_result(request_id, response_data)
+        return ValidationResponse(**response_data)
         
+    except HTTPException:
+        raise # Re-raise HTTPException to be handled by FastAPI's exception handler
     except Exception as e:
         logger.error(f"Error validating audio: {str(e)}")
         raise HTTPException(
@@ -500,9 +828,11 @@ async def validate_image(
     """
     Validate image input, optionally with text for CLIP-based alignment.
     """
+    start_time = time.time()
+    
+    request_id = str(uuid.uuid4())
+
     try:
-        start_time = time.time()
-        
         # Validate file type
         if not validate_file_type(image_file, ALLOWED_IMAGE_TYPES):
             raise HTTPException(
@@ -511,10 +841,10 @@ async def validate_image(
             )
         
         # Validate file size
-        if not validate_file_size(image_file, MAX_FILE_SIZE):
+        if not validate_file_size(image_file, MAX_IMAGE_FILE_SIZE):
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"File too large. Maximum size: {MAX_FILE_SIZE / (1024 * 1024)}MB"
+                detail=f"File too large. Maximum size: {MAX_IMAGE_FILE_SIZE / (1024 * 1024)}MB"
             )
         
         # Save uploaded file
@@ -524,44 +854,52 @@ async def validate_image(
         background_tasks.add_task(cleanup_file, image_path)
         
         # Validate image with full pipeline (blur, objects, privacy)
-        image_result = image_validator.validate_image(image_path)
+        iv = get_image_validator()
+        if iv is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Image validator unavailable on this instance")
+        image_result = cached()(iv.validate_image)(image_path)
         
         # If text is provided, validate image-text alignment
-        clip_result = {}
+        clip_image_text_result = None
         if text:
-            clip_result = clip_validator.validate_alignment(image_path, text)
+            cv = get_clip_validator()
+            if cv is not None:
+                clip_image_text_result = cached()(cv.validate_image_text_alignment)(image_path, text)
         
-        # Combine results
-        combined_result = {**image_result}
-        if clip_result:
-            combined_result["alignment"] = clip_result
-        
-        # Format response
-        response = {
-            "valid": combined_result.get("valid", False),
-            "confidence": combined_result.get("alignment", {}).get("alignment", {}).get("similarity", 0.0) if "alignment" in combined_result else (1.0 if combined_result.get("valid", False) else 0.0),
-            "confidence_interval": None,
-            "routing": None,
-            "modal_scores": {"image": combined_result},
-            "consistency": {},
+        # Prepare response data
+        response_data = {
+            "request_id": request_id,
+            "timestamp": datetime.now().isoformat(),
+            "input_types": ["image"] + (["text"] if text else []),
+            "image": image_result,
+            "text": None, # Not directly validated in this endpoint
+            "voice": None, # Not directly validated in this endpoint
+            "cross_modal": {"image_text": clip_image_text_result} if clip_image_text_result else {},
+            "confidence": {
+                "overall_confidence": image_result["overall_score"],
+                "routing": "high_quality" if image_result["valid"] else "low_quality",
+                "action": "forward_to_matching" if image_result["valid"] else "return_for_improvement",
+                "individual_scores": {"image": image_result["overall_score"]},
+                "cross_modal_scores": {"clip_similarity": clip_image_text_result["similarity"]} if clip_image_text_result else {}
+            },
             "feedback": {
                 "suggestions": [],
                 "missing_elements": [],
-                "message": combined_result.get("message", "")
-            },
-            "processing_time": time.time() - start_time,
-            "message": combined_result.get("message", "")
+                "message": image_result["sharpness"].get("feedback", "") + ". " + image_result["objects"].get("feedback", "")
+            }
         }
         
         # Update metrics
-        metrics["requests"] += 1
-        if response["valid"]:
-            metrics["successful_validations"] += 1
+        if image_result["valid"]:
+            metrics_collector.record_validation_result("image", image_result["overall_score"], "high_quality")
         else:
-            metrics["failed_validations"] += 1
+            metrics_collector.record_validation_failure("image", "invalid")
         
-        return response
+        persist_validation_result(request_id, response_data)
+        return ValidationResponse(**response_data)
         
+    except HTTPException:
+        raise # Re-raise HTTPException to be handled by FastAPI's exception handler
     except Exception as e:
         logger.error(f"Error validating image: {str(e)}")
         raise HTTPException(
@@ -581,9 +919,20 @@ async def validate_complete(
     """
     Perform complete multimodal validation with any combination of text, image, and audio inputs.
     """
+    start_time = time.time()
+    
+    # Initialize results
+    text_result = None
+    image_result = None
+    voice_result = None
+    clip_image_text_result = None
+    voice_text_consistency_result = None
+    
+    input_types = []
+
+    request_id = str(uuid.uuid4())
+
     try:
-        start_time = time.time()
-        
         # Check if at least one modality is provided
         if text is None and image_file is None and audio_file is None:
             raise HTTPException(
@@ -591,9 +940,18 @@ async def validate_complete(
                 detail="At least one modality (text, image, or audio) must be provided"
             )
         
+        # Process text if provided
+        if text:
+            input_types.append("text")
+            tv = get_text_validator()
+            if tv is None:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Text validator unavailable on this instance")
+            text_result = tv.validate_text(text, language)
+        
         # Process image if provided
         image_path = None
         if image_file:
+            input_types.append("image")
             # Validate file type
             if not validate_file_type(image_file, ALLOWED_IMAGE_TYPES):
                 raise HTTPException(
@@ -602,10 +960,10 @@ async def validate_complete(
                 )
             
             # Validate file size
-            if not validate_file_size(image_file, MAX_FILE_SIZE):
+            if not validate_file_size(image_file, MAX_IMAGE_FILE_SIZE):
                 raise HTTPException(
                     status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                    detail=f"Image file too large. Maximum size: {MAX_FILE_SIZE / (1024 * 1024)}MB"
+                    detail=f"Image file too large. Maximum size: {MAX_IMAGE_FILE_SIZE / (1024 * 1024)}MB"
                 )
             
             # Save uploaded file
@@ -613,10 +971,16 @@ async def validate_complete(
             
             # Schedule file cleanup
             background_tasks.add_task(cleanup_file, image_path)
+            
+            iv = get_image_validator()
+            if iv is None:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Image validator unavailable on this instance")
+            image_result = iv.validate_image(image_path)
         
         # Process audio if provided
         audio_path = None
         if audio_file:
+            input_types.append("voice")
             # Validate file type
             if not validate_file_type(audio_file, ALLOWED_AUDIO_TYPES):
                 raise HTTPException(
@@ -625,10 +989,10 @@ async def validate_complete(
                 )
             
             # Validate file size
-            if not validate_file_size(audio_file, MAX_FILE_SIZE):
+            if not validate_file_size(audio_file, MAX_AUDIO_FILE_SIZE):
                 raise HTTPException(
                     status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                    detail=f"Audio file too large. Maximum size: {MAX_FILE_SIZE / (1024 * 1024)}MB"
+                    detail=f"Audio file too large. Maximum size: {MAX_AUDIO_FILE_SIZE / (1024 * 1024)}MB"
                 )
             
             # Save uploaded file
@@ -636,22 +1000,83 @@ async def validate_complete(
             
             # Schedule file cleanup
             background_tasks.add_task(cleanup_file, audio_path)
+            
+            vv = get_voice_validator()
+            if vv is None:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Voice validator unavailable on this instance")
+            voice_result = vv.validate_voice(audio_path)
+
+        # Perform cross-modal consistency checks
+        cross_modal_results = {}
+        if image_path and text:
+            cv = get_clip_validator()
+            if cv is not None:
+                clip_image_text_result = cached()(cv.validate_image_text_alignment)(image_path, text)
+            cross_modal_results["image_text"] = clip_image_text_result
         
-        # Perform multimodal validation
-        result = multimodal_validator.validate(text, image_path, audio_path, language)
+        if voice_result and text_result:
+            ce = get_consistency_engine()
+            if ce is None:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Consistency engine unavailable on this instance")
+            voice_text_consistency_result = cached()(ce.validate_voice_text_consistency)(
+                voice_result["transcription"]["transcription"], text
+            )
+            cross_modal_results["voice_text"] = voice_text_consistency_result
+            context_consistency = cached()(ce.validate_context_consistency)(text_result, voice_result)
+            cross_modal_results["context"] = context_consistency
         
-        # Add request_id
-        result["request_id"] = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        # Calculate overall confidence
+        ce2 = get_consistency_engine()
+        if ce2 is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Consistency engine unavailable on this instance")
+        confidence_results = ce2.calculate_overall_confidence(
+            image_result,
+            text_result,
+            voice_result,
+            cross_modal_results
+        )
+
+        # Prepare feedback (simplified for now, can be expanded)
+        feedback = {
+            "suggestions": [],
+            "missing_elements": [],
+            "message": "Validation complete."
+        }
+        if not confidence_results["individual_scores"].get("image", 0) > 0 and "image" in input_types:
+            feedback["suggestions"].append("Image quality could be improved.")
+        if not confidence_results["individual_scores"].get("text", 0) > 0 and "text" in input_types:
+            feedback["suggestions"].append("Text description could be more complete/coherent.")
+        if not confidence_results["individual_scores"].get("voice", 0) > 0 and "voice" in input_types:
+            feedback["suggestions"].append("Voice recording quality could be improved.")
+        if not confidence_results["cross_modal_scores"].get("clip_similarity", 0) > 0 and "image" in input_types and "text" in input_types:
+            feedback["suggestions"].append("Image and text description do not align well.")
+        if not confidence_results["cross_modal_scores"].get("voice_text_similarity", 0) > 0 and "voice" in input_types and "text" in input_types:
+            feedback["suggestions"].append("Voice and text description do not align well.")
+
+        # Final response structure
+        response_data = {
+            "request_id": request_id,
+            "timestamp": datetime.now().isoformat(),
+            "input_types": input_types,
+            "image": image_result,
+            "text": text_result,
+            "voice": voice_result,
+            "cross_modal": cross_modal_results,
+            "confidence": confidence_results,
+            "feedback": feedback
+        }
         
         # Update metrics
-        metrics["requests"] += 1
-        if result["valid"]:
-            metrics["successful_validations"] += 1
+        if confidence_results["overall_confidence"] >= 0.7:
+            metrics_collector.record_validation_result("multimodal", confidence_results["overall_confidence"], confidence_results["routing"])
         else:
-            metrics["failed_validations"] += 1
+            metrics_collector.record_validation_failure("multimodal", "low_confidence")
         
-        return result
+        persist_validation_result(request_id, response_data)
+        return ValidationResponse(**response_data)
         
+    except HTTPException:
+        raise # Re-raise HTTPException to be handled by FastAPI's exception handler
     except Exception as e:
         logger.error(f"Error in complete validation: {str(e)}")
         raise HTTPException(
@@ -681,17 +1106,17 @@ async def websocket_validation(websocket: WebSocket, client_id: str):
                 
                 # Process text validation
                 text = data.get("text")
-                image_path = None
-                audio_path = None
+                image_path = data.get("image_path")
+                audio_path = data.get("audio_path")
                 language = data.get("language", "en")
                 
                 # Start background task
                 asyncio.create_task(process_validation_background(
-                    task_id, text, image_path, audio_path, language
+                    client_id, task_id, text, image_path, audio_path, language
                 ))
                 
                 # Send task ID to client
-                await websocket.send_json({"task_id": task_id})
+                await websocket.send_json({"task_id": task_id, "status": "accepted"})
             
             # Handle task status request
             elif data.get("type") == "status" and "task_id" in data:
@@ -731,7 +1156,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     
     # Add suggestions based on error type
     if exc.status_code == status.HTTP_413_REQUEST_ENTITY_TOO_LARGE:
-        error_response.suggestion = f"Try uploading a smaller file (max {MAX_FILE_SIZE / (1024 * 1024)}MB)"
+        error_response.suggestion = f"Try uploading a smaller file (max {MAX_IMAGE_FILE_SIZE / (1024 * 1024)}MB)"
     elif exc.status_code == status.HTTP_400_BAD_REQUEST and "file type" in str(exc.detail).lower():
         error_response.suggestion = "Check the file format and try again with a supported format"
     elif exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
@@ -795,9 +1220,176 @@ def custom_openapi():
         "text": "A silver watch with leather strap found near the park entrance",
         "language": "en"
     }
-    
-    app.openapi_schema = openapi_schema
-    return app.openapi_schema
+    text_path["responses"]["200"]["content"]["application/json"]["example"] = {
+        "timestamp": "2023-10-27T10:00:00.000000",
+        "input_types": ["text"],
+        "image": None,
+        "text": {
+            "text": "A silver watch with leather strap found near the park entrance",
+            "timestamp": "2023-10-27 10:00:00",
+            "completeness": {
+                "valid": True,
+                "score": 1.0,
+                "entities": {"item_type": ["watch"], "color": ["silver"], "location": ["park entrance"]},
+                "missing_info": [],
+                "feedback": "Description contains all required elements"
+            },
+            "coherence": {
+                "valid": True,
+                "score": 0.9,
+                "feedback": "Description is semantically coherent"
+            },
+            "entities": {
+                "entities": [
+                    {"text": "silver watch", "label": "PRODUCT", "start": 2, "end": 14},
+                    {"text": "park entrance", "label": "LOC", "start": 36, "end": 49}
+                ],
+                "item_mentions": ["watch"],
+                "color_mentions": ["silver"],
+                "location_mentions": ["park entrance"]
+            },
+            "overall_score": 0.95,
+            "valid": True
+        },
+        "voice": None,
+        "cross_modal": {},
+        "confidence": {
+            "overall_confidence": 0.95,
+            "routing": "high_quality",
+            "action": "forward_to_matching",
+            "individual_scores": {"text": 0.95},
+            "cross_modal_scores": {}
+        },
+        "feedback": {
+            "suggestions": [],
+            "missing_elements": [],
+            "message": "Description contains all required elements. Description is semantically coherent"
+        }
+    }
+
+    # Example for image validation
+    image_path = openapi_schema["paths"]["/validate/image"]["post"]
+    image_path["requestBody"]["content"]["multipart/form-data"]["example"] = {
+        "image_file": "<binary file>",
+        "text": "A red iPhone"
+    }
+    image_path["responses"]["200"]["content"]["application/json"]["example"] = {
+        "timestamp": "2023-10-27T10:00:00.000000",
+        "input_types": ["image", "text"],
+        "image": {
+            "image_path": "uploads/20231027100000000000_test_image.jpg",
+            "timestamp": "2023-10-27 10:00:00",
+            "sharpness": {"valid": True, "score": 150.0, "threshold": 100.0, "feedback": "Image is sharp"},
+            "objects": {"valid": True, "detections": [{"class": "phone", "confidence": 0.95, "bbox": [10, 10, 50, 50]}], "feedback": "Detected 1 objects"},
+            "privacy": {"faces_detected": 0, "privacy_protected": False, "processed_image": None, "feedback": "No faces detected"},
+            "overall_score": 0.9,
+            "valid": True
+        },
+        "text": None,
+        "voice": None,
+        "cross_modal": {
+            "image_text": {"valid": True, "similarity": 0.92, "threshold": 0.85, "feedback": "Image and text are semantically aligned"}
+        },
+        "confidence": {
+            "overall_confidence": 0.91,
+            "routing": "high_quality",
+            "action": "forward_to_matching",
+            "individual_scores": {"image": 0.9},
+            "cross_modal_scores": {"clip_similarity": 0.92}
+        },
+        "feedback": {
+            "suggestions": [],
+            "missing_elements": [],
+            "message": "Image is sharp. Detected 1 objects"
+        }
+    }
+
+    # Example for voice validation
+    voice_path = openapi_schema["paths"]["/validate/voice"]["post"]
+    voice_path["requestBody"]["content"]["multipart/form-data"]["example"] = {
+        "audio_file": "<binary file>"
+    }
+    voice_path["responses"]["200"]["content"]["application/json"]["example"] = {
+        "timestamp": "2023-10-27T10:00:00.000000",
+        "input_types": ["voice"],
+        "image": None,
+        "text": None,
+        "voice": {
+            "audio_path": "uploads/20231027100000000000_test_audio.wav",
+            "timestamp": "2023-10-27 10:00:00",
+            "quality": {"valid": True, "duration": 15.2, "snr": 28.5, "duration_valid": True, "quality_valid": True, "feedback": "Audio quality assessment passed"},
+            "transcription": {"valid": True, "transcription": "I lost my keys in the cafeteria", "confidence": 0.91, "language": "en", "feedback": "Speech recognition successful"},
+            "overall_score": 0.88,
+            "valid": True
+        },
+        "cross_modal": {},
+        "confidence": {
+            "overall_confidence": 0.88,
+            "routing": "high_quality",
+            "action": "forward_to_matching",
+            "individual_scores": {"voice": 0.88},
+            "cross_modal_scores": {}
+        },
+        "feedback": {
+            "suggestions": [],
+            "missing_elements": [],
+            "message": "Audio quality assessment passed. Speech recognition successful"
+        }
+    }
+
+    # Example for complete validation
+    complete_path = openapi_schema["paths"]["/validate/complete"]["post"]
+    complete_path["requestBody"]["content"]["multipart/form-data"]["example"] = {
+        "text": "Lost my red iPhone 13 in the library yesterday afternoon",
+        "image_file": "<binary file>",
+        "audio_file": "<binary file>"
+    }
+    complete_path["responses"]["200"]["content"]["application/json"]["example"] = {
+        "timestamp": "2023-10-27T10:00:00.000000",
+        "input_types": ["text", "image", "voice"],
+        "image": {
+            "image_path": "uploads/20231027100000000000_test_image.jpg",
+            "timestamp": "2023-10-27 10:00:00",
+            "sharpness": {"valid": True, "score": 150.0, "threshold": 100.0, "feedback": "Image is sharp"},
+            "objects": {"valid": True, "detections": [{"class": "phone", "confidence": 0.95, "bbox": [10, 10, 50, 50]}], "feedback": "Detected 1 objects"},
+            "privacy": {"faces_detected": 0, "privacy_protected": False, "processed_image": None, "feedback": "No faces detected"},
+            "overall_score": 0.9,
+            "valid": True
+        },
+        "text": {
+            "text": "Lost my red iPhone 13 in the library yesterday afternoon",
+            "timestamp": "2023-10-27 10:00:00",
+            "completeness": {"valid": True, "score": 1.0, "entities": {"item_type": ["iphone"], "color": ["red"], "location": ["library"]}, "missing_info": [], "feedback": "Description contains all required elements"},
+            "coherence": {"valid": True, "score": 0.9, "feedback": "Description is semantically coherent"},
+            "entities": {"entities": [], "item_mentions": ["iphone"], "color_mentions": ["red"], "location_mentions": ["library"]},
+            "overall_score": 0.95,
+            "valid": True
+        },
+        "voice": {
+            "audio_path": "uploads/20231027100000000000_test_audio.wav",
+            "timestamp": "2023-10-27 10:00:00",
+            "quality": {"valid": True, "duration": 15.2, "snr": 28.5, "duration_valid": True, "quality_valid": True, "feedback": "Audio quality assessment passed"},
+            "transcription": {"valid": True, "transcription": "I lost my red iPhone 13 in the library", "confidence": 0.91, "language": "en", "feedback": "Speech recognition successful"},
+            "overall_score": 0.88,
+            "valid": True
+        },
+        "cross_modal": {
+            "image_text": {"valid": True, "similarity": 0.92, "threshold": 0.85, "feedback": "Image and text are semantically aligned"},
+            "voice_text": {"valid": True, "similarity": 0.88, "threshold": 0.75, "feedback": "Voice and text are semantically consistent"}
+        },
+        "confidence": {
+            "overall_confidence": 0.9,
+            "routing": "high_quality",
+            "action": "forward_to_matching",
+            "individual_scores": {"image": 0.9, "text": 0.95, "voice": 0.88},
+            "cross_modal_scores": {"clip_similarity": 0.92, "voice_text_similarity": 0.88}
+        },
+        "feedback": {
+            "suggestions": [],
+            "missing_elements": [],
+            "message": "Validation complete."
+        }
+    }
 
 # Set custom OpenAPI schema
 app.openapi = custom_openapi
@@ -811,4 +1403,4 @@ except Exception as _e:
 
 # Main entry point
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=8000)

@@ -1,35 +1,95 @@
-import React, { useCallback, useRef, useState } from 'react'
+import React, { useState, useId } from 'react'
 
-export const Dropzone: React.FC<{ onFile: (f: File) => void; accept?: string }>
-  = ({ onFile, accept }) => {
-  const [hover, setHover] = useState(false)
-  const inputRef = useRef<HTMLInputElement | null>(null)
-  const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault(); setHover(false)
-    const f = e.dataTransfer.files[0]
-    if (f) onFile(f)
-  }, [onFile])
+interface FileUploadZoneProps {
+  onUpload: (file: File) => void
+  accept: string
+  maxSize: number
+}
+
+
+export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
+  onUpload,
+  accept,
+  maxSize
+}) => {
+  const [dragActive, setDragActive] = useState(false)
+  const [preview, setPreview] = useState<string | null>(null)
+  const inputId = useId()
+
+  const handleFile = (file: File) => {
+    if (!file) return
+
+    if (file.size > maxSize) {
+      alert('The selected file is too large. Please choose a smaller image.')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setPreview(event.target.result as string)
+      }
+    }
+    reader.readAsDataURL(file)
+    onUpload(file)
+  }
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setDragActive(false)
+    const droppedFile = event.dataTransfer.files?.[0]
+    if (droppedFile) {
+      handleFile(droppedFile)
+    }
+  }
+
   return (
-    <div
-      onDragOver={(e) => { e.preventDefault(); setHover(true) }}
-      onDragLeave={() => setHover(false)}
-      onDrop={onDrop}
-      onClick={() => inputRef.current?.click()}
-      style={{
-        border: '2px dashed #334155', borderRadius: 12, padding: 20,
-        background: hover ? '#0b1220' : '#0a1220', cursor: 'pointer'
-      }}
-      aria-label="File upload dropzone"
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter') inputRef.current?.click() }}
-    >
-      <div>Drag & drop or click to upload</div>
-      <input ref={inputRef} type="file" accept={accept} onChange={e => {
-        const f = e.target.files?.[0]
-        if (f) onFile(f)
-      }} style={{ display: 'none' }} />
+    <div>
+      <input
+        id={inputId}
+        type="file"
+        accept={accept}
+        style={{ display: 'none' }}
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          if (file) {
+            handleFile(file)
+          }
+        }}
+      />
+      <div
+        className={['dropzone', dragActive ? 'dropzone--active' : ''].join(' ')}
+        onDragEnter={(event) => {
+          event.preventDefault()
+          setDragActive(true)
+        }}
+        onDragLeave={(event) => {
+          event.preventDefault()
+          setDragActive(false)
+        }}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={handleDrop}
+      >
+        {preview ? (
+          <img
+            src={preview}
+            alt="Uploaded item preview"
+            className="dropzone-preview"
+          />
+        ) : (
+          <>
+            <p style={{ marginBottom: '0.5rem', fontWeight: 600 }}>
+              Drag and drop a supporting photo
+            </p>
+            <p style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>
+              JPEG, PNG or WEBP files up to {Math.round(maxSize / (1024 * 1024))}MB
+            </p>
+            <label htmlFor={inputId} className="button">
+              Choose an image
+            </label>
+          </>
+        )}
+      </div>
     </div>
   )
 }
-

@@ -18,8 +18,6 @@ opencv-python>=4.8.0.74
 ultralytics>=8.0.0
 
 # CLIP (OpenAI)
-# The official CLIP package is installed from GitHub. If your environment blocks VCS installs,
-# preinstall it or vendor the package.
 git+https://github.com/openai/CLIP.git
 ftfy>=6.1.1
 regex>=2023.6.3
@@ -33,8 +31,17 @@ Pillow>=9.5.0
 
 # Logging and monitoring
 python-json-logger>=2.0.7
+prometheus_client>=0.17.0
+psutil>=5.9.5
 
 # Security
 python-jose>=3.3.0
 passlib>=1.7.4
 bcrypt>=4.0.1
+
+# Caching
+redis>=4.5.0
+
+# Database
+SQLAlchemy>=1.4.0
+psycopg2-binary>=2.9.0

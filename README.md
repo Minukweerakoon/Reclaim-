@@ -1,4 +1,4 @@
-# Multimode Input Validation & Quality Filtering Module
+# mutimodel-validation
 
 A comprehensive validation system for lost and found applications that performs multiple validation checks on images, text descriptions, and audio recordings to ensure they meet quality standards.
 
@@ -9,14 +9,101 @@ A comprehensive validation system for lost and found applications that performs 
 - **Blur Detection**: Uses Laplacian variance to detect and filter blurry images
 - **Object Detection**: Leverages YOLOv8 to identify objects in images with confidence filtering
 - **Privacy Protection**: Automatically detects and blurs faces in images
-- **Structured Results**: Returns detailed JSON results with validity flags, scores, and feedback
+### Image Validation Results
 
-### Text Validation
-- **Completeness Analysis**: Checks for essential elements (item type, color, location)
-- **Semantic Coherence**: Validates text coherence using BERT embeddings
-- **Entity Extraction**: Uses spaCy NER to identify named entities in descriptions
-- **Feedback Generation**: Provides constructive feedback for incomplete descriptions
-- **Multilingual Support**: Works with English, Sinhala, and Tamil languages
+```json
+{
+  "image_path": "path/to/image.jpg",
+  "timestamp": "2023-10-27 10:00:00",
+  "sharpness": {
+    "valid": true/false,
+    "score": 235.45,
+    "threshold": 100.0,
+    "feedback": "Image is sharp"
+  },
+  "objects": {
+    "valid": true/false,
+    "detections": [
+      {
+        "class": "backpack",
+        "confidence": 0.92,
+        "bbox": [x1, y1, x2, y2]
+      }
+    ],
+    "feedback": "Detected 3 objects"
+  },
+  "privacy": {
+    "faces_detected": 2,
+    "privacy_protected": true/false,
+    "processed_image": "path/to/blurred_image.jpg",
+    "feedback": "All faces blurred successfully"
+  },
+  "overall_score": 0.85,
+  "valid": true/false
+}
+```
+
+### Text Validation Results
+
+```json
+{
+  "text": "I lost my blue phone in the library",
+  "timestamp": "2023-10-27 10:00:00",
+  "completeness": {
+    "valid": true/false,
+    "score": 0.8,
+    "entities": {"item_type": ["phone"], "color": ["blue"], "location": ["library"]},
+    "missing_info": [],
+    "feedback": "Description contains all required elements"
+  },
+  "coherence": {
+    "valid": true/false,
+    "score": 0.75,
+    "feedback": "Description is semantically coherent"
+  },
+  "entities": {
+    "entities": [
+      {
+        "text": "library",
+        "label": "LOC",
+        "start": 24,
+        "end": 31
+      }
+    ],
+    "item_mentions": ["phone"],
+    "color_mentions": ["blue"],
+    "location_mentions": ["library"]
+  },
+  "overall_score": 0.78,
+  "valid": true/false
+}
+```
+
+### Audio Validation Results
+
+```json
+{
+  "audio_path": "path/to/audio.mp3",
+  "timestamp": "2023-10-27 10:00:00",
+  "quality": {
+    "valid": true/false,
+    "duration": 15.2,
+    "snr": 28.5,
+    "duration_valid": true/false,
+    "quality_valid": true/false,
+    "feedback": "Audio quality assessment passed"
+  },
+  "transcription": {
+    "valid": true/false,
+    "transcription": "I lost my keys in the cafeteria",
+    "confidence": 0.91,
+    "language": "en",
+    "feedback": "Speech recognition successful"
+  },
+  "overall_score": 0.88,
+  "valid": true/false
+}
+```
 
 ### Audio Validation
 - **File Validation**: Checks audio format and size (supports MP3, WAV, M4A, OGG up to 20MB)
@@ -63,7 +150,7 @@ python -m spacy download en_core_web_md
 ### Image Validation
 
 ```python
-from image_validator import ImageValidator
+from src.image.validator import ImageValidator
 
 # Initialize with default parameters
 validator = ImageValidator()
@@ -75,13 +162,13 @@ result = validator.validate_image('path/to/image.jpg')
 if result['valid']:
     print("Image passed all validation checks")
 else:
-    print(f"Image failed validation: {result['message']}")
+    print(f"Image failed validation: {result['sharpness']['feedback']}. {result['objects']['feedback']}")
 ```
 
 ### Text Validation
 
 ```python
-from text_validator import TextValidator
+from src.text.validator import TextValidator
 
 # Initialize with default parameters
 validator = TextValidator()
@@ -93,36 +180,34 @@ result = validator.validate_text('I lost my blue phone in the library', 'en')
 if result['valid']:
     print("Description passed all validation checks")
 else:
-    print(f"Description failed validation: {result['message']}")
+    print(f"Description failed validation: {result['completeness']['feedback']}. {result['coherence']['feedback']}")
 ```
 
 ### Audio Validation
 
 ```python
-from audio_validator import AudioValidator
+from src.voice.validator import VoiceValidator
 
 # Initialize with default parameters
-validator = AudioValidator()
+validator = VoiceValidator()
 
 # Validate an audio recording
-result = validator.validate_audio('path/to/audio.mp3')
+result = validator.validate_voice('path/to/audio.mp3')
 
 # Check overall validity
 if result['valid']:
     print("Audio passed all validation checks")
-    print(f"Transcription: {result['transcription']['text']}")
+    print(f"Transcription: {result['transcription']['transcription']}")
 else:
-    print(f"Audio failed validation: {result['message']}")
-    if result['recommendations']:
-        print("Recommendations:")
-        for rec in result['recommendations']:
-            print(f"- {rec}")
+    print(f"Audio failed validation: {result['quality']['feedback']}. {result['transcription']['feedback']}")
 ```
 
 ### Custom Configuration
 
 #### Image Validator
 ```python
+from src.image.validator import ImageValidator
+
 # Initialize with custom parameters
 image_validator = ImageValidator(
     blur_threshold=150.0,  # Higher threshold for blur detection
@@ -133,6 +218,8 @@ image_validator = ImageValidator(
 
 #### Text Validator
 ```python
+from src.text.validator import TextValidator
+
 # Initialize with custom parameters
 text_validator = TextValidator(
     completeness_threshold=0.6,  # Lower threshold for completeness
@@ -144,8 +231,10 @@ text_validator = TextValidator(
 
 #### Audio Validator
 ```python
+from src.voice.validator import VoiceValidator
+
 # Initialize with custom parameters
-audio_validator = AudioValidator(
+voice_validator = VoiceValidator(
     whisper_model_size='small',  # Model size: 'tiny', 'base', 'small', 'medium', 'large'
     snr_threshold=15.0,  # Lower threshold for signal-to-noise ratio
     min_duration=3.0,  # Shorter minimum duration in seconds
@@ -158,7 +247,7 @@ audio_validator = AudioValidator(
 #### Image Validation Demo
 
 ```bash
-python demo.py --image path/to/image.jpg --output processed_image.jpg
+python image_demo.py --image path/to/image.jpg --output processed_image.jpg
 ```
 
 Options:
@@ -185,43 +274,46 @@ Options:
 
 ```bash
 python audio_demo.py --audio path/to/audio.mp3 --output results.json
-
-#### CLIP-based Image-Text Alignment Validation
-
-```bash
-python clip_demo.py --image path/to/image.jpg --text "a description of the image" --output results.json
-```
 ```
 
-Options:
-- `--audio`: Path to the audio file (required)
-- `--output`: Path to save validation results (optional)
+## Deployment
 
-### API Server
+To deploy the entire multimodal validation system using Docker Compose, follow these steps:
 
-```bash
-python app.py
-# or
-uvicorn app:app --host 0.0.0.0 --port 8000 --reload
-```
+1.  **Prerequisites**:
+    *   Docker Desktop (or Docker Engine and Docker Compose) installed on your system.
+    *   Ensure ports 80, 443, 3000, 8000, 8001, 9090, 5432, 6379 are free or adjust `docker-compose.yml`.
 
-Access docs at http://localhost:8000/docs (use header `X-API-Key: test-api-key`).
+2.  **Environment Configuration**:
+    *   Create a `.env` file in the root directory of the project based on `.env.example`.
+    *   Set your `API_KEY` in the `.env` file. This key will be used for authenticating API requests.
 
-### Frontend Chatbot UI
+    ```bash
+    cp .env.example .env
+    # Edit .env and set API_KEY
+    ```
 
-```bash
-cd frontend
-npm install
-echo "VITE_API_URL=http://localhost:8000" > .env.local
-echo "VITE_API_KEY=test-api-key" >> .env.local
-npm run dev
-```
+3.  **Build and Run with Docker Compose**:
+    *   Navigate to the root directory of the project in your terminal.
+    *   Build and start all services defined in `docker-compose.yml`:
 
-Open http://localhost:5173 to interact with the chatbot.
-- `--model`: Whisper model size (tiny, base, small, medium, large) (default: small)
-- `--snr_threshold`: Signal-to-noise ratio threshold (default: 20.0)
-- `--min_duration`: Minimum audio duration in seconds (default: 5.0)
-- `--max_duration`: Maximum audio duration in seconds (default: 120.0)
+    ```bash
+    docker compose build
+    docker compose up -d
+    ```
+
+4.  **Verify Services**:
+    *   **FastAPI Application**: Access the API documentation at `http://localhost:8000/docs`.
+    *   **Frontend Chatbot**: Access the UI at `http://localhost:3001`.
+    *   **Grafana Dashboard**: Access Grafana at `http://localhost:3000` (default login: admin/admin).
+    *   **Prometheus**: Access Prometheus at `http://localhost:9090`.
+
+5.  **Stop Services**:
+    *   To stop all running services, use:
+
+    ```bash
+    docker compose down
+    ```
 
 ## Response Format
 
@@ -229,37 +321,33 @@ Open http://localhost:5173 to interact with the chatbot.
 
 ```json
 {
-  "valid": true/false,  // Overall validity of the image
-  "file_validation": {
+  "image_path": "path/to/image.jpg",
+  "timestamp": "2023-10-27 10:00:00",
+  "sharpness": {
     "valid": true/false,
-    "format": ".jpg",
-    "size": 1234567,
-    "message": "File validation passed"
-  },
-  "blur_detection": {
-    "valid": true/false,
-    "variance": 235.45,
+    "score": 235.45,
     "threshold": 100.0,
-    "message": "Image is sharp"
+    "feedback": "Image is sharp"
   },
-  "object_detection": {
+  "objects": {
     "valid": true/false,
-    "objects": [
+    "detections": [
       {
         "class": "backpack",
         "confidence": 0.92,
         "bbox": [x1, y1, x2, y2]
       }
     ],
-    "message": "Detected 3 objects"
+    "feedback": "Detected 3 objects"
   },
-  "privacy_protection": {
+  "privacy": {
     "faces_detected": 2,
-    "faces_blurred": 2,
-    "message": "All faces blurred successfully"
+    "privacy_protected": true/false,
+    "processed_image": "path/to/blurred_image.jpg",
+    "feedback": "All faces blurred successfully"
   },
-  "processing_time": 1.23,  // Processing time in seconds
-  "message": "Image passed all validation checks"
+  "overall_score": 0.85,
+  "valid": true/false
 }
 ```
 
@@ -267,25 +355,22 @@ Open http://localhost:5173 to interact with the chatbot.
 
 ```json
 {
-  "valid": true/false,  // Overall validity of the description
+  "text": "I lost my blue phone in the library",
+  "timestamp": "2023-10-27 10:00:00",
   "completeness": {
     "valid": true/false,
     "score": 0.8,
-    "threshold": 0.7,
-    "item_type": {"found": true, "value": "phone"},
-    "color": {"found": true, "value": "blue"},
-    "location": {"found": true, "value": "library"},
-    "message": "Description contains all required elements"
+    "entities": {"item_type": ["phone"], "color": ["blue"], "location": ["library"]},
+    "missing_info": [],
+    "feedback": "Description contains all required elements"
   },
   "coherence": {
     "valid": true/false,
     "score": 0.75,
-    "threshold": 0.6,
-    "message": "Description is semantically coherent"
+    "feedback": "Description is semantically coherent"
   },
   "entities": {
-    "valid": true/false,
-    "extracted": [
+    "entities": [
       {
         "text": "library",
         "label": "LOC",
@@ -293,15 +378,38 @@ Open http://localhost:5173 to interact with the chatbot.
         "end": 31
       }
     ],
-    "message": "Extracted 1 entities from description"
+    "item_mentions": ["phone"],
+    "color_mentions": ["blue"],
+    "location_mentions": ["library"]
   },
-  "feedback": {
-    "suggestions": [],
-    "missing_elements": [],
-    "message": "Your description is complete and coherent"
+  "overall_score": 0.78,
+  "valid": true/false
+}
+```
+
+### Audio Validation Results
+
+```json
+{
+  "audio_path": "path/to/audio.mp3",
+  "timestamp": "2023-10-27 10:00:00",
+  "quality": {
+    "valid": true/false,
+    "duration": 15.2,
+    "snr": 28.5,
+    "duration_valid": true/false,
+    "quality_valid": true/false,
+    "feedback": "Audio quality assessment passed"
   },
-  "processing_time": 0.45,  // Processing time in seconds
-  "message": "Description passed all validation checks"
+  "transcription": {
+    "valid": true/false,
+    "transcription": "I lost my keys in the cafeteria",
+    "confidence": 0.91,
+    "language": "en",
+    "feedback": "Speech recognition successful"
+  },
+  "overall_score": 0.88,
+  "valid": true/false
 }
 ```
 
