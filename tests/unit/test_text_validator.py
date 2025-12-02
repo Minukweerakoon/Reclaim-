@@ -43,25 +43,27 @@ class TestTextValidator:
         mock_transformers[1].assert_called_once() # AutoModel
 
     def test_check_completeness_complete(self, text_validator):
-        text = "I lost my red phone in the library."
+        text = "I lost my red Gucci phone in the library yesterday."
         result = text_validator.check_completeness(text, 'en')
         assert result['valid'] is True
-        assert result['score'] == 1.0 # 0.4 (item) + 0.3 (color) + 0.3 (location)
+        assert result['score'] == 100
         assert "phone" in result['entities']['item_type']
         assert "red" in result['entities']['color']
         assert "library" in result['entities']['location']
+        assert "gucci" in [b.lower() for b in result['entities']['brand']]
+        assert result['has_time'] is True
         assert not result['missing_info']
-        assert "Description contains all required elements" in result['feedback']
 
     def test_check_completeness_incomplete(self, text_validator):
         text = "I lost something."
         result = text_validator.check_completeness(text, 'en')
         assert result['valid'] is False
-        assert result['score'] == 0.0
+        assert result['score'] == 0
         assert "item type" in result['missing_info']
         assert "color" in result['missing_info']
         assert "location" in result['missing_info']
-        assert "Description is incomplete" in result['feedback']
+        assert any("brand" in missing for missing in result['missing_info'])
+        assert "Completeness" in result['feedback']
 
     def test_check_semantic_coherence_coherent(self, text_validator, mock_spacy_load, mock_sentence_transformer):
         text = "I lost my phone. It was red."
@@ -88,19 +90,20 @@ class TestTextValidator:
         assert "Description lacks semantic coherence" in result['feedback']
 
     def test_extract_entities(self, text_validator):
-        text = "I lost my red iPhone in the library."
+        text = "I lost my red Gucci iPhone in the library."
         result = text_validator.extract_entities(text, 'en')
         assert len(result['entities']) > 0
         assert "iPhone" in result['item_mentions']
         assert "red" in result['color_mentions']
         assert "library" in result['location_mentions']
+        assert any(b.lower() == 'gucci' for b in result['brand_mentions'])
 
     def test_validate_text_overall_valid(self, text_validator):
         text = "I lost my red phone in the library. It was a new model."
         # Mock sub-methods to return valid results
-        text_validator.check_completeness = MagicMock(return_value={'valid': True, 'score': 1.0, 'entities': {}, 'missing_info': [], 'feedback': 'Complete'})
+        text_validator.check_completeness = MagicMock(return_value={'valid': True, 'score': 100, 'entities': {}, 'missing_info': [], 'feedback': 'Complete'})
         text_validator.check_semantic_coherence = MagicMock(return_value={'valid': True, 'score': 0.8, 'feedback': 'Coherent'})
-        text_validator.extract_entities = MagicMock(return_value={'entities': [], 'item_mentions': ['phone'], 'color_mentions': ['red'], 'location_mentions': ['library']})
+        text_validator.extract_entities = MagicMock(return_value={'entities': [], 'item_mentions': ['phone'], 'color_mentions': ['red'], 'location_mentions': ['library'], 'brand_mentions': ['gucci']})
 
         result = text_validator.validate_text(text, 'en')
         assert result['valid'] is True
@@ -113,9 +116,9 @@ class TestTextValidator:
     def test_validate_text_overall_invalid(self, text_validator):
         text = "Lost something."
         # Mock sub-methods to return invalid results
-        text_validator.check_completeness = MagicMock(return_value={'valid': False, 'score': 0.0, 'entities': {}, 'missing_info': ['item type'], 'feedback': 'Incomplete'})
+        text_validator.check_completeness = MagicMock(return_value={'valid': False, 'score': 0, 'entities': {}, 'missing_info': ['item type'], 'feedback': 'Incomplete'})
         text_validator.check_semantic_coherence = MagicMock(return_value={'valid': False, 'score': 0.3, 'feedback': 'Incoherent'})
-        text_validator.extract_entities = MagicMock(return_value={'entities': [], 'item_mentions': [], 'color_mentions': [], 'location_mentions': []})
+        text_validator.extract_entities = MagicMock(return_value={'entities': [], 'item_mentions': [], 'color_mentions': [], 'location_mentions': [], 'brand_mentions': []})
 
         result = text_validator.validate_text(text, 'en')
         assert result['valid'] is False

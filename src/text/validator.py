@@ -55,6 +55,16 @@ class TextValidator:
         'ta': ['உள்ளே', 'அருகில்', 'அருகே', 'மேல்', 'உள்ளே', 'வெளியே', 'பின்னால்', 'கீழே', 'மேலே', 'கீழே', 'பக்கத்தில்', 'இடையில்', 'சுற்றி', 'குறுக்கே', 'வழியாக', 'முழுவதும்', 'உள்ளே', 'நெடுகிலும்', 'அருகில்', 'அடுத்து']
     }
     
+    DEFAULT_BRANDS = {
+        'en': [
+            'gucci', 'louis vuitton', 'prada', 'apple', 'samsung', 'lenovo',
+            'dell', 'hp', 'nike', 'adidas', 'coach', 'hermes', 'fossil',
+            'michael kors', 'lacoste'
+        ],
+        'si': [],
+        'ta': []
+    }
+    
     def __init__(self, 
                  item_types: Optional[Dict[str, List[str]]] = None,
                  colors: Optional[Dict[str, List[str]]] = None,
@@ -79,6 +89,7 @@ class TextValidator:
         self.item_types = item_types if item_types is not None else self.DEFAULT_ITEM_TYPES
         self.colors = colors if colors is not None else self.DEFAULT_COLORS
         self.locations = locations if locations is not None else self.DEFAULT_LOCATIONS
+        self.brands = self.DEFAULT_BRANDS
         self.completeness_threshold = completeness_threshold
         self.coherence_threshold = coherence_threshold
         self.enable_logging = enable_logging
@@ -95,6 +106,8 @@ class TextValidator:
                     self.colors[lang] = self.colors.get('en', [])
                 if lang in self.locations and _has_non_ascii(self.locations.get(lang, [])):
                     self.locations[lang] = self.locations.get('en', [])
+                if lang in self.brands and _has_non_ascii(self.brands.get(lang, [])):
+                    self.brands[lang] = self.brands.get('en', [])
         except Exception:
             # On any issue, fall back to English lists for all languages
             self.item_types['si'] = self.item_types.get('en', [])
@@ -103,7 +116,9 @@ class TextValidator:
             self.colors['ta'] = self.colors.get('en', [])
             self.locations['si'] = self.locations.get('en', [])
             self.locations['ta'] = self.locations.get('en', [])
-        
+            self.brands['si'] = self.brands.get('en', [])
+            self.brands['ta'] = self.brands.get('en', [])
+
         # Ensure no corrupted multilingual keyword lists leak into runtime
         # Prefer empty lists over unreliable matches; production should load UTF-8 resources
         for lang in ['si', 'ta']:
@@ -113,6 +128,8 @@ class TextValidator:
                 self.colors[lang] = []
             if not isinstance(self.locations.get(lang, []), list):
                 self.locations[lang] = []
+            if not isinstance(self.brands.get(lang, []), list):
+                self.brands[lang] = []
         try:
             def _contains_non_ascii(seq: List[str]) -> bool:
                 return any(any(ord(ch) > 127 for ch in token) for token in seq)
@@ -123,6 +140,8 @@ class TextValidator:
                     self.colors[lang] = []
                 if _contains_non_ascii(self.locations.get(lang, [])):
                     self.locations[lang] = []
+                if _contains_non_ascii(self.brands.get(lang, [])):
+                    self.brands[lang] = []
         except Exception:
             # On any error, use empty lists to avoid false positives
             self.item_types['si'] = []
@@ -274,7 +293,8 @@ class TextValidator:
             result["entities"] = entities_result
             
             # Calculate overall score
-            overall_score = (0.7 * completeness_result["score"]) + (0.3 * coherence_result["score"])
+            completeness_normalized = completeness_result["score"] / 100
+            overall_score = (0.7 * completeness_normalized) + (0.3 * coherence_result["score"])
             result["overall_score"] = round(overall_score, 2)
             
             # Determine overall validity
@@ -287,6 +307,29 @@ class TextValidator:
         
         return result
 
+    ITEM_KEYWORDS = {
+        'phone': ['phone', 'mobile', 'iphone', 'samsung', 'smartphone', 'cell'],
+        'bag': ['bag', 'backpack', 'purse', 'wallet', 'handbag'],
+        'electronics': ['laptop', 'tablet', 'ipad', 'watch', 'airpods', 'headphones'],
+        'accessories': ['keys', 'glasses', 'sunglasses', 'umbrella']
+    }
+    COLOR_KEYWORDS = ['red', 'blue', 'black', 'white', 'green', 'yellow', 'brown', 'gray', 'pink', 'purple', 'orange']
+    BRAND_KEYWORDS = ['iphone', 'samsung', 'apple', 'google', 'huawei', 'xiaomi', 'nike', 'adidas', 'gucci', 'louis vuitton', 'prada']
+    LOCATION_KEYWORDS = [
+        'library',
+        'cafeteria',
+        'canteen',
+        'classroom',
+        'parking',
+        'gym',
+        'office',
+        'hallway',
+        'gate',
+        'station',
+        'building',
+    ]
+    TIME_KEYWORDS = ['yesterday', 'today', 'morning', 'afternoon', 'evening', 'night', 'ago', 'last', 'monday', 'tuesday']
+
     def check_completeness(
         self,
         text: str,
@@ -295,116 +338,104 @@ class TextValidator:
         color_hint: Optional[str] = None,
         location_hint: Optional[str] = None,
     ) -> Dict:
-        """Analyze the completeness of a text description.
-        
-        Args:
-            text: The text description to analyze
-            language: Language code ('en', 'si', 'ta')
-            item_type_hint: Optional hint for missing item type context
-            color_hint: Optional hint for missing color context
-            location_hint: Optional hint for missing location context
-            
-        Returns:
-            Dict containing completeness analysis results
-        """
-        result = {
-            "valid": False,
-            "score": 0.0,
-            "entities": {"item_type": [], "color": [], "location": []},
-            "missing_info": [],
-            "feedback": ""
+        text_lower = text.lower()
+        entities = {"item_type": [], "color": [], "location": [], "brand": []}
+        tokens = [token for token in text_lower.replace(".", " ").replace(",", " ").split() if token.strip()]
+        unique_tokens = set(tokens)
+
+        def find_match(options):
+            for opt in options:
+                if opt in text_lower:
+                    return opt
+            return None
+
+        item_match = None
+        for keywords in self.ITEM_KEYWORDS.values():
+            item_match = find_match(keywords)
+            if item_match:
+                break
+        has_item = bool(item_match)
+        if not has_item and item_type_hint:
+            item_match = item_type_hint
+            has_item = True
+        if item_match:
+            entities["item_type"].append(item_match)
+
+        color_match = find_match(self.COLOR_KEYWORDS)
+        has_color = bool(color_match)
+        if not has_color and color_hint:
+            color_match = color_hint
+            has_color = True
+        if color_match:
+            entities["color"].append(color_match)
+
+        location_match = find_match(self.LOCATION_KEYWORDS)
+        has_location = bool(location_match)
+        if not has_location and location_hint:
+            location_match = location_hint
+            has_location = True
+        if location_match:
+            entities["location"].append(location_match)
+
+        brand_match = find_match(self.BRAND_KEYWORDS)
+        has_brand = bool(brand_match)
+        if brand_match:
+            entities["brand"].append(brand_match)
+
+        has_time = any(time in text_lower for time in self.TIME_KEYWORDS)
+
+        score = 0
+        if has_item:
+            score += 30
+        if has_color:
+            score += 20
+        if has_location:
+            score += 20
+        if has_brand:
+            score += 15
+        if has_time:
+            score += 15
+
+        missing = []
+        if not has_item:
+            missing.append("item type")
+        if not has_color:
+            missing.append("color")
+        if not has_location:
+            missing.append("location")
+
+        vagueness_reasons = []
+        if len(tokens) < 5:
+            vagueness_reasons.append("the description is too short")
+        if len(unique_tokens) <= 3 and len(tokens) > 0:
+            vagueness_reasons.append("it repeats the same words")
+        if len(missing) >= 2:
+            vagueness_reasons.append("it is missing details like item type, color, or location")
+
+        if vagueness_reasons:
+            feedback_message = (
+                "Description appears too vague because "
+                + ", ".join(vagueness_reasons)
+                + ". Please mention what the item is, its color, and where you last had it."
+            )
+        else:
+            feedback_message = f"Completeness: {score}%"
+            if missing:
+                feedback_message += f" - Missing: {', '.join(missing)}"
+            else:
+                feedback_message += " - Complete!"
+
+        return {
+            "valid": score >= 70,
+            "score": score,
+            "entities": entities,
+            "missing_info": missing,
+            "has_brand": has_brand,
+            "has_time": has_time,
+            "is_vague": len(vagueness_reasons) > 0,
+            "vagueness_reasons": vagueness_reasons,
+            "feedback": feedback_message,
         }
-        
-        try:
-            # Process text with spaCy
-            doc = self.nlp_models[language](text.lower())
-            
-            # Check for item type (40% weight)
-            item_type_score = 0.0
-            item_found = False
-            for item_type in self.item_types[language]:
-                if item_type in text.lower():
-                    result["entities"]["item_type"].append(item_type)
-                    item_type_score = 0.4
-                    item_found = True
-                    break
-            if not item_found and item_type_hint:
-                normalized_hint = item_type_hint.strip().lower()
-                if normalized_hint:
-                    result["entities"]["item_type"].append(normalized_hint)
-                    item_type_score = 0.4
-                    item_found = True
-
-            if not item_found:
-                result["missing_info"].append("item type")
-            
-            # Check for color (30% weight)
-            color_score = 0.0
-            color_found = False
-            for color in self.colors[language]:
-                if color in text.lower():
-                    result["entities"]["color"].append(color)
-                    color_score = 0.3
-                    color_found = True
-                    break
-            if not color_found and color_hint:
-                normalized_color = color_hint.strip().lower()
-                if normalized_color:
-                    result["entities"]["color"].append(normalized_color)
-                    color_score = 0.3
-                    color_found = True
-
-            if not color_found:
-                result["missing_info"].append("color")
-            
-            # Check for location (30% weight)
-            location_score = 0.0
-            location_found = False
-            
-            # First check for location terms
-            for location in self.locations[language]:
-                if location in text.lower():
-                    result["entities"]["location"].append(location)
-                    location_found = True
-                    break
-            
-            # Then check for location entities in spaCy
-            if not location_found:
-                for ent in doc.ents:
-                    if ent.label_ in ["LOC", "GPE", "FAC"]:
-                        result["entities"]["location"].append(ent.text)
-                        location_found = True
-                        break
-            
-            if not location_found and location_hint:
-                normalized_location = location_hint.strip()
-                if normalized_location:
-                    result["entities"]["location"].append(normalized_location)
-                    location_found = True
-
-            if not location_found:
-                result["missing_info"].append("location")
-            else:
-                location_score = 0.3
-            
-            # Calculate total completeness score
-            result["score"] = item_type_score + color_score + location_score
-            
-            # Determine validity based on threshold
-            result["valid"] = result["score"] >= self.completeness_threshold
-            
-            # Generate feedback message
-            if result["valid"]:
-                result["feedback"] = "Description contains all required elements"
-            else:
-                result["feedback"] = f"Description is incomplete: missing {', '.join(result['missing_info'])}"
-            
-        except Exception as e:
-            if self.enable_logging:
-                logger.error(f"Error during completeness analysis: {str(e)}")
-            result["feedback"] = f"Error during completeness analysis: {str(e)}"
-        
-        return result
 
     def check_semantic_coherence(self, text: str, language: str) -> Dict:
         """Validate the semantic coherence of a text description using BERT embeddings.
@@ -498,7 +529,8 @@ class TextValidator:
             "entities": [],
             "item_mentions": [],
             "color_mentions": [],
-            "location_mentions": []
+            "location_mentions": [],
+            "brand_mentions": []
         }
         
         try:
@@ -528,6 +560,11 @@ class TextValidator:
             for location in self.locations[language]:
                 if location in text.lower():
                     result["location_mentions"].append(location)
+
+            # Extract brand mentions
+            for brand in self.brands.get(language, self.brands['en']):
+                if brand and brand.lower() in text.lower():
+                    result["brand_mentions"].append(brand)
             
         except Exception as e:
             if self.enable_logging:

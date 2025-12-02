@@ -11,6 +11,10 @@ import { VoiceRecorder } from './components/Uploads/AudioRecorder';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useValidation } from './hooks/useValidation';
 import { ChatInput } from './components/Chat/ChatInput';
+import {
+  ValidationSummary,
+  SummaryCard,
+} from './components/Validation/ValidationSummary';
 
 const COLOR_KEYWORDS = [
   'black',
@@ -27,6 +31,42 @@ const COLOR_KEYWORDS = [
   'pink',
   'silver',
   'gold',
+] as const;
+
+const BRAND_KEYWORDS = [
+  'gucci',
+  'coach',
+  'prada',
+  'lacoste',
+  'nike',
+  'adidas',
+  'michael kors',
+  'samsung',
+  'apple',
+  'sony'
+] as const;
+
+const ITEM_KEYWORDS = [
+  'phone',
+  'mobile',
+  'iphone',
+  'samsung',
+  'smartphone',
+  'cellphone',
+  'bag',
+  'backpack',
+  'purse',
+  'wallet',
+  'keys',
+  'keychain',
+  'laptop',
+  'tablet',
+  'ipad',
+  'watch',
+  'airpods',
+  'headphones',
+  'umbrella',
+  'camera',
 ] as const;
 
 type ConversationState =
@@ -48,6 +88,8 @@ interface Message {
 interface ValidationState {
   itemType?: string;
   colorHint?: string;
+  brandHint?: string;
+  initialMention?: string;
   text?: string;
   image?: File;
   voice?: Blob;
@@ -67,23 +109,17 @@ const formatPercent = (value?: number | null) => {
   if (typeof value !== 'number' || Number.isNaN(value)) {
     return '--';
   }
+  if (value > 1) {
+    return `${Math.round(value)}%`;
+  }
   return `${Math.round(value * 100)}%`;
 };
 
-const formatSharpnessScore = (sharpness?: {
-  score?: number;
-  threshold?: number;
-}) => {
-  if (
-    !sharpness ||
-    typeof sharpness.score !== 'number' ||
-    typeof sharpness.threshold !== 'number' ||
-    sharpness.threshold <= 0
-  ) {
+const formatSharpnessScore = (sharpness?: { score?: number }) => {
+  if (!sharpness || typeof sharpness.score !== 'number') {
     return '--';
   }
-  const ratio = Math.min(sharpness.score / sharpness.threshold, 1);
-  return formatPercent(ratio);
+  return `${sharpness.score.toFixed(1)}%`;
 };
 
 const listOrFallback = (items?: string[] | null, fallback: string = 'None') => {
@@ -213,6 +249,19 @@ const App: React.FC = () => {
     return match;
   }, []);
 
+  const detectBrandFromText = useCallback((text: string): string | undefined => {
+    const lower = text.toLowerCase();
+    const match = BRAND_KEYWORDS.find((brand) =>
+      lower.includes(brand.toLowerCase())
+    );
+    return match;
+  }, []);
+
+  const containsItemKeyword = useCallback((text: string): boolean => {
+    const lower = text.toLowerCase();
+    return ITEM_KEYWORDS.some((keyword) => lower.includes(keyword));
+  }, []);
+
   const handleItemTypeInput = useCallback(
     async (itemType: string) => {
       const inferredColor = detectColorFromText(itemType);
@@ -256,13 +305,20 @@ const App: React.FC = () => {
           );
           setConversationState('awaiting_image');
         } else {
-          const missingDetails = listOrFallback(
-            textResult?.completeness?.missing_info,
-            'more context'
-          );
-          addBotMessage(
-            `Thanks! Could you expand the description by adding: ${missingDetails}? This helps match your report faster.`
-          );
+          const completenessFeedback =
+            textResult?.completeness?.feedback ??
+            'This description is too vague to evaluate.';
+          if (textResult?.completeness?.is_vague) {
+            addBotMessage(completenessFeedback);
+          } else {
+            const missingDetails = listOrFallback(
+              textResult?.completeness?.missing_info,
+              'more context'
+            );
+            addBotMessage(
+              `Thanks! Could you expand the description by adding: ${missingDetails}? This helps match your report faster.`
+            );
+          }
           pushProgress('Description analysis', 'Needs more detail');
         }
       } catch (error) {
@@ -516,7 +572,16 @@ const App: React.FC = () => {
 
       switch (conversationState) {
         case 'welcome':
-          await handleItemTypeInput(trimmed);
+          if (
+            containsItemKeyword(trimmed) &&
+            trimmed.split(/\s+/).length <= 3 &&
+            !/i\s+lost|i\s+found/i.test(trimmed)
+          ) {
+            await handleItemTypeInput(trimmed);
+          } else {
+            setConversationState('item_details');
+            await handleDescriptionInput(trimmed);
+          }
           break;
         case 'item_details':
         case 'resolving_mismatch':
@@ -541,6 +606,7 @@ const App: React.FC = () => {
       addBotMessage,
       handleItemTypeInput,
       handleDescriptionInput,
+      containsItemKeyword,
     ]
   );
 
@@ -571,7 +637,7 @@ const App: React.FC = () => {
     }));
   }, [validationState]);
 
-  const summaryCards = useMemo(() => {
+  const summaryCards = useMemo<SummaryCard[]>(() => {
     const textResult = validationState.textResult;
     const imageResult = validationState.imageResult;
     const voiceResult = validationState.voiceResult;
@@ -586,6 +652,11 @@ const App: React.FC = () => {
     const colorMentions = pickMentions(
       textResult?.entities?.color_mentions,
       textResult?.completeness?.entities?.color
+    );
+
+    const brandMentions = pickMentions(
+      textResult?.entities?.brand_mentions,
+      textResult?.completeness?.entities?.brand
     );
 
     return [
@@ -605,6 +676,7 @@ const App: React.FC = () => {
               )}`,
               `Mentioned items: ${listOrFallback(itemMentions)}`,
               `Detected colors: ${listOrFallback(colorMentions)}`,
+              `Brand cues: ${listOrFallback(brandMentions)}`,
               `Missing details: ${listOrFallback(
                 textResult?.completeness?.missing_info
               )}`,
@@ -618,18 +690,21 @@ const App: React.FC = () => {
           ? imageResult.valid
             ? 'Clear'
             : 'Needs retake'
-          : 'Optional',
+          : 'Waiting',
         metric: formatPercent(imageResult?.overall_score),
         details: imageResult
           ? [
               `Sharpness: ${formatSharpnessScore(imageResult?.sharpness)}`,
-              `Objects detected: ${listOrFallback(
-                (imageResult?.objects?.detections ?? []).map(
-                  (det: any) => det.class
-                )
-              )}`,
+              imageResult?.objects?.detections?.length
+                ? `Detected: ${imageResult.objects.detections[0].class} (${Math.round(
+                    imageResult.objects.detections[0].confidence * 100
+                  )}%)`
+                : 'No objects detected',
             ]
           : ['Upload a recent photo to boost match accuracy.'],
+        actionHint: imageResult && !imageResult.valid
+          ? 'Try retaking the photo: keep the wallet centered and use brighter lighting.'
+          : undefined,
       },
       {
         id: 'voice',
@@ -651,7 +726,7 @@ const App: React.FC = () => {
                 voiceResult?.transcription?.transcription ?? 'Unavailable'
               }`,
             ]
-          : ['Add a short voice note for extra context (optional).'],
+          : ['No voice recording provided (optional).'],
       },
       {
         id: 'confidence',
@@ -749,73 +824,17 @@ const App: React.FC = () => {
           )}
         </section>
 
-        <aside className="summary-pane">
-          <div className="summary-header">
-            <h2 className="summary-title">Validation Summary</h2>
-            <span
-              className={[
-                'status-chip',
-                wsConnected ? 'status-chip--connected' : 'status-chip--disconnected',
-              ].join(' ')}
-            >
-              {wsConnected ? 'Realtime link active' : 'Realtime link offline'}
-            </span>
-          </div>
-
-          <div className="summary-grid">
-            {summaryCards.map((card) => (
-              <article key={card.id} className="summary-card">
-                <div className="summary-card__title">
-                  <span>{card.title}</span>
-                  <span className="summary-card__status">{card.status}</span>
-                </div>
-                <div className="summary-card__metric">{card.metric}</div>
-                <div className="summary-card__meta">
-                  {card.details[0]}
-                  {card.details.length > 1 && (
-                    <ul className="summary-card__list">
-                      {card.details.slice(1).map((detail, index) => (
-                        <li key={`${card.id}-detail-${index}`}>{detail}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-
-          {validationState.overallResult && (
-            <div className="validation-details">
-              <h3 className="validation-details__title">Full response JSON</h3>
-              <pre className="validation-details__json">
-                {JSON.stringify(validationState.overallResult, null, 2)}
-              </pre>
-            </div>
-          )}
-
-          <div className="progress-log">
-            {progressLog.length > 0 ? (
-              progressLog.map((entry) => (
-                <div className="progress-log__item" key={entry.label}>
-                  <p className="progress-log__message">{entry.label}</p>
-                  <span className="progress-log__value">{entry.value}</span>
-                </div>
-              ))
-            ) : (
-              <p className="progress-log__message">
-                Progress updates will appear here as you share more evidence.
-              </p>
-            )}
-            {activeTaskId && (
-              <p className="progress-log__message">
-                Tracking realtime task: {activeTaskId}
-              </p>
-            )}
-          </div>
-        </aside>
+        <ValidationSummary
+          cards={summaryCards}
+          wsConnected={wsConnected}
+          progressLog={progressLog}
+          activeTaskId={activeTaskId}
+          overallResult={validationState.overallResult}
+        />
       </div>
     </div>
   );
 };
 
 export default App;
+

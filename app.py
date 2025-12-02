@@ -560,9 +560,9 @@ async def process_validation_background(client_id: str, task_id: str, text: Opti
         if not confidence_results["cross_modal_scores"].get("voice_text_similarity", 0) > 0 and "voice" in input_types and "text" in input_types:
             feedback["suggestions"].append("Voice and text description do not align well.")
         if cross_modal_results.get("context") and not cross_modal_results["context"].get("valid", True):
-            feedback["suggestions"].append("Voice and text mention different locations or times.")
+            feedback["suggestions"].append("Voice and text mention conflicting location or time details.")
         if cross_modal_results.get("context") and not cross_modal_results["context"].get("valid", True):
-            feedback["suggestions"].append("Location or time references differ between text and voice inputs.")
+            feedback["suggestions"].append("Voice and text mention conflicting location or time details.")
 
         # Final response structure
         result = {
