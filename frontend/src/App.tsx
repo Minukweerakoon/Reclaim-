@@ -280,12 +280,18 @@ const App: React.FC = () => {
 
   const handleDescriptionInput = useCallback(
     async (description: string) => {
-      updateValidationState({ text: description });
+      // Context Awareness: Append new description to existing text
+      const currentText = validationStateRef.current.text || '';
+      const separator = currentText ? ' ' : '';
+      const fullText = currentText + separator + description;
+      
+      updateValidationState({ text: fullText });
       setIsProcessing(true);
       pushProgress('Description analysis', 'Running');
-
+      
       try {
-        const textResult = await validateText(description, {
+        // Validate the accumulated text
+        const textResult = await validateText(fullText, {
           itemTypeHint: validationStateRef.current.itemType,
           colorHint: validationStateRef.current.colorHint,
         });
