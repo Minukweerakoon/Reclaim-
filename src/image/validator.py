@@ -38,6 +38,9 @@ class ImageValidator:
         self.face_cascade = cv2.CascadeClassifier(
             cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         )
+        self.profile_face_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + "haarcascade_profileface.xml"
+        )
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -177,8 +180,25 @@ class ImageValidator:
             }
 
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        
+        # Detect frontal faces
         faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
-        if len(faces) == 0:
+        faces_list = [list(f) for f in faces]
+        
+        # Detect profile faces
+        profile_faces = self.profile_face_cascade.detectMultiScale(gray, 1.1, 4)
+        for f in profile_faces:
+            # Avoid duplicates (simple overlap check)
+            is_duplicate = False
+            fx, fy, fw, fh = f
+            for (x, y, w, h) in faces_list:
+                if abs(fx - x) < 20 and abs(fy - y) < 20:
+                    is_duplicate = True
+                    break
+            if not is_duplicate:
+                faces_list.append(list(f))
+        
+        if len(faces_list) == 0:
             return {
                 "faces_detected": 0,
                 "privacy_protected": False,
@@ -187,9 +207,11 @@ class ImageValidator:
             }
 
         blurred = image.copy()
-        for (x, y, w, h) in faces:
+        blurred = image.copy()
+        for (x, y, w, h) in faces_list:
             roi = blurred[y : y + h, x : x + w]
-            roi = cv2.GaussianBlur(roi, (51, 51), 30)
+            # Aggressive blurring for privacy
+            roi = cv2.GaussianBlur(roi, (99, 99), 30)
             blurred[y : y + h, x : x + w] = roi
 
         processed_dir = os.path.join(os.path.dirname(image_path), "processed")
@@ -198,10 +220,10 @@ class ImageValidator:
         cv2.imwrite(processed_path, blurred)
 
         return {
-            "faces_detected": len(faces),
+            "faces_detected": len(faces_list),
             "privacy_protected": True,
             "processed_image": processed_path,
-            "feedback": f"Blurred {len(faces)} face(s)",
+            "feedback": f"Blurred {len(faces_list)} face(s)",
         }
 
     def _generate_feedback(self, sharpness: Dict, objects: Dict, overall: float) -> str:

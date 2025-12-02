@@ -5,7 +5,7 @@ import json
 from typing import Dict, List, Tuple, Union, Optional
 import spacy
 import numpy as np
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModel, pipeline
 from sentence_transformers import SentenceTransformer
 import torch
 
@@ -193,6 +193,21 @@ class TextValidator:
             # Load sentence transformer for similarity scoring
             self.sentence_transformer = SentenceTransformer(sentence_transformer_model)
             
+            # Load Zero-Shot Classification pipeline
+            try:
+                # Use a lightweight model for efficiency
+                self.zero_shot_classifier = pipeline(
+                    "zero-shot-classification",
+                    model="valhalla/distilbart-mnli-12-1",
+                    device=0 if torch.cuda.is_available() else -1
+                )
+                if self.enable_logging:
+                    logger.info("Zero-Shot Classifier loaded successfully")
+            except Exception as e:
+                if self.enable_logging:
+                    logger.warning(f"Failed to load Zero-Shot Classifier: {str(e)}")
+                self.zero_shot_classifier = None
+
             if self.enable_logging:
                 logger.info(f"NLP models loaded successfully")
         except Exception as e:
@@ -350,10 +365,55 @@ class TextValidator:
             return None
 
         item_match = None
-        for keywords in self.ITEM_KEYWORDS.values():
-            item_match = find_match(keywords)
-            if item_match:
-                break
+        # Try Zero-Shot Classification first if available and language is English
+        if self.zero_shot_classifier and language == 'en':
+            try:
+                # Augmented candidate labels: categories + specific ambiguous items
+                base_categories = list(self.ITEM_KEYWORDS.keys())
+                specific_items = ['wallet', 'keys', 'watch', 'laptop', 'umbrella']
+                candidate_labels = base_categories + specific_items
+                
+                # Mapping for specific items back to categories
+                item_map = {
+                    'wallet': 'bag',
+                    'keys': 'accessories',
+                    'watch': 'electronics',
+                    'laptop': 'electronics',
+                    'umbrella': 'accessories'
+                }
+
+                # Classify the text
+                zs_result = self.zero_shot_classifier(text, candidate_labels)
+                
+                if self.enable_logging:
+                    logger.info(f"Zero-Shot top prediction: {zs_result['labels'][0]} (score: {zs_result['scores'][0]:.2f})")
+
+                # Check if the top score is confident enough
+                if zs_result['scores'][0] > 0.3:
+                    top_label = zs_result['labels'][0]
+                    
+                    # Determine the final item match
+                    if top_label in item_map:
+                        # Map specific item to its category (or keep as specific item if preferred)
+                        # Here we return the specific item as the match, so it gets added to entities
+                        item_match = top_label
+                    else:
+                        # It's a category label
+                        item_match = top_label
+                    
+                    if self.enable_logging:
+                        logger.info(f"Zero-Shot detected item: {item_match} (score: {zs_result['scores'][0]:.2f})")
+            except Exception as e:
+                if self.enable_logging:
+                    logger.warning(f"Zero-Shot classification failed: {str(e)}")
+
+        # Fallback to keyword matching if Zero-Shot didn't find anything
+        if not item_match:
+            for keywords in self.ITEM_KEYWORDS.values():
+                item_match = find_match(keywords)
+                if item_match:
+                    break
+        
         has_item = bool(item_match)
         if not has_item and item_type_hint:
             item_match = item_type_hint
