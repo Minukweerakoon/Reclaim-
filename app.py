@@ -501,6 +501,9 @@ async def process_validation_background(client_id: str, task_id: str, text: Opti
             if iv2 is None:
                 raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Image validator unavailable on this instance")
             image_result = iv2.validate_image(image_path)
+            # Inject missing fields for consistency
+            image_result["image_path"] = image_path
+            image_result["timestamp"] = datetime.now().isoformat()
             await update_progress(client_id, 40, "Image validated", {"task_id": task_id})
         
         # Process audio if provided
@@ -859,6 +862,10 @@ async def validate_image(
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Image validator unavailable on this instance")
         image_result = cached()(iv.validate_image)(image_path)
         
+        # Inject missing fields required by ImageValidationResult model
+        image_result["image_path"] = image_path
+        image_result["timestamp"] = datetime.now().isoformat()
+        
         # If text is provided, validate image-text alignment
         clip_image_text_result = None
         if text:
@@ -976,6 +983,9 @@ async def validate_complete(
             if iv is None:
                 raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Image validator unavailable on this instance")
             image_result = iv.validate_image(image_path)
+            # Inject missing fields required by ImageValidationResult model
+            image_result["image_path"] = image_path
+            image_result["timestamp"] = datetime.now().isoformat()
         
         # Process audio if provided
         audio_path = None
