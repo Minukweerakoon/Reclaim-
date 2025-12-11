@@ -7,6 +7,8 @@ import cv2
 import numpy as np
 import torch
 from ultralytics import YOLO
+from PIL import Image as PILImage
+import imagehash
 
 logger = logging.getLogger("ImageValidator")
 logger.setLevel(logging.INFO)
@@ -249,4 +251,162 @@ class ImageValidator:
             if os.path.exists(path):
                 return path
         return candidate
+
+    # ------------------------------------------------------------------ #
+    # Duplicate Detection (pHash)
+    # ------------------------------------------------------------------ #
+    def compute_phash(self, image_path: str, hash_size: int = 16) -> Dict:
+        """
+        Compute perceptual hash (pHash) for duplicate detection.
+        
+        pHash is robust against minor image modifications like resizing,
+        compression, and slight color changes - making it ideal for
+        detecting if the same item photo is being submitted multiple times.
+        
+        Args:
+            image_path: Path to the image file
+            hash_size: Size of the hash (default 16 for 256-bit hash)
+            
+        Returns:
+            Dict containing:
+                - phash: The perceptual hash as a hex string
+                - dhash: Difference hash for additional comparison
+                - valid: Whether hash computation succeeded
+        """
+        result = {
+            "valid": False,
+            "phash": None,
+            "dhash": None,
+            "feedback": ""
+        }
+        
+        try:
+            img = PILImage.open(image_path)
+            # Convert to RGB if necessary (handles RGBA, grayscale, etc.)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            
+            # Compute perceptual hash (DCT-based)
+            phash = imagehash.phash(img, hash_size=hash_size)
+            result["phash"] = str(phash)
+            
+            # Also compute difference hash for robustness
+            dhash = imagehash.dhash(img, hash_size=hash_size)
+            result["dhash"] = str(dhash)
+            
+            result["valid"] = True
+            result["feedback"] = "Image hash computed successfully"
+            
+            if self.enable_logging:
+                logger.info(f"Computed pHash: {phash} for {image_path}")
+                
+        except Exception as e:
+            result["feedback"] = f"Failed to compute image hash: {str(e)}"
+            if self.enable_logging:
+                logger.error(f"pHash computation failed: {e}")
+                
+        return result
+
+    def check_duplicate(
+        self,
+        image_path: str,
+        existing_hashes: List[str],
+        threshold: int = 10
+    ) -> Dict:
+        """
+        Check if an image is a duplicate of existing submissions.
+        
+        Uses Hamming distance between perceptual hashes to detect
+        similar images. A lower threshold means stricter matching.
+        
+        Args:
+            image_path: Path to the image to check
+            existing_hashes: List of pHash hex strings to compare against
+            threshold: Maximum Hamming distance to consider as duplicate
+                      (0 = exact match, 10 = very similar, 20 = somewhat similar)
+                      
+        Returns:
+            Dict containing:
+                - is_duplicate: Whether a duplicate was found
+                - similarity: Similarity score (1.0 = identical)
+                - matched_hash: The matching hash if duplicate found
+                - distance: Hamming distance to closest match
+        """
+        result = {
+            "is_duplicate": False,
+            "similarity": 0.0,
+            "matched_hash": None,
+            "distance": None,
+            "feedback": ""
+        }
+        
+        try:
+            # Compute hash for current image
+            hash_result = self.compute_phash(image_path)
+            if not hash_result["valid"]:
+                result["feedback"] = hash_result["feedback"]
+                return result
+                
+            current_hash = imagehash.hex_to_hash(hash_result["phash"])
+            
+            min_distance = float('inf')
+            best_match = None
+            
+            for existing_hex in existing_hashes:
+                try:
+                    existing_hash = imagehash.hex_to_hash(existing_hex)
+                    distance = current_hash - existing_hash  # Hamming distance
+                    
+                    if distance < min_distance:
+                        min_distance = distance
+                        best_match = existing_hex
+                except Exception:
+                    continue
+            
+            if best_match is not None:
+                # Convert distance to similarity (assuming 256-bit hash)
+                max_distance = 256  # Maximum possible Hamming distance
+                similarity = 1 - (min_distance / max_distance)
+                
+                result["distance"] = min_distance
+                result["similarity"] = round(similarity, 3)
+                
+                if min_distance <= threshold:
+                    result["is_duplicate"] = True
+                    result["matched_hash"] = best_match
+                    result["feedback"] = f"Duplicate detected! Similarity: {similarity:.1%}"
+                    
+                    if self.enable_logging:
+                        logger.warning(
+                            f"Duplicate image detected: distance={min_distance}, "
+                            f"similarity={similarity:.1%}"
+                        )
+                else:
+                    result["feedback"] = "No duplicate found"
+            else:
+                result["feedback"] = "No existing hashes to compare against"
+                
+        except Exception as e:
+            result["feedback"] = f"Duplicate check failed: {str(e)}"
+            if self.enable_logging:
+                logger.error(f"Duplicate check error: {e}")
+                
+        return result
+
+    def batch_compute_hashes(self, image_paths: List[str]) -> List[Dict]:
+        """
+        Compute hashes for multiple images efficiently.
+        
+        Args:
+            image_paths: List of image file paths
+            
+        Returns:
+            List of hash result dictionaries
+        """
+        results = []
+        for path in image_paths:
+            result = self.compute_phash(path)
+            result["image_path"] = path
+            results.append(result)
+        return results
 
