@@ -434,6 +434,170 @@ def validate_file_size(file: UploadFile, max_size: int) -> bool:
     file.file.seek(0)  # Reset file pointer
     return file_size <= max_size
 
+# ------------------------------------------------------------------ #
+# Fallback and Graceful Degradation
+# ------------------------------------------------------------------ #
+async def validate_with_fallback(
+    validator_func,
+    *args,
+    validator_name: str = "unknown",
+    fallback_result: Optional[Dict] = None,
+    **kwargs
+) -> Dict:
+    """
+    Execute a validation with graceful fallback on failure.
+    
+    This implements progressive degradation where if a validator fails,
+    we return a minimal result instead of crashing the entire request.
+    This is especially important for:
+    - ML model loading failures
+    - Timeout scenarios
+    - Resource exhaustion
+    
+    Args:
+        validator_func: The validation function to call
+        *args: Positional arguments for the validator
+        validator_name: Name of the validator for logging
+        fallback_result: Default result to return on failure
+        **kwargs: Keyword arguments for the validator
+        
+    Returns:
+        Validation result or fallback result on error
+    """
+    default_fallback = {
+        "valid": False,
+        "degraded": True,
+        "error": None,
+        "feedback": "Validation temporarily unavailable. Please try again.",
+        "overall_score": 0.0
+    }
+    
+    try:
+        # Try to execute with a timeout to prevent hangs
+        if asyncio.iscoroutinefunction(validator_func):
+            result = await asyncio.wait_for(
+                validator_func(*args, **kwargs),
+                timeout=30.0  # 30 second timeout
+            )
+        else:
+            result = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: validator_func(*args, **kwargs)
+            )
+        return result
+        
+    except asyncio.TimeoutError:
+        logger.warning(f"{validator_name} timed out after 30 seconds")
+        fallback = fallback_result or default_fallback.copy()
+        fallback["error"] = "Validation timed out. Try with a smaller file."
+        fallback["degraded"] = True
+        return fallback
+        
+    except Exception as e:
+        logger.error(f"{validator_name} failed: {str(e)}")
+        fallback = fallback_result or default_fallback.copy()
+        fallback["error"] = str(e)
+        fallback["degraded"] = True
+        return fallback
+
+
+def create_partial_result(
+    image_result: Optional[Dict] = None,
+    text_result: Optional[Dict] = None,
+    voice_result: Optional[Dict] = None,
+    cross_modal_results: Optional[Dict] = None
+) -> Dict:
+    """
+    Create a partial validation result when some validators fail.
+    
+    This allows the system to return useful information even when
+    not all validators are available, implementing the progressive
+    degradation pattern.
+    
+    Args:
+        image_result: Image validation result (or None if failed)
+        text_result: Text validation result (or None if failed)
+        voice_result: Voice validation result (or None if failed) cross_modal_results: Cross-modal results (or None if not computed)
+        
+    Returns:
+        Dict with partial results and degradation info
+    """
+    available_modalities = []
+    failed_modalities = []
+    
+    if image_result and not image_result.get("degraded"):
+        available_modalities.append("image")
+    elif image_result:
+        failed_modalities.append("image")
+        
+    if text_result and not text_result.get("degraded"):
+        available_modalities.append("text")
+    elif text_result:
+        failed_modalities.append("text")
+        
+    if voice_result and not voice_result.get("degraded"):
+        available_modalities.append("voice")
+    elif voice_result:
+        failed_modalities.append("voice")
+    
+    # Calculate partial confidence based on available results
+    scores = []
+    if image_result and not image_result.get("degraded"):
+        score = image_result.get("overall_score", 0)
+        if score > 1:
+            score = score / 100
+        scores.append(score)
+    if text_result and not text_result.get("degraded"):
+        score = text_result.get("overall_score", 0)
+        if score > 1:
+            score = score / 100
+        scores.append(score)
+    if voice_result and not voice_result.get("degraded"):
+        score = voice_result.get("overall_score", 0)
+        if score > 1:
+            score = score / 100  
+        scores.append(score)
+    
+    partial_confidence = sum(scores) / len(scores) if scores else 0.0
+    
+    return {
+        "partial": True,
+        "available_modalities": available_modalities,
+        "failed_modalities": failed_modalities,
+        "partial_confidence": round(partial_confidence, 2),
+        "can_proceed": len(available_modalities) >= 1,
+        "recommendation": _get_degradation_recommendation(
+            available_modalities, failed_modalities
+        )
+    }
+
+
+def _get_degradation_recommendation(
+    available: List[str], 
+    failed: List[str]
+) -> str:
+    """Generate user-friendly recommendation based on what's available."""
+    if not failed:
+        return "All validations completed successfully."
+    
+    if not available:
+        return (
+            "All validators are currently unavailable. "
+            "Please try again in a few minutes."
+        )
+    
+    if len(available) >= 2:
+        return (
+            f"Partial validation completed using {', '.join(available)}. "
+            f"Some checks ({', '.join(failed)}) were skipped due to temporary issues."
+        )
+    
+    return (
+        f"Limited validation available ({', '.join(available)} only). "
+        f"For best results, please retry when all services are available."
+    )
+
+
 async def cleanup_file(file_path: str, delay: int = 300):
     """
     Delete a file after a specified delay (in seconds).
