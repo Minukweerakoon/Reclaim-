@@ -320,10 +320,30 @@ class CLIPValidator:
             if result["valid"]:
                 result["feedback"] = "Image and text are semantically aligned"
             else:
-                result["feedback"] = (
-                    f"Image and text are not well aligned (similarity: {similarity:.2f}, "
-                    f"threshold: {self.similarity_threshold})"
-                )
+                # Construct explainable feedback
+                explanations = []
+                
+                # Check for specific mismatches
+                if mentioned_colors and top_colors:
+                    top_color_name = top_colors[0][0].split(' ')[0]
+                    if all(mc not in top_color_name for mc in mentioned_colors):
+                        explanations.append(f"Conflict detected: Text mentions '{mentioned_colors[0]}' but image appears '{top_color_name}'")
+                
+                if mentioned_items and top_items:
+                    top_item_name = top_items[0][0].replace('a photo of a ', '')
+                    if all(mi not in top_item_name for mi in mentioned_items):
+                         explanations.append(f"Conflict detected: Text mentions '{mentioned_items[0]}' but image looks like '{top_item_name}'")
+
+                if explanations:
+                    explanation_str = ". ".join(explanations)
+                    result["feedback"] = (
+                        f"Image and text mismatch (similarity: {similarity:.2f}). {explanation_str}."
+                    )
+                else:
+                    result["feedback"] = (
+                        f"Image and text are not well aligned (similarity: {similarity:.2f}, "
+                        f"threshold: {self.similarity_threshold})"
+                    )
             
         except Exception as e:
             if self.enable_logging:

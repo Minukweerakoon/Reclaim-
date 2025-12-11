@@ -249,15 +249,6 @@ class ConsistencyEngine:
         individual_scores = {}
         cross_modal_scores = {}
         
-        # Weights from specification
-        weights = {
-            "image_score": 0.25,
-            "text_score": 0.25,
-            "voice_score": 0.20,
-            "clip_similarity": 0.20,
-            "voice_text_similarity": 0.10
-        }
-
         # Collect individual scores
         if image_result and image_result.get("valid"):
             individual_scores["image"] = image_result.get("overall_score", 0.0)
@@ -283,18 +274,58 @@ class ConsistencyEngine:
             if "context" in cross_modal_results:
                 cross_modal_scores["context_consistency"] = cross_modal_results["context"].get("score", 0.0)
 
-        # Calculate overall confidence
-        overall_confidence += individual_scores["image"] * weights["image_score"]
-        overall_confidence += individual_scores["text"] * weights["text_score"]
-        overall_confidence += individual_scores["voice"] * weights["voice_score"]
-        overall_confidence += cross_modal_scores.get("clip_similarity", 0.0) * weights["clip_similarity"]
+        # Adaptive Weighting Logic
+        # 1. Identify present modalities
+        present_modalities = []
+        if individual_scores["image"] > 0: present_modalities.append("image")
+        if individual_scores["text"] > 0: present_modalities.append("text")
+        if individual_scores["voice"] > 0: present_modalities.append("voice")
+        
+        # 2. Redistribute weights dynamically
+        # Base weights
+        active_weights = {
+            "image": 0.25,
+            "text": 0.25,
+            "voice": 0.20,
+            "clip": 0.20,
+            "voice_text": 0.10
+        }
+        
+        # Adjust based on missing inputs
+        if "voice" not in present_modalities:
+            # Distribute voice-related weights (0.20 + 0.10 = 0.30) to image and text/clip
+            # New split: Image (0.35), Text (0.35), CLIP (0.30)
+            active_weights = {
+                "image": 0.35,
+                "text": 0.35,
+                "voice": 0.0,
+                "clip": 0.30,
+                "voice_text": 0.0
+            }
+        
+        if "image" not in present_modalities:
+             # Distribute image-related weights (0.25 + 0.20 = 0.45)
+             # New split: Text (0.50), Voice (0.40), Voice-Text (0.10)
+             active_weights = {
+                "image": 0.0,
+                "text": 0.50,
+                "voice": 0.40,
+                "clip": 0.0,
+                "voice_text": 0.10
+             }
 
+        # Calculate overall confidence with adaptive weights
+        overall_confidence += individual_scores["image"] * active_weights["image"]
+        overall_confidence += individual_scores["text"] * active_weights["text"]
+        overall_confidence += individual_scores["voice"] * active_weights["voice"]
+        overall_confidence += cross_modal_scores.get("clip_similarity", 0.0) * active_weights["clip"]
+        
         voice_text_component = cross_modal_scores.get("voice_text_similarity", 0.0)
         if "context_consistency" in cross_modal_scores:
             context_score = cross_modal_scores["context_consistency"]
             voice_text_component = 0.7 * voice_text_component + 0.3 * context_score
-
-        overall_confidence += voice_text_component * weights["voice_text_similarity"]
+            
+        overall_confidence += voice_text_component * active_weights["voice_text"]
 
         # Determine routing and action
         routing = "low_quality"
@@ -311,7 +342,8 @@ class ConsistencyEngine:
             "routing": routing,
             "action": action,
             "individual_scores": individual_scores,
-            "cross_modal_scores": cross_modal_scores
+            "cross_modal_scores": cross_modal_scores,
+            "active_weights": active_weights # Return weights for transparency
         }
     
 

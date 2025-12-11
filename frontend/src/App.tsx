@@ -284,11 +284,11 @@ const App: React.FC = () => {
       const currentText = validationStateRef.current.text || '';
       const separator = currentText ? ' ' : '';
       const fullText = currentText + separator + description;
-      
+
       updateValidationState({ text: fullText });
       setIsProcessing(true);
       pushProgress('Description analysis', 'Running');
-      
+
       try {
         // Validate the accumulated text
         const textResult = await validateText(fullText, {
@@ -380,8 +380,11 @@ const App: React.FC = () => {
               setConversationState('awaiting_voice');
             } else {
               const similarity = formatPercent(imageText?.similarity);
+              // Use backend feedback if available for explainable AI
+              const feedbackMsg = imageText?.feedback || `The photo highlights ${detected}, but it does not quite align with the written description (similarity ${similarity}).`;
+
               addBotMessage(
-                `The photo highlights ${detected}, but it does not quite align with the written description (similarity ${similarity}). Could you clarify or update the description?`
+                `${feedbackMsg} Could you clarify or update the description?`
               );
               setConversationState('resolving_mismatch');
             }
@@ -677,16 +680,16 @@ const App: React.FC = () => {
         metric: formatPercent(textResult?.overall_score),
         details: textResult
           ? [
-              `Completeness: ${formatPercent(
-                textResult?.completeness?.score ?? textResult?.overall_score
-              )}`,
-              `Mentioned items: ${listOrFallback(itemMentions)}`,
-              `Detected colors: ${listOrFallback(colorMentions)}`,
-              `Brand cues: ${listOrFallback(brandMentions)}`,
-              `Missing details: ${listOrFallback(
-                textResult?.completeness?.missing_info
-              )}`,
-            ]
+            `Completeness: ${formatPercent(
+              textResult?.completeness?.score ?? textResult?.overall_score
+            )}`,
+            `Mentioned items: ${listOrFallback(itemMentions)}`,
+            `Detected colors: ${listOrFallback(colorMentions)}`,
+            `Brand cues: ${listOrFallback(brandMentions)}`,
+            `Missing details: ${listOrFallback(
+              textResult?.completeness?.missing_info
+            )}`,
+          ]
           : ['Add a descriptive summary of your item to begin.'],
       },
       {
@@ -700,13 +703,13 @@ const App: React.FC = () => {
         metric: formatPercent(imageResult?.overall_score),
         details: imageResult
           ? [
-              `Sharpness: ${formatSharpnessScore(imageResult?.sharpness)}`,
-              imageResult?.objects?.detections?.length
-                ? `Detected: ${imageResult.objects.detections[0].class} (${Math.round(
-                    imageResult.objects.detections[0].confidence * 100
-                  )}%)`
-                : 'No objects detected',
-            ]
+            `Sharpness: ${formatSharpnessScore(imageResult?.sharpness)}`,
+            imageResult?.objects?.detections?.length
+              ? `Detected: ${imageResult.objects.detections[0].class} (${Math.round(
+                imageResult.objects.detections[0].confidence * 100
+              )}%)`
+              : 'No objects detected',
+          ]
           : ['Upload a recent photo to boost match accuracy.'],
         actionHint: imageResult && !imageResult.valid
           ? 'Try retaking the photo: keep the wallet centered and use brighter lighting.'
@@ -723,15 +726,13 @@ const App: React.FC = () => {
         metric: formatPercent(voiceResult?.overall_score),
         details: voiceResult
           ? [
-              `Duration: ${
-                voiceResult?.quality?.duration
-                  ? `${voiceResult.quality.duration.toFixed(1)}s`
-                  : 'Unknown'
-              }`,
-              `Transcript: ${
-                voiceResult?.transcription?.transcription ?? 'Unavailable'
-              }`,
-            ]
+            `Duration: ${voiceResult?.quality?.duration
+              ? `${voiceResult.quality.duration.toFixed(1)}s`
+              : 'Unknown'
+            }`,
+            `Transcript: ${voiceResult?.transcription?.transcription ?? 'Unavailable'
+            }`,
+          ]
           : ['No voice recording provided (optional).'],
       },
       {
@@ -740,20 +741,20 @@ const App: React.FC = () => {
         status: overall
           ? 'Ready'
           : validationState.textResult
-          ? 'Pending final check'
-          : 'Waiting',
+            ? 'Pending final check'
+            : 'Waiting',
         metric: formatPercent(overall?.confidence?.overall_confidence),
         details: overall
           ? [
-              `Action: ${overall?.confidence?.action ?? 'review'}`,
-              `Routing: ${overall?.confidence?.routing ?? 'manual'}`,
-              `Image/Text alignment: ${formatPercent(
-                crossModal?.image_text?.similarity
-              )}`,
-              `Voice/Text alignment: ${formatPercent(
-                crossModal?.voice_text?.similarity
-              )}`,
-            ]
+            `Action: ${overall?.confidence?.action ?? 'review'}`,
+            `Routing: ${overall?.confidence?.routing ?? 'manual'}`,
+            `Image/Text alignment: ${formatPercent(
+              crossModal?.image_text?.similarity
+            )}`,
+            `Voice/Text alignment: ${formatPercent(
+              crossModal?.voice_text?.similarity
+            )}`,
+          ]
           : ['Run the full validation once you have shared all the evidence.'],
       },
     ];
@@ -820,14 +821,14 @@ const App: React.FC = () => {
           {!['awaiting_image', 'awaiting_voice', 'completed'].includes(
             conversationState
           ) && (
-            <div className="chat-input">
-              <ChatInput
-                onSend={handleUserInput}
-                disabled={isProcessing}
-                placeholder="Share the details here..."
-              />
-            </div>
-          )}
+              <div className="chat-input">
+                <ChatInput
+                  onSend={handleUserInput}
+                  disabled={isProcessing}
+                  placeholder="Share the details here..."
+                />
+              </div>
+            )}
         </section>
 
         <ValidationSummary
