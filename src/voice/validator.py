@@ -389,3 +389,255 @@ class VoiceValidator:
             result["feedback"] = f"Error during speech recognition: {str(e)}"
         
         return result
+
+    # ------------------------------------------------------------------ #
+    # Multi-Language Detection
+    # ------------------------------------------------------------------ #
+    # Whisper language codes and their names
+    SUPPORTED_LANGUAGES = {
+        "en": "English",
+        "si": "Sinhala", 
+        "ta": "Tamil",
+        "hi": "Hindi",
+        "zh": "Chinese",
+        "ja": "Japanese",
+        "ko": "Korean",
+        "ar": "Arabic",
+        "es": "Spanish",
+        "fr": "French",
+        "de": "German",
+        "pt": "Portuguese",
+        "ru": "Russian",
+    }
+
+    def detect_language(self, audio_path: str) -> Dict:
+        """
+        Detect the spoken language in the audio using Whisper.
+        
+        Whisper has built-in language detection capabilities that work
+        by analyzing the first 30 seconds of audio.
+        
+        Args:
+            audio_path: Path to the audio file
+            
+        Returns:
+            Dict containing:
+                - language: ISO language code (e.g., "en", "si", "ta")
+                - language_name: Full language name
+                - confidence: Detection confidence (0-1)
+                - is_supported: Whether the language is in our supported list
+        """
+        result = {
+            "language": "unknown",
+            "language_name": "Unknown",
+            "confidence": 0.0,
+            "is_supported": False,
+            "feedback": ""
+        }
+        
+        try:
+            # Load audio
+            audio, sr = librosa.load(audio_path, sr=16000, mono=True)
+            
+            # Prepare input features
+            input_features = self.processor(
+                audio, 
+                sampling_rate=sr, 
+                return_tensors="pt"
+            ).input_features.to(self.device)
+            
+            # Use Whisper's language detection
+            with torch.no_grad():
+                # Get the decoder input ids for language detection
+                decoder_input_ids = torch.tensor([[50258]]).to(self.device)  # <|startoftranscript|>
+                
+                # Forward pass to get logits
+                outputs = self.model(
+                    input_features,
+                    decoder_input_ids=decoder_input_ids
+                )
+                
+                # Get language token probabilities
+                # Language tokens are in range 50259-50357 for Whisper
+                logits = outputs.logits[0, 0]
+                
+                # Get top language predictions
+                language_token_start = 50259
+                language_token_end = 50359
+                language_logits = logits[language_token_start:language_token_end]
+                
+                # Apply softmax to get probabilities
+                probs = torch.nn.functional.softmax(language_logits, dim=0)
+                
+                # Get top prediction
+                top_prob, top_idx = probs.max(dim=0)
+                
+                # Map token index to language code
+                # Whisper uses a specific ordering of languages
+                whisper_languages = [
+                    "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr",
+                    "pl", "ca", "nl", "ar", "sv", "it", "id", "hi", "fi", "vi",
+                    "he", "uk", "el", "ms", "cs", "ro", "da", "hu", "ta", "no",
+                    "th", "ur", "hr", "bg", "lt", "la", "mi", "ml", "cy", "sk",
+                    "te", "fa", "lv", "bn", "sr", "az", "sl", "kn", "et", "mk",
+                    "br", "eu", "is", "hy", "ne", "mn", "bs", "kk", "sq", "sw",
+                    "gl", "mr", "pa", "si", "km", "sn", "yo", "so", "af", "oc",
+                    "ka", "be", "tg", "sd", "gu", "am", "yi", "lo", "uz", "fo",
+                    "ht", "ps", "tk", "nn", "mt", "sa", "lb", "my", "bo", "tl",
+                    "mg", "as", "tt", "haw", "ln", "ha", "ba", "jw", "su"
+                ]
+                
+                if top_idx < len(whisper_languages):
+                    detected_lang = whisper_languages[top_idx.item()]
+                    result["language"] = detected_lang
+                    result["language_name"] = self.SUPPORTED_LANGUAGES.get(
+                        detected_lang, 
+                        detected_lang.upper()
+                    )
+                    result["confidence"] = round(top_prob.item(), 3)
+                    result["is_supported"] = detected_lang in self.SUPPORTED_LANGUAGES
+                    result["feedback"] = (
+                        f"Detected {result['language_name']} with "
+                        f"{result['confidence']:.0%} confidence"
+                    )
+                else:
+                    result["feedback"] = "Could not determine language"
+                    
+            if self.enable_logging:
+                logger.info(
+                    f"Language detection: {result['language_name']} "
+                    f"(confidence: {result['confidence']:.2f})"
+                )
+                
+        except Exception as e:
+            result["feedback"] = f"Language detection failed: {str(e)}"
+            if self.enable_logging:
+                logger.error(f"Language detection error: {e}")
+                
+        return result
+
+    def transcribe_with_language(
+        self, 
+        audio_path: str, 
+        language: str = None
+    ) -> Dict:
+        """
+        Transcribe audio with optional language specification.
+        
+        If language is not specified, it will be auto-detected.
+        Specifying the correct language can improve transcription accuracy.
+        
+        Args:
+            audio_path: Path to the audio file
+            language: Optional ISO language code (e.g., "en", "si", "ta")
+            
+        Returns:
+            Dict containing transcription results with language info
+        """
+        result = {
+            "valid": False,
+            "transcription": "",
+            "confidence": 0.0,
+            "language": language or "auto",
+            "language_detected": None,
+            "feedback": ""
+        }
+        
+        try:
+            # Detect language if not specified
+            if not language:
+                lang_result = self.detect_language(audio_path)
+                language = lang_result.get("language", "en")
+                result["language_detected"] = lang_result
+            
+            result["language"] = language
+            
+            # Load audio
+            audio, sr = librosa.load(audio_path, sr=16000, mono=True)
+            
+            # Prepare input
+            input_features = self.processor(
+                audio, 
+                sampling_rate=sr, 
+                return_tensors="pt"
+            ).input_features.to(self.device)
+            
+            # Generate with language forcing if specified
+            with torch.no_grad():
+                forced_decoder_ids = self.processor.get_decoder_prompt_ids(
+                    language=language,
+                    task="transcribe"
+                )
+                
+                gen_out = self.model.generate(
+                    input_features,
+                    forced_decoder_ids=forced_decoder_ids,
+                    return_dict_in_generate=True,
+                    output_scores=True
+                )
+                
+                predicted_ids = gen_out.sequences
+                
+                # Calculate confidence from scores
+                if hasattr(gen_out, 'scores') and gen_out.scores:
+                    step_probs = [
+                        torch.nn.functional.softmax(s, dim=-1) 
+                        for s in gen_out.scores
+                    ]
+                    token_ids = predicted_ids[0]
+                    probs = []
+                    for i in range(min(len(step_probs), token_ids.shape[0])):
+                        tok_id = token_ids[i]
+                        probs.append(step_probs[i][0, tok_id].item())
+                    if probs:
+                        result["confidence"] = sum(probs) / len(probs)
+            
+            # Decode transcription
+            transcription = self.processor.batch_decode(
+                predicted_ids, 
+                skip_special_tokens=True
+            )[0]
+            
+            result["transcription"] = transcription.strip()
+            
+            if len(result["transcription"].split()) >= 3:
+                result["valid"] = True
+                result["feedback"] = (
+                    f"Successfully transcribed in {language.upper()}"
+                )
+            else:
+                result["feedback"] = "Transcription too short or empty"
+                
+        except Exception as e:
+            result["feedback"] = f"Transcription failed: {str(e)}"
+            if self.enable_logging:
+                logger.error(f"Transcription with language error: {e}")
+                
+        return result
+
+    def validate_voice_enhanced(self, audio_path: str) -> Dict:
+        """
+        Perform enhanced voice validation with language detection.
+        
+        This combines standard validation with automatic language detection
+        for a more comprehensive analysis.
+        
+        Args:
+            audio_path: Path to the audio file
+            
+        Returns:
+            Dict containing all validation results with language info
+        """
+        # Standard validation
+        base_result = self.validate_voice(audio_path)
+        
+        # Add language detection
+        if base_result.get("quality", {}).get("valid", False):
+            lang_result = self.detect_language(audio_path)
+            base_result["language_detection"] = lang_result
+            
+            # Update transcription info
+            if base_result.get("transcription", {}).get("valid"):
+                base_result["transcription"]["detected_language"] = lang_result.get("language")
+        
+        return base_result
