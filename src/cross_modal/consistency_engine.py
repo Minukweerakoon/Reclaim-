@@ -30,7 +30,84 @@ class ConsistencyEngine:
     of individual and cross-modal scores, routing decisions, and confidence intervals.
     """
     
-
+    # ------------------------------------------------------------------ #
+    # Adaptive Thresholds by Item Category
+    # ------------------------------------------------------------------ #
+    # Electronics (phones, laptops) need higher image quality because
+    # model numbers and distinguishing features are harder to see in poor images.
+    # Clothing/accessories can be validated with lower thresholds.
+    CATEGORY_THRESHOLDS = {
+        "electronics": {
+            "image_quality": 0.80,
+            "text_completeness": 0.75,
+            "clip_similarity": 0.70,
+            "voice_quality": 0.70,
+            "description": "High-value electronics require clear images for model identification"
+        },
+        "phone": {
+            "image_quality": 0.80,
+            "text_completeness": 0.75,
+            "clip_similarity": 0.70,
+            "voice_quality": 0.70,
+            "description": "Phones have many similar models, need detailed identification"
+        },
+        "laptop": {
+            "image_quality": 0.75,
+            "text_completeness": 0.70,
+            "clip_similarity": 0.65,
+            "voice_quality": 0.65,
+            "description": "Laptops are larger but still need brand/model clarity"
+        },
+        "accessories": {
+            "image_quality": 0.65,
+            "text_completeness": 0.60,
+            "clip_similarity": 0.55,
+            "voice_quality": 0.55,
+            "description": "Accessories like keys/glasses are more visually distinct"
+        },
+        "bag": {
+            "image_quality": 0.65,
+            "text_completeness": 0.65,
+            "clip_similarity": 0.60,
+            "voice_quality": 0.55,
+            "description": "Bags have distinctive colors and styles"
+        },
+        "wallet": {
+            "image_quality": 0.70,
+            "text_completeness": 0.70,
+            "clip_similarity": 0.65,
+            "voice_quality": 0.60,
+            "description": "Wallets often contain ID, moderate quality needed"
+        },
+        "jewelry": {
+            "image_quality": 0.85,
+            "text_completeness": 0.80,
+            "clip_similarity": 0.75,
+            "voice_quality": 0.70,
+            "description": "Jewelry is high-value and needs detailed verification"
+        },
+        "clothing": {
+            "image_quality": 0.55,
+            "text_completeness": 0.55,
+            "clip_similarity": 0.50,
+            "voice_quality": 0.50,
+            "description": "Clothing is visually distinctive, lower thresholds acceptable"
+        },
+        "documents": {
+            "image_quality": 0.80,
+            "text_completeness": 0.85,
+            "clip_similarity": 0.60,
+            "voice_quality": 0.65,
+            "description": "Documents need high text completeness for identification"
+        },
+        "default": {
+            "image_quality": 0.70,
+            "text_completeness": 0.70,
+            "clip_similarity": 0.65,
+            "voice_quality": 0.60,
+            "description": "Standard thresholds for unspecified items"
+        }
+    }
     
     def __init__(self, enable_logging: bool = True):
         """Initialize the ConsistencyEngine."""
@@ -346,5 +423,253 @@ class ConsistencyEngine:
             "active_weights": active_weights # Return weights for transparency
         }
     
+    # ------------------------------------------------------------------ #
+    # Adaptive Threshold Methods
+    # ------------------------------------------------------------------ #
+    def get_adaptive_thresholds(self, item_category: str) -> Dict[str, Any]:
+        """
+        Get validation thresholds based on item category.
+        
+        Different item types have different validation requirements:
+        - Electronics need clearer images (model numbers are small)
+        - Clothing just needs color/style visibility
+        - Documents need high text completeness
+        
+        Args:
+            item_category: Category of the lost/found item
+            
+        Returns:
+            Dict with threshold values for each validation component
+        """
+        category_lower = item_category.lower() if item_category else "default"
+        
+        # Try exact match first
+        if category_lower in self.CATEGORY_THRESHOLDS:
+            thresholds = self.CATEGORY_THRESHOLDS[category_lower].copy()
+            thresholds["category_matched"] = category_lower
+            return thresholds
+        
+        # Try to match to a broader category
+        category_mapping = {
+            # Electronics
+            "iphone": "phone",
+            "samsung": "phone",
+            "smartphone": "phone",
+            "mobile": "phone",
+            "cellphone": "phone",
+            "macbook": "laptop",
+            "notebook": "laptop",
+            "tablet": "electronics",
+            "ipad": "electronics",
+            "camera": "electronics",
+            "headphones": "electronics",
+            "airpods": "electronics",
+            "watch": "electronics",
+            "smartwatch": "electronics",
+            # Accessories
+            "keys": "accessories",
+            "glasses": "accessories",
+            "sunglasses": "accessories",
+            "umbrella": "accessories",
+            "charger": "accessories",
+            # Bags
+            "backpack": "bag",
+            "purse": "bag",
+            "handbag": "bag",
+            "suitcase": "bag",
+            "luggage": "bag",
+            # Documents
+            "passport": "documents",
+            "id": "documents",
+            "license": "documents",
+            "card": "documents",
+            # Jewelry
+            "ring": "jewelry",
+            "necklace": "jewelry",
+            "bracelet": "jewelry",
+            "earring": "jewelry",
+            # Clothing
+            "jacket": "clothing",
+            "coat": "clothing",
+            "shirt": "clothing",
+            "hat": "clothing",
+            "scarf": "clothing",
+        }
+        
+        mapped_category = category_mapping.get(category_lower, "default")
+        thresholds = self.CATEGORY_THRESHOLDS.get(
+            mapped_category, 
+            self.CATEGORY_THRESHOLDS["default"]
+        ).copy()
+        thresholds["category_matched"] = mapped_category
+        thresholds["original_category"] = category_lower
+        
+        return thresholds
 
+    def validate_with_adaptive_thresholds(
+        self,
+        image_result: Optional[Dict],
+        text_result: Optional[Dict],
+        voice_result: Optional[Dict],
+        cross_modal_results: Optional[Dict],
+        item_category: str = "default"
+    ) -> Dict[str, Any]:
+        """
+        Validate inputs using category-specific thresholds.
+        
+        This provides more nuanced validation where, for example,
+        a slightly blurry photo of a distinctive red bag might pass,
+        but the same quality photo of a silver iPhone would fail.
+        
+        Args:
+            image_result: Image validation results
+            text_result: Text validation results
+            voice_result: Voice validation results
+            cross_modal_results: Cross-modal consistency results
+            item_category: Category of the item being validated
+            
+        Returns:
+            Dict with threshold-adjusted validation results
+        """
+        thresholds = self.get_adaptive_thresholds(item_category)
+        
+        # Check each component against category-specific thresholds
+        validations = {
+            "image_passes": False,
+            "text_passes": False,
+            "voice_passes": False,
+            "clip_passes": False,
+            "all_pass": False,
+            "thresholds_used": thresholds,
+            "feedback": []
+        }
+        
+        # Image validation
+        if image_result:
+            image_score = image_result.get("overall_score", 0) / 100  # Normalize to 0-1
+            validations["image_passes"] = image_score >= thresholds["image_quality"]
+            validations["image_score"] = round(image_score, 2)
+            validations["image_threshold"] = thresholds["image_quality"]
+            
+            if not validations["image_passes"]:
+                diff = thresholds["image_quality"] - image_score
+                validations["feedback"].append(
+                    f"Image quality ({image_score:.0%}) is below the {item_category} "
+                    f"threshold ({thresholds['image_quality']:.0%}). "
+                    f"Need {diff:.0%} improvement."
+                )
+        
+        # Text validation
+        if text_result:
+            text_score = text_result.get("overall_score", 0)
+            if text_score > 1:
+                text_score = text_score / 100  # Handle percentage format
+            validations["text_passes"] = text_score >= thresholds["text_completeness"]
+            validations["text_score"] = round(text_score, 2)
+            validations["text_threshold"] = thresholds["text_completeness"]
+            
+            if not validations["text_passes"]:
+                validations["feedback"].append(
+                    f"Text completeness ({text_score:.0%}) needs more detail for {item_category}. "
+                    f"Target: {thresholds['text_completeness']:.0%}."
+                )
+        
+        # Voice validation
+        if voice_result:
+            voice_score = voice_result.get("overall_score", 0)
+            validations["voice_passes"] = voice_score >= thresholds["voice_quality"]
+            validations["voice_score"] = round(voice_score, 2)
+            validations["voice_threshold"] = thresholds["voice_quality"]
+            
+            if not validations["voice_passes"] and voice_score > 0:
+                validations["feedback"].append(
+                    f"Voice quality needs improvement. Try recording in a quieter environment."
+                )
+        
+        # CLIP similarity
+        if cross_modal_results and "image_text" in cross_modal_results:
+            clip_score = cross_modal_results["image_text"].get("similarity", 0)
+            validations["clip_passes"] = clip_score >= thresholds["clip_similarity"]
+            validations["clip_score"] = round(clip_score, 2)
+            validations["clip_threshold"] = thresholds["clip_similarity"]
+            
+            if not validations["clip_passes"] and clip_score > 0:
+                validations["feedback"].append(
+                    f"Image and text don't quite match. Make sure your description "
+                    f"accurately describes what's shown in the photo."
+                )
+        
+        # Determine overall pass/fail
+        required_passes = []
+        if image_result:
+            required_passes.append(validations["image_passes"])
+        if text_result:
+            required_passes.append(validations["text_passes"])
+        
+        validations["all_pass"] = all(required_passes) if required_passes else False
+        
+        if validations["all_pass"]:
+            validations["feedback"] = [
+                f"All quality checks passed for {item_category}! "
+                f"Your submission meets the requirements."
+            ]
+        
+        return validations
 
+    def suggest_improvements(
+        self,
+        validation_result: Dict,
+        item_category: str = "default"
+    ) -> List[str]:
+        """
+        Generate specific improvement suggestions based on validation gaps.
+        
+        Args:
+            validation_result: Results from validate_with_adaptive_thresholds
+            item_category: Category of the item
+            
+        Returns:
+            List of actionable improvement suggestions
+        """
+        suggestions = []
+        thresholds = self.get_adaptive_thresholds(item_category)
+        
+        # Image improvements
+        if not validation_result.get("image_passes", True):
+            score = validation_result.get("image_score", 0)
+            if score < 0.5:
+                suggestions.append(
+                    "📷 Your photo is too blurry. Try holding the camera steady, "
+                    "or use better lighting."
+                )
+            elif score < thresholds["image_quality"]:
+                suggestions.append(
+                    f"📷 For {item_category}, we need a clearer photo. "
+                    f"Try photographing the {item_category} from multiple angles."
+                )
+        
+        # Text improvements
+        if not validation_result.get("text_passes", True):
+            score = validation_result.get("text_score", 0)
+            suggestions.append(
+                f"✏️ Please add more details to your description. "
+                f"Include: brand, color, distinguishing marks, and where you last saw it."
+            )
+        
+        # CLIP improvements
+        if not validation_result.get("clip_passes", True):
+            suggestions.append(
+                "🔗 Your photo and description don't quite match. "
+                "Make sure the photo shows the item you're describing."
+            )
+        
+        # Voice improvements
+        if not validation_result.get("voice_passes", True):
+            score = validation_result.get("voice_score", 0)
+            if score > 0:
+                suggestions.append(
+                    "🎤 Voice recording quality could be better. "
+                    "Try recording in a quieter environment and speak clearly."
+                )
+        
+        return suggestions
