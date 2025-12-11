@@ -675,3 +675,252 @@ class TextValidator:
                 logger.error(f"Error saving validation results: {str(e)}")
             
             return False
+
+    # ------------------------------------------------------------------ #
+    # Intent Classification
+    # ------------------------------------------------------------------ #
+    def classify_intent(self, text: str) -> Dict:
+        """
+        Classify whether the text is reporting a lost item, found item, or inquiry.
+        
+        This is critical for routing the submission to the correct workflow:
+        - "lost": User reporting their own lost item
+        - "found": User reporting an item they found
+        - "inquiry": User asking about item status or general questions
+        
+        Args:
+            text: The text description to classify
+            
+        Returns:
+            Dict containing:
+                - intent: "lost", "found", "inquiry", or "unknown"
+                - confidence: Confidence score (0-1)
+                - method: "zero_shot" or "keyword"
+                - all_scores: Scores for all intents (if using zero-shot)
+        """
+        result = {
+            "intent": "unknown",
+            "confidence": 0.0,
+            "method": "keyword",
+            "all_scores": {}
+        }
+        
+        # Try Zero-Shot Classification first (more accurate)
+        if self.zero_shot_classifier:
+            try:
+                candidate_labels = [
+                    "reporting a lost item",
+                    "reporting a found item", 
+                    "inquiry about an item"
+                ]
+                
+                zs_result = self.zero_shot_classifier(text, candidate_labels)
+                
+                intent_map = {
+                    "reporting a lost item": "lost",
+                    "reporting a found item": "found",
+                    "inquiry about an item": "inquiry"
+                }
+                
+                top_label = zs_result['labels'][0]
+                top_score = zs_result['scores'][0]
+                
+                result["intent"] = intent_map.get(top_label, "unknown")
+                result["confidence"] = round(top_score, 3)
+                result["method"] = "zero_shot"
+                result["all_scores"] = {
+                    intent_map.get(label, label): round(score, 3)
+                    for label, score in zip(zs_result['labels'], zs_result['scores'])
+                }
+                
+                if self.enable_logging:
+                    logger.info(f"Intent classified as '{result['intent']}' with confidence {top_score:.2f}")
+                
+                return result
+                
+            except Exception as e:
+                if self.enable_logging:
+                    logger.warning(f"Zero-shot intent classification failed: {e}, falling back to keywords")
+        
+        # Fallback to keyword matching
+        lower = text.lower()
+        
+        # Lost item indicators
+        lost_keywords = [
+            "i lost", "lost my", "missing", "can't find", "cannot find",
+            "misplaced", "left behind", "forgot", "disappeared", "i've lost",
+            "looking for my", "searching for my"
+        ]
+        
+        # Found item indicators  
+        found_keywords = [
+            "i found", "found a", "found an", "someone left", "picked up",
+            "discovered", "came across", "located", "is this yours",
+            "turned in", "found this"
+        ]
+        
+        # Inquiry indicators
+        inquiry_keywords = [
+            "have you seen", "has anyone", "did anyone", "is there",
+            "status of", "update on", "any news", "checking on",
+            "?", "wondering if", "do you have"
+        ]
+        
+        # Count matches for each category
+        lost_matches = sum(1 for kw in lost_keywords if kw in lower)
+        found_matches = sum(1 for kw in found_keywords if kw in lower)
+        inquiry_matches = sum(1 for kw in inquiry_keywords if kw in lower)
+        
+        # Determine intent based on keyword matches
+        if lost_matches > found_matches and lost_matches > inquiry_matches:
+            result["intent"] = "lost"
+            result["confidence"] = min(0.9, 0.5 + lost_matches * 0.15)
+        elif found_matches > lost_matches and found_matches > inquiry_matches:
+            result["intent"] = "found"
+            result["confidence"] = min(0.9, 0.5 + found_matches * 0.15)
+        elif inquiry_matches > 0:
+            result["intent"] = "inquiry"
+            result["confidence"] = min(0.8, 0.4 + inquiry_matches * 0.1)
+        else:
+            # Default to lost if no clear indicators (most common use case)
+            result["intent"] = "lost"
+            result["confidence"] = 0.4
+        
+        result["all_scores"] = {
+            "lost": lost_matches,
+            "found": found_matches,
+            "inquiry": inquiry_matches
+        }
+        
+        return result
+
+    # ------------------------------------------------------------------ #
+    # Urgency / Sentiment Analysis
+    # ------------------------------------------------------------------ #
+    def analyze_urgency(self, text: str) -> Dict:
+        """
+        Detect urgency and emotional intensity in the text.
+        
+        Used to prioritize critical cases that need immediate attention.
+        
+        Args:
+            text: The text description to analyze
+            
+        Returns:
+            Dict containing:
+                - urgency: "critical", "high", "medium", "low", or "normal"
+                - score: Urgency score (0-1, higher = more urgent)
+                - indicators: List of detected urgency keywords
+                - sentiment: Detected emotional tone
+        """
+        result = {
+            "urgency": "normal",
+            "score": 0.0,
+            "indicators": [],
+            "sentiment": "neutral"
+        }
+        
+        lower = text.lower()
+        
+        # Urgency keyword tiers with weights
+        urgency_tiers = {
+            "critical": {
+                "keywords": [
+                    "emergency", "urgent", "asap", "immediately", "critical",
+                    "desperate", "life-saving", "medication", "passport",
+                    "must find today", "flight in"
+                ],
+                "weight": 1.0,
+                "sentiment": "distressed"
+            },
+            "high": {
+                "keywords": [
+                    "very important", "important", "please help", "need help",
+                    "really need", "soon", "quickly", "as soon as possible",
+                    "valuable", "expensive", "sentimental", "irreplaceable"
+                ],
+                "weight": 0.75,
+                "sentiment": "anxious"
+            },
+            "medium": {
+                "keywords": [
+                    "need", "help", "hoping", "would appreciate", "looking for",
+                    "worried", "concerned", "quite important"
+                ],
+                "weight": 0.5,
+                "sentiment": "concerned"
+            },
+            "low": {
+                "keywords": [
+                    "whenever", "no rush", "if possible", "sometime",
+                    "not urgent", "just wondering"
+                ],
+                "weight": 0.25,
+                "sentiment": "calm"
+            }
+        }
+        
+        # Detect indicators from each tier
+        detected_tier = None
+        max_weight = 0.0
+        
+        for tier, data in urgency_tiers.items():
+            matches = [kw for kw in data["keywords"] if kw in lower]
+            if matches:
+                result["indicators"].extend(matches)
+                if data["weight"] > max_weight:
+                    max_weight = data["weight"]
+                    detected_tier = tier
+                    result["sentiment"] = data["sentiment"]
+        
+        # Additional signals: punctuation and capitalization
+        exclamation_count = text.count('!')
+        caps_ratio = sum(1 for c in text if c.isupper()) / max(len(text), 1)
+        
+        if exclamation_count >= 3:
+            max_weight = min(1.0, max_weight + 0.15)
+            result["indicators"].append("multiple_exclamations")
+        
+        if caps_ratio > 0.4:
+            max_weight = min(1.0, max_weight + 0.1)
+            result["indicators"].append("excessive_caps")
+        
+        # Set final urgency level
+        if detected_tier:
+            result["urgency"] = detected_tier
+        elif max_weight > 0.6:
+            result["urgency"] = "high"
+        elif max_weight > 0.3:
+            result["urgency"] = "medium"
+        
+        result["score"] = round(max_weight, 2)
+        
+        if self.enable_logging and result["urgency"] in ["critical", "high"]:
+            logger.info(f"High urgency detected: {result['urgency']} (score: {result['score']})")
+        
+        return result
+
+    def analyze_text_enhanced(self, text: str, language: str = 'en') -> Dict:
+        """
+        Perform enhanced text analysis including intent and urgency.
+        
+        This combines the standard validation with intent classification
+        and urgency detection for comprehensive text understanding.
+        
+        Args:
+            text: The text description to analyze
+            language: Language code ('en', 'si', 'ta')
+            
+        Returns:
+            Dict containing all validation results plus intent and urgency
+        """
+        # Standard validation
+        base_result = self.validate_text(text, language)
+        
+        # Add intent classification
+        base_result["intent"] = self.classify_intent(text)
+        
+        # Add urgency analysis
+        base_result["urgency"] = self.analyze_urgency(text)
+        
+        return base_result
