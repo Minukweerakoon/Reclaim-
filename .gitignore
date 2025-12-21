@@ -40,3 +40,7 @@ frontend/.env
 
 # Model files
 models/Voshan/
+
+# Large AI model files
+backend/minuk/ai_service/assets/embeddings_mobilenetv3.npy
+backend/minuk/ai_service/assets/faiss_mobilenetv3.index
