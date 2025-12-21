@@ -30,7 +30,13 @@ Thumbs.db
 # Testing
 coverage/
 .nyc_output
-.PROJECT_STRUCTURE.md
-.SETUP_GUIDE.md
-.backend/env.example.txt
-.frontend/env.example.txt
+
+PROJECT_STRUCTURE.md
+SETUP_GUIDE.md
+backend/env.example.txt
+frontend/env.example.txt
+backend/.env
+frontend/.env
+
+# Model files
+models/Voshan/
