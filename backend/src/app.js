@@ -17,6 +17,9 @@ app.use(express.urlencoded({ extended: true }));
 // app.use('/api/auth', require('./routes/auth'));
 // app.use('/api/items', require('./routes/items'));
 
+// Voshan: Suspicious Behavior Detection Routes
+app.use('/api/voshan/detection', require('./routes/voshan/detectionRoutes'));
+
 // Health check route
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
