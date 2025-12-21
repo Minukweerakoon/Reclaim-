@@ -18,7 +18,7 @@ Python microservice for real-time suspicious behavior detection using YOLOv11.
 ### 1. Install Dependencies
 
 ```bash
-cd backend/ml-service
+cd backend/voshan/ml-service
 pip install -r requirements.txt
 ```
 
