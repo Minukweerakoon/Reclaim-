@@ -139,7 +139,7 @@ curl http://localhost:5000/api/voshan/detection/health
    - Set `ML_SERVICE_URL` to your Python ML service URL
 
 3. **Start Services:**
-   - Start Python ML service: `cd backend/ml-service && python app.py`
+   - Start Python ML service: `cd backend/voshan/ml-service && python app.py`
    - Start Node.js backend: `cd backend && npm run dev`
 
 4. **Test Integration:**

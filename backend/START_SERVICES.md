@@ -4,7 +4,7 @@
 
 ### 1. Python ML Service ✅ (Already Running)
 ```bash
-cd backend/ml-service
+cd backend/voshan/ml-service
 python app.py
 ```
 **Status:** Running on http://127.0.0.1:5001
