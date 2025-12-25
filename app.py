@@ -1,4 +1,9 @@
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 import time
 import logging
 import json
@@ -141,12 +146,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Import and register research feature routers
+try:
+    from src.api.chat import router as chat_router
+    from src.api.feedback import router as feedback_router
+    
+    app.include_router(chat_router)
+    app.include_router(feedback_router)
+    logger.info("✓ Research feature endpoints registered (Gemini chat + Active Learning)")
+except Exception as e:
+    logger.warning(f"Could not load research feature routers: {e}")
+
 # File upload settings
 UPLOAD_DIR = "uploads"
 MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 MAX_AUDIO_FILE_SIZE = 5 * 1024 * 1024   # 5MB
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"]
-ALLOWED_AUDIO_TYPES = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/m4a"]
+ALLOWED_AUDIO_TYPES = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/m4a", "audio/webm"]
 
 # Create upload directory if it doesn't exist
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -369,6 +385,7 @@ class TextValidationResult(BaseModel):
     entities: dict
     overall_score: float
     valid: bool
+    clarification_questions: List[str] = []
 
 class VoiceValidationResult(BaseModel):
     """Voice validation result model"""
@@ -390,6 +407,7 @@ class ValidationResponse(BaseModel):
     cross_modal: dict
     confidence: dict
     feedback: dict
+    clarification_questions: List[str] = []
 
 class TextValidationRequest(BaseModel):
     text: str
@@ -893,8 +911,9 @@ async def validate_text(
         "feedback": {
             "suggestions": [],
             "missing_elements": text_result["completeness"].get("missing_info", []),
-            "message": text_result["completeness"].get("feedback", "")
-        }
+            "message": text_result.get("feedback", "") if isinstance(text_result.get("feedback"), str) else text_result.get("feedback", {}).get("message", "")
+        },
+        "clarification_questions": text_result.get("clarification_questions", [])
     }
     
     # Update metrics
@@ -1024,7 +1043,7 @@ async def validate_image(
         iv = get_image_validator()
         if iv is None:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Image validator unavailable on this instance")
-        image_result = cached()(iv.validate_image)(image_path)
+        image_result = cached()(iv.validate_image)(image_path, text)
         
         # Inject missing fields required by ImageValidationResult model
         image_result["image_path"] = image_path
