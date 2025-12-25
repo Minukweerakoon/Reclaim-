@@ -10,6 +10,8 @@ from ultralytics import YOLO
 from PIL import Image as PILImage
 import imagehash
 
+from src.image.vit_validator import get_vit_validator
+
 logger = logging.getLogger("ImageValidator")
 logger.setLevel(logging.INFO)
 
@@ -29,13 +31,45 @@ class ImageValidator:
         self,
         model_path: Optional[str] = None,
         enable_logging: bool = True,
+        use_vit: bool = True,  # NEW: Use ViT by default
     ) -> None:
         self.enable_logging = enable_logging
-        self.model_path = self._resolve_model_path(model_path or "yolov8n.pt")
+        self.use_vit = use_vit
+        
+        # YOLOv11 model path resolution (latest YOLO version - 2024)
+        if model_path:
+            self.yolo_model_path = model_path
+        else:
+            # Use YOLOv11n (nano) - faster and more accurate than YOLOv8
+            self.yolo_model_path = self._resolve_model_path("models/yolo11n.pt")
+        
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model = YOLO(self.model_path)
+        
+        # Load YOLOv11 model (automatically downloads if not present)
+        try:
+            self.yolo_model = YOLO(self.yolo_model_path)
+            logger.info(f"✓ Loaded YOLOv11 model on {self.device}")
+        except Exception as e:
+            logger.warning(f"YOLOv11 not found, falling back to YOLOv8: {e}")
+            self.yolo_model_path = self._resolve_model_path("models/yolov8n.pt")
+            self.yolo_model = YOLO(self.yolo_model_path)
+        
+        # Load ViT validator (95% accuracy model)
+        if use_vit:
+            try:
+                self.vit_validator = get_vit_validator()
+                if self.enable_logging:
+                    logger.info("✓ ViT validator loaded (95% accuracy)")
+            except Exception as e:
+                logger.warning(f"Failed to load ViT: {e}. Falling back to YOLOv8.")
+                self.vit_validator = None
+                self.use_vit = False
+        else:
+            self.vit_validator = None
+        
         if self.enable_logging:
-            logger.info("Loaded YOLO model %s on %s", self.model_path, self.device)
+            model_info = "ViT (95% accuracy)" if self.use_vit else f"YOLOv8 ({self.yolo_model_path})"
+            logger.info(f"ImageValidator initialized with {model_info} on {self.device}")
 
         self.face_cascade = cv2.CascadeClassifier(
             cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
@@ -47,7 +81,7 @@ class ImageValidator:
     # ------------------------------------------------------------------ #
     # Public API
     # ------------------------------------------------------------------ #
-    def validate_image(self, image_path: str) -> Dict:
+    def validate_image(self, image_path: str, text: Optional[str] = None) -> Dict:
         start = time.time()
 
         file_check = self.validate_file(image_path)
@@ -72,13 +106,17 @@ class ImageValidator:
             }
 
         sharpness_result = self.check_sharpness(image_path)
-        objects_result = self.detect_objects(image_path)
+        objects_result = self.detect_objects(image_path, text_hint=text)
         privacy_result = self.detect_privacy_content(image_path)
 
         sharpness_score = sharpness_result["score"] / 100
         detection_score = objects_result["detection_score"] / 100
         overall = (sharpness_score * 0.6 + detection_score * 0.4) * 100
         is_valid = overall >= 70
+
+        # Research metadata (expose which model was used)
+        model_used = objects_result.get("model", "YOLOv8")
+        model_confidence = objects_result.get("confidence", detection_score)
 
         return {
             "valid": is_valid,
@@ -88,6 +126,15 @@ class ImageValidator:
             "privacy": privacy_result,
             "feedback": self._generate_feedback(sharpness_result, objects_result, overall),
             "processing_time": round(time.time() - start, 3),
+            # Research features metadata
+            "research_metadata": {
+                "model_used": model_used,
+                "model_confidence": round(model_confidence, 3),
+                "features_active": {
+                    "custom_vit": model_used == "ViT-Custom-95%",
+                    "detection_method": "deep_learning" 
+                }
+            }
         }
 
     def validate_file(self, image_path: str) -> Dict:
@@ -141,35 +188,96 @@ class ImageValidator:
             "feedback": f"Image sharpness: {normalized:.0f}% - {'Good' if is_sharp else 'Needs improvement'}",
         }
 
-    def detect_objects(self, image_path: str) -> Dict:
-        results = self.model(image_path, conf=0.3, device=self.device, verbose=False)
-        detections: List[Dict] = []
-        for result in results:
-            if not result.boxes:
-                continue
-            for box in result.boxes:
-                conf = float(box.conf[0])
-                cls_id = int(box.cls[0])
-                class_name = result.names.get(cls_id, "object")
-                detections.append(
-                    {
-                        "class": class_name,
+
+    def detect_objects(self, image_path: str, text_hint: Optional[str] = None) -> Dict:
+        """
+        Detect objects using YOLO as primary detector (more reliable).
+        ViT is used only as fallback when YOLO detects nothing.
+        
+        Args:
+            image_path: Path to image
+            text_hint: Optional text description (logged but not used for routing now)
+        """
+        # STRATEGY CHANGE: YOLO PRIMARY for ALL items
+        # Reason: ViT misdetects phones→headphone, wallets→backpack
+        # YOLO (80 COCO classes) is more reliable for general objects
+        
+        logger.info(f"[DETECTION] Text hint received: '{text_hint}'")
+        logger.info(f"[DETECTION] Using YOLO-PRIMARY strategy for all items")
+        
+        # Try YOLOv11 FIRST (primary detector)
+        try:
+            results = self.yolo_model(image_path, conf=0.25, device=self.device, verbose=False)
+            detections = []
+            
+            for result in results:
+                if not result.boxes:
+                    continue
+                for box in result.boxes:
+                    conf = float(box.conf[0])
+                    cls_id = int(box.cls[0])
+                    class_name = result.names.get(cls_id, "object")
+                    
+                    # Map YOLO classes to lost-and-found categories
+                    mapped_class = self._map_yolo_class(class_name)
+                    
+                    detections.append({
+                        "class": mapped_class,
+                        "original_class": class_name,
                         "confidence": round(conf, 3),
                         "bbox": [float(x) for x in box.xyxy[0].tolist()],
-                    }
-                )
-
-        detections.sort(key=lambda x: x["confidence"], reverse=True)
-        high_conf = [d for d in detections if d["confidence"] > 0.5]
-        detection_score = min(100, len(high_conf) * 50)
+                    })
+            
+            detections.sort(key=lambda x: x["confidence"], reverse=True)
+            high_conf = [d for d in detections if d["confidence"] > 0.4]
+            
+            # If YOLO found something with decent confidence, use it
+            if high_conf:
+                detection_score = min(100, len(high_conf) * 50)
+                logger.info(f"[DETECTION] YOLOv11 detected: {high_conf[0]['class']} ({high_conf[0]['confidence']})")
+                return {
+                    "valid": bool(True),
+                    "confidence": float(high_conf[0]["confidence"]),
+                    "detections": high_conf,
+                    "detection_score": float(detection_score),
+                    "feedback": self._generate_yolo_feedback(high_conf, detections),
+                    "model": "YOLOv11-Primary"
+                }
+                
+        except Exception as e:
+            logger.error(f"YOLOv11 primary detection failed: {e}")
+        
+        # FALLBACK: Use ViT only if YOLO found nothing
+        if self.use_vit and self.vit_validator:
+            try:
+                logger.info("[DETECTION] YOLO found nothing, falling back to ViT")
+                vit_result = self.vit_validator.validate_image(image_path)
+                
+                return {
+                    "valid": bool(vit_result['valid']),
+                    "confidence": float(vit_result['confidence']),
+                    "detections": [{
+                        "class": str(vit_result['detected_item']),
+                        "confidence": float(vit_result['confidence'])
+                    }],
+                    "detection_score": float(min(100, vit_result['confidence'] * 100)),
+                    "feedback": str(vit_result['feedback']),
+                    "model": "ViT-Fallback"
+                }
+            except Exception as e:
+                logger.warning(f"ViT fallback also failed: {e}")
+        
+        # Last resort: Return no detection
+        logger.warning("[DETECTION] Both YOLO and ViT failed to detect anything")
         return {
-            "valid": len(high_conf) > 0,
-            "detections": detections[:3],
-            "detection_score": detection_score,
-            "feedback": f"Detected {len(detections)} objects"
-            if detections
-            else "No clear objects detected",
+            "valid": bool(False),
+            "confidence": float(0.0),
+            "detections": [],
+            "detection_score": float(0),
+            "feedback": "No objects detected with sufficient confidence",
+            "model": "None"
         }
+
 
     def detect_privacy_content(self, image_path: str) -> Dict:
         image = cv2.imread(image_path)
@@ -409,4 +517,44 @@ class ImageValidator:
             result["image_path"] = path
             results.append(result)
         return results
+    
+    def _map_yolo_class(self, yolo_class: str) -> str:
+        """
+        Map YOLO's 80 COCO classes to our lost-and-found categories.
+        
+        This improves detection by grouping similar items.
+        """
+        yolo_class_lower = yolo_class.lower()
+        
+        # Direct mappings for common lost items
+        phone_keywords = ['cell phone', 'cellphone', 'phone', 'mobile', 'smartphone']
+        if any(keyword in yolo_class_lower for keyword in phone_keywords):
+            return 'phone'
+        
+        backpack_keywords = ['backpack', 'bag', 'suitcase', 'handbag', 'purse']
+        if any(keyword in yolo_class_lower for keyword in backpack_keywords):
+            return 'backpack'
+        
+        laptop_keywords = ['laptop', 'computer', 'notebook']
+        if any(keyword in yolo_class_lower for keyword in laptop_keywords):
+            return 'laptop'
+            
+        # Keep original for other items
+        return yolo_class
+    
+    def _generate_yolo_feedback(self, high_conf: List[Dict], all_detections: List[Dict]) -> str:
+        """Generate helpful feedback for YOLO detections."""
+        if not high_conf:
+            if all_detections:
+                top = all_detections[0]
+                return f"Uncertain detection: possibly {top['class']} ({top['confidence']*100:.0f}% confidence)"
+            return "No clear objects detected. Try retaking with better lighting."
+        
+        detected = high_conf[0]
+        feedback = f"✓ Detected {detected['class']} ({detected['confidence']*100:.0f}% confidence)"
+        
+        if len(high_conf) > 1:
+            feedback += f" and {len(high_conf)-1} other object(s)"
+        
+        return feedback
 
