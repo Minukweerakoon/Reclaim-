@@ -8,6 +8,17 @@ import torch
 from sentence_transformers import SentenceTransformer
 from datetime import datetime
 from src.cross_modal.clip_validator import CLIPValidator
+# Import new Cross-Attention Fusion
+try:
+    from src.cross_modal.fusion import CrossAttentionFusion
+except ImportError:
+    CrossAttentionFusion = None
+
+# Import XAI Explainer
+try:
+    from src.cross_modal.xai_explainer import XAIExplainer
+except ImportError:
+    XAIExplainer = None
 
 # Configure logging
 logging.basicConfig(
@@ -17,18 +28,29 @@ logging.basicConfig(
 logger = logging.getLogger('ConsistencyEngine')
 
 class ConsistencyEngine:
-    """An advanced multi-modal consistency validation system integrating text, audio, and image inputs.
+    """An advanced multi-modal consistency validation system integrating text, audio, and image inputs."""
     
-    This class provides methods to validate consistency across different modalities:
-    - Combines CLIP, BERT, and Whisper results into unified consistency scoring
-    - Implements voice-text semantic similarity using sentence transformers
-    - Validates location and temporal consistency across modalities
-    - Creates adaptive confidence scoring based on input quality
-    - Provides intelligent routing based on confidence thresholds
-    
-    The validation pipeline returns structured results in JSON format with detailed breakdown
-    of individual and cross-modal scores, routing decisions, and confidence intervals.
-    """
+    def __init__(self, enable_logging: bool = True):
+        """Initialize the ConsistencyEngine."""
+        self.enable_logging = enable_logging
+        self.clip_validator = CLIPValidator()
+        self.sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
+        self.text_similarity_threshold = 0.75
+        
+        # Initialize Cross-Attention Fusion (Heuristic Mode)
+        if CrossAttentionFusion:
+            self.fusion_model = CrossAttentionFusion()
+            self.fusion_model.eval() # Inference mode
+        else:
+            self.fusion_model = None
+            
+        # Initialize XAI Explainer
+        if XAIExplainer:
+            self.xai_explainer = XAIExplainer()
+        else:
+            self.xai_explainer = None
+            
+        self.location_keywords = [
     
     # ------------------------------------------------------------------ #
     # Adaptive Thresholds by Item Category
@@ -195,6 +217,57 @@ class ConsistencyEngine:
         
         return result
     
+    def validate_multimodal_fusion(self, 
+                                 text_embedding: np.ndarray,
+                                 image_embedding: np.ndarray,
+                                 voice_embedding: Optional[np.ndarray] = None) -> Dict:
+        """
+        Validate consistency using Cross-Attention Fusion.
+        This provides a superior, learnable metric compared to simple cosine similarity.
+        """
+        result = {
+            "valid": False,
+            "score": 0.0,
+            "method": "heuristic",
+            "feedback": ""
+        }
+        
+        if not self.fusion_model:
+            result["feedback"] = "Fusion model not initialized"
+            return result
+            
+        try:
+            # Normalize embeddings (important for attention/cosine)
+            def normalize(v):
+                n = np.linalg.norm(v)
+                return v / n if n > 0 else v
+                
+            text_norm = normalize(text_embedding)
+            image_norm = normalize(image_embedding)
+            voice_norm = normalize(voice_embedding) if voice_embedding is not None else None
+            
+            # Use heuristic fusion (since we haven't trained the weights yet)
+            # In a trained model, we would use self.fusion_model(t, i, v)
+            score = self.fusion_model.fuse_features_heuristic(
+                text_norm, image_norm, voice_norm
+            )
+            
+            result["score"] = float(score)
+            result["valid"] = score >= 0.65  # Threshold
+            result["method"] = "cross_attention_heuristic"
+            
+            if result["valid"]:
+                result["feedback"] = "High cross-modal alignment detected"
+            else:
+                result["feedback"] = f"Low cross-modal alignment ({score:.2f})"
+                
+        except Exception as e:
+            if self.enable_logging:
+                logger.error(f"Error in multimodal fusion: {e}")
+            result["feedback"] = f"Fusion error: {str(e)}"
+            
+        return result
+
     def validate_context_consistency(
         self,
         text_result: Optional[Dict[str, Any]],

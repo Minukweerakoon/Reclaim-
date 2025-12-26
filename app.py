@@ -1594,6 +1594,115 @@ try:
 except Exception as _e:
     logger.warning(f"Static mount skipped: {_e}")
 
+# ------------------------------------------------------------------ #
+# Active Learning Feedback Endpoint
+# ------------------------------------------------------------------ #
+
+# ------------------------------------------------------------------ #
+# Active Learning Feedback Endpoint
+# ------------------------------------------------------------------ #
+class FeedbackRequest(BaseModel):
+    request_id: str
+    modality: str
+    predicted_label: Optional[str] = None
+    user_correction: Optional[str] = None
+    is_correct: bool
+    comments: Optional[str] = None
+
+@app.post("/feedback")
+async def submit_feedback(feedback: FeedbackRequest, x_api_key: str = Header(None)):
+    """
+    Submit user feedback for Active Learning.
+    Stores corrections for low-confidence predictions to improve future models.
+    """
+    # Verify API Key
+    if x_api_key != API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key"
+        )
+        
+    try:
+        # Store in database
+        query = db_manager.feedback_logs.insert().values(
+            request_id=feedback.request_id,
+            modality=feedback.modality,
+            predicted_label=feedback.predicted_label,
+            user_correction=feedback.user_correction,
+            is_correct=feedback.is_correct,
+            comments=feedback.comments,
+            timestamp=datetime.now()
+        )
+        
+        with db_manager.engine.connect() as conn:
+            conn.execute(query)
+            conn.commit()
+            
+        logger.info(f"Feedback received for request {feedback.request_id}: Correct={feedback.is_correct}")
+        
+        return {
+            "status": "success", 
+            "message": "Feedback stored for active learning",
+            "active_learning_triggered": not feedback.is_correct # Retraining candidate if wrong
+        }
+        
+    except Exception as e:
+        logger.error(f"Error storing feedback: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to store feedback: {str(e)}"
+        )
+    request_id: str
+    modality: str
+    predicted_label: Optional[str] = None
+    user_correction: Optional[str] = None
+    is_correct: bool
+    comments: Optional[str] = None
+
+@app.post("/feedback")
+async def submit_feedback(feedback: FeedbackRequest, x_api_key: str = Header(None)):
+    """
+    Submit user feedback for Active Learning.
+    Stores corrections for low-confidence predictions to improve future models.
+    """
+    # Verify API Key
+    if x_api_key != API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key"
+        )
+        
+    try:
+        # Store in database
+        query = db_manager.feedback_logs.insert().values(
+            request_id=feedback.request_id,
+            modality=feedback.modality,
+            predicted_label=feedback.predicted_label,
+            user_correction=feedback.user_correction,
+            is_correct=feedback.is_correct,
+            comments=feedback.comments,
+            timestamp=datetime.now()
+        )
+        
+        with db_manager.engine.connect() as conn:
+            conn.execute(query)
+            conn.commit()
+            
+        logger.info(f"Feedback received for request {feedback.request_id}: Correct={feedback.is_correct}")
+        
+        return {
+            "status": "success", 
+            "message": "Feedback stored for active learning",
+            "active_learning_triggered": not feedback.is_correct # Retraining candidate if wrong
+        }
+        
+    except Exception as e:
+        logger.error(f"Error storing feedback: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to store feedback: {str(e)}"
+        )
+
 # Main entry point
 if __name__ == "__main__":
     uvicorn.run("app:app", host="0.0.0.0", port=8000)

@@ -57,6 +57,23 @@ class DatabaseManager:
             Column("raw_results", JSON),
         )
 
+        self.feedback_logs = Table(
+            "feedback_logs",
+            self.metadata,
+            Column("id", Integer, primary_key=True, autoincrement=True),
+            Column("request_id", String(255)),
+            Column("modality", String(50)),
+            Column("predicted_label", String(255)),
+            Column("user_correction", String(255)),
+            Column("is_correct", Boolean),
+            Column("comments", String),
+            Column(
+                "timestamp",
+                DateTime(timezone=True),
+                server_default=text("CURRENT_TIMESTAMP"),
+            ),
+        )
+
         self.metadata.create_all(self.engine)
         logger.info("Database tables ensured.")
 
