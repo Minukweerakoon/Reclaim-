@@ -8,6 +8,8 @@ import React, {
 import { ChatInterface } from './components/Chat/ChatWindow';
 import { FileUploadZone } from './components/Uploads/Dropzone';
 import { VoiceRecorder } from './components/Uploads/AudioRecorder';
+import { CameraCapture } from './components/Uploads/CameraCapture';
+import { ImageInputSelector } from './components/Uploads/ImageInputSelector';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useValidation } from './hooks/useValidation';
 import { ChatInput } from './components/Chat/ChatInput';
@@ -151,9 +153,11 @@ const App: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [progressLog, setProgressLog] = useState<ProgressEntry[]>([]);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [imageInputMode, setImageInputMode] = useState<'select' | 'camera' | 'file'>('select');
+
 
   const { sendMessage, wsConnected, lastMessage } = useWebSocket();
-  const { validateComplete, validateImage, validateText, validateVoice } =
+  const { validateComplete, validateImage, validateText, validateVoice, sendChatMessage } =
     useValidation();
 
   const addBotMessage = useCallback((content: string, metadata?: any) => {
@@ -302,9 +306,23 @@ const App: React.FC = () => {
             textResult?.entities?.item_mentions?.length > 0
               ? textResult.entities.item_mentions.join(', ')
               : 'the item';
-          addBotMessage(
-            `Excellent description! I noted ${mentions}. If you have a photo of the item, upload it so I can verify the visual details.`
-          );
+
+          // Check for clarification questions (plausibility check)
+          if (textResult?.clarification_questions && textResult.clarification_questions.length > 0) {
+            addBotMessage(textResult.clarification_questions.join(' '));
+            // Don't advance state yet if clarification is needed, or maybe we do?
+            // For now, let's keep it in the same state or maybe 'resolving_mismatch' if we had that logic.
+            // But to keep it simple and allow flow to continue (since it IS valid), we'll just show the warning
+            // and still ask for the image.
+            addBotMessage(
+              `I noted ${mentions}, but please clarify the above if needed. If you have a photo of the item, upload it so I can verify the visual details.`
+            );
+          } else {
+            addBotMessage(
+              `Excellent description! I noted ${mentions}. If you have a photo of the item, upload it so I can verify the visual details.`
+            );
+          }
+
           pushProgress(
             'Description analysis',
             formatPercent(textResult.overall_score)
@@ -347,9 +365,18 @@ const App: React.FC = () => {
       pushProgress('Image analysis', 'Processing');
 
       try {
+        // Build complete description including item type for better detection
+        const itemType = validationStateRef.current.itemType || '';
+        const textDescription = validationStateRef.current.text || '';
+        const fullDescription = itemType
+          ? `${itemType} ${textDescription}`.trim()
+          : textDescription;
+
+        console.log('[DEBUG] Sending to validateImage - Full description:', fullDescription);
+
         const imageResult = await validateImage(
           file,
-          validationStateRef.current.text
+          fullDescription  // Include item type (e.g., "iPhone 15") in description
         );
         updateValidationState({ imageResult });
         pushProgress(
@@ -424,6 +451,21 @@ const App: React.FC = () => {
       pushProgress,
     ]
   );
+
+  const handleImageCapture = useCallback(
+    async (blob: Blob, dataUrl: string) => {
+      // Convert blob to File
+      const file = new File([blob], 'camera_capture.jpg', { type: 'image/jpeg' });
+
+      // Use existing handleImageUpload logic
+      await handleImageUpload(file);
+
+      // Reset mode to select
+      setImageInputMode('select');
+    },
+    [handleImageUpload]
+  );
+
 
   const handleVoiceRecording = useCallback(
     async (audioBlob: Blob) => {
@@ -578,44 +620,114 @@ const App: React.FC = () => {
       }
 
       addUserMessage(trimmed);
+      setIsProcessing(true);
+      pushProgress('AI Analysis', 'Thinking...');
 
-      switch (conversationState) {
-        case 'welcome':
-          if (
-            containsItemKeyword(trimmed) &&
-            trimmed.split(/\s+/).length <= 3 &&
-            !/i\s+lost|i\s+found/i.test(trimmed)
-          ) {
-            await handleItemTypeInput(trimmed);
-          } else {
-            setConversationState('item_details');
-            await handleDescriptionInput(trimmed);
+      try {
+        // Prepare conversation history for context
+        const history = messages.map(msg => ({
+          role: msg.type === 'user' ? 'user' : 'model',
+          content: msg.content
+        }));
+
+        console.log('[DEBUG] Calling sendChatMessage with:', { message: trimmed, historyLength: history.length });
+
+        // Call Gemini-powered chat API
+        const response = await sendChatMessage(trimmed, history);
+
+        console.log('[DEBUG] Received response from sendChatMessage:', response);
+
+        // 1. Show Bot Response
+        if (response.bot_response) {
+          console.log('[DEBUG] Adding bot message:', response.bot_response);
+          addBotMessage(response.bot_response);
+        } else {
+          console.warn('[DEBUG] No response.bot_response field in:', response);
+        }
+
+        // 2. Update Extracted Info
+        if (response.extracted_info) {
+          const info = response.extracted_info;
+          const updates: Partial<ValidationState> = {};
+
+          if (info.item_type) updates.itemType = info.item_type;
+          if (info.color) updates.colorHint = info.color;
+          if (info.brand) updates.brandHint = info.brand;
+
+          // Append location/time to text description if present
+          let newText = validationStateRef.current.text || '';
+          if (info.location && !newText.includes(info.location)) {
+            newText += ` at ${info.location}`;
           }
-          break;
-        case 'item_details':
-        case 'resolving_mismatch':
-          await handleDescriptionInput(trimmed);
-          break;
-        case 'completed':
-          addBotMessage(
-            'Your report is already complete. If you need to start another report, refresh the page.'
-          );
-          break;
-        default:
-          addBotMessage(
-            "Let me finish the current step and I'll let you know what I need next."
-          );
-          break;
+          if (info.time && !newText.includes(info.time)) {
+            newText += ` around ${info.time}`;
+          }
+          if (newText !== validationStateRef.current.text) {
+            updates.text = newText;
+          }
+
+          if (Object.keys(updates).length > 0) {
+            updateValidationState(updates);
+            pushProgress('Extracted Details', 'Updated');
+          }
+        }
+
+        // 3. Handle Next Actions
+        if (response.next_action === 'ask_for_image') {
+          setConversationState('awaiting_image');
+        } else if (response.next_action === 'validate') {
+          // Trigger validation if we have enough info
+          if (validationStateRef.current.text) {
+            setIsProcessing(true);
+            pushProgress('Description analysis', 'Running');
+            try {
+              const textResult = await validateText(validationStateRef.current.text, {
+                itemTypeHint: validationStateRef.current.itemType,
+                colorHint: validationStateRef.current.colorHint,
+              });
+              updateValidationState({ textResult });
+
+              if (textResult?.valid) {
+                pushProgress('Description analysis', formatPercent(textResult.overall_score));
+                setConversationState('awaiting_image');
+                addBotMessage("I've got the details. If you have a photo, please upload it now.");
+              } else {
+                pushProgress('Description analysis', 'Needs detail');
+                addBotMessage("I need a bit more detail to verify this report. Could you be more specific?");
+              }
+            } catch (e) {
+              console.error("Validation failed", e);
+            } finally {
+              setIsProcessing(false);
+            }
+          }
+        } else if (response.next_action === 'ask_for_details') {
+          setConversationState('item_details');
+        }
+
+        // 4. Handle Intention (Lost vs Found)
+        if (response.intention && response.intention !== 'unknown') {
+          // Could update UI theme or context based on this
+          console.log("Detected intention:", response.intention);
+        }
+
+      } catch (error) {
+        console.error("Chat error:", error);
+        addBotMessage("I'm having trouble connecting to my brain right now. Please try again.");
+        pushProgress('AI Analysis', 'Failed');
+      } finally {
+        setIsProcessing(false);
       }
     },
     [
       addUserMessage,
-      conversationState,
+      messages,
       isProcessing,
+      sendChatMessage,
       addBotMessage,
-      handleItemTypeInput,
-      handleDescriptionInput,
-      containsItemKeyword,
+      updateValidationState,
+      pushProgress,
+      handleDescriptionInput
     ]
   );
 
@@ -790,14 +902,32 @@ const App: React.FC = () => {
           <ChatInterface messages={messages} isProcessing={isProcessing} />
 
           {conversationState === 'awaiting_image' && (
-            <FileUploadZone
-              onUpload={handleImageUpload}
-              accept="image/*"
-              maxSize={10 * 1024 * 1024}
-            />
+            <>
+              {imageInputMode === 'select' && (
+                <ImageInputSelector
+                  onCameraSelect={() => setImageInputMode('camera')}
+                  onFileSelect={() => setImageInputMode('file')}
+                />
+              )}
+
+              {imageInputMode === 'camera' && (
+                <CameraCapture
+                  onCapture={handleImageCapture}
+                  onCancel={() => setImageInputMode('select')}
+                />
+              )}
+
+              {imageInputMode === 'file' && (
+                <FileUploadZone
+                  onUpload={handleImageUpload}
+                  accept="image/*"
+                  maxSize={10 * 1024 * 1024}
+                />
+              )}
+            </>
           )}
 
-          {conversationState === 'awaiting_voice' && (
+          {(conversationState === 'awaiting_voice' || conversationState === 'resolving_mismatch') && (
             <VoiceRecorder
               onRecordingComplete={handleVoiceRecording}
               maxDuration={120}
@@ -818,7 +948,7 @@ const App: React.FC = () => {
             </button>
           )}
 
-          {!['awaiting_image', 'awaiting_voice', 'completed'].includes(
+          {!['awaiting_image', 'awaiting_voice', 'resolving_mismatch', 'completed'].includes(
             conversationState
           ) && (
               <div className="chat-input">
