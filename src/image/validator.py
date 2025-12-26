@@ -520,27 +520,64 @@ class ImageValidator:
     
     def _map_yolo_class(self, yolo_class: str) -> str:
         """
-        Map YOLO's 80 COCO classes to our lost-and-found categories.
-        
-        This improves detection by grouping similar items.
+        Map YOLO's 80 COCO classes to Lost & Found categories.
+        Uses comprehensive dictionary mapping for accuracy.
         """
+        # Comprehensive YOLO to Lost & Found mapping
+        YOLO_MAPPING = {
+            # Electronics - Direct Mapping
+            "cell phone": "phone",
+            "laptop": "laptop",
+            "mouse": "mouse",
+            "keyboard": "keyboard",
+            "remote": "remote",
+            "tv": "electronics",
+            
+            # Personal Items - Bags & Accessories  
+            "handbag": "wallet",  # Closest match - wallets often detected as handbag
+            "backpack": "backpack",
+            "suitcase": "luggage",
+            "umbrella": "umbrella",
+            "tie": "clothing",
+            
+            # Common Lost Items
+            "book": "book",
+            "bottle": "bottle",
+            "cup": "cup",
+            "clock": "clock",
+            "scissors": "scissors",
+            "teddy bear": "toy",
+            
+            # Sports Equipment
+            "sports ball": "ball",
+            "baseball bat": "sports_equipment",
+            "baseball glove": "sports_equipment",
+            "skateboard": "skateboard",
+            "tennis racket": "sports_equipment",
+            "bicycle": "bicycle",
+            "surfboard": "sports_equipment",
+            "skis": "sports_equipment",
+            "snowboard": "sports_equipment",
+            
+            # Utensils
+            "wine glass": "glass",
+            "cup": "cup",
+            "fork": "utensils",
+            "knife": "utensils",
+            "spoon": "utensils",
+            "bowl": "bowl",
+        }
+        
         yolo_class_lower = yolo_class.lower()
         
-        # Direct mappings for common lost items
-        phone_keywords = ['cell phone', 'cellphone', 'phone', 'mobile', 'smartphone']
-        if any(keyword in yolo_class_lower for keyword in phone_keywords):
-            return 'phone'
+        # Check direct mapping
+        if yolo_class_lower in YOLO_MAPPING:
+            return YOLO_MAPPING[yolo_class_lower]
         
-        backpack_keywords = ['backpack', 'bag', 'suitcase', 'handbag', 'purse']
-        if any(keyword in yolo_class_lower for keyword in backpack_keywords):
-            return 'backpack'
-        
-        laptop_keywords = ['laptop', 'computer', 'notebook']
-        if any(keyword in yolo_class_lower for keyword in laptop_keywords):
-            return 'laptop'
-            
-        # Keep original for other items
+        # For unmapped classes, keep original name
+        # These will likely trigger ViT fallback if confidence is low
         return yolo_class
+
     
     def _generate_yolo_feedback(self, high_conf: List[Dict], all_detections: List[Dict]) -> str:
         """Generate helpful feedback for YOLO detections."""
