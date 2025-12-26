@@ -1,0 +1,32 @@
+[
+  {
+    "timestamp": "2025-12-18T23:36:45.397370",
+    "input": "I lost my Gucci iPhone",
+    "original": {
+      "item": "phone",
+      "brand": "Gucci",
+      "confidence": 0.6
+    },
+    "correction": {
+      "item": "phone case",
+      "brand": "Gucci",
+      "note": "It's a Gucci CASE for iPhone, not the phone itself"
+    },
+    "type": "correction"
+  },
+  {
+    "timestamp": "2025-12-18T23:36:45.399371",
+    "input": "I lost my laptop in the server room",
+    "original": {
+      "item": "laptop",
+      "location": "server room",
+      "plausibility": 0.05
+    },
+    "correction": {
+      "item": "laptop",
+      "location": "server room",
+      "note": "Yes, I work in IT"
+    },
+    "type": "confirmation"
+  }
+]

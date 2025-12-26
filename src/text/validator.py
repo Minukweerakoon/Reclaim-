@@ -1,20 +1,25 @@
 import os
+import re
 import time
 import logging
 import json
-from typing import Dict, List, Tuple, Union, Optional
+from typing import Dict, List, Optional, Any, Union, Tuple
 import spacy
+from spacy.cli import download as spacy_download
 import numpy as np
-from transformers import AutoTokenizer, AutoModel, pipeline
-from sentence_transformers import SentenceTransformer
 import torch
+from transformers import pipeline, AutoTokenizer, AutoModel
+from sentence_transformers import SentenceTransformer
+from src.intelligence.llm_client import get_llm_client
+from src.intelligence.knowledge_graph import get_knowledge_graph
+from src.intelligence.active_learning import get_active_learning_system
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger('TextValidator')
+logger = logging.getLogger(__name__)
 
 class TextValidator:
     """An intelligent text validation system for lost item descriptions using NLP techniques.
@@ -119,6 +124,19 @@ class TextValidator:
             self.brands['si'] = self.brands.get('en', [])
             self.brands['ta'] = self.brands.get('en', [])
 
+        # Initialize LLM Client
+        self.llm_client = get_llm_client()
+        
+        # Initialize Knowledge Graph (Research-Grade Feature #1)
+        self.knowledge_graph = get_knowledge_graph()
+        if self.enable_logging:
+            logger.info("Knowledge Graph initialized for context-aware validation")
+        
+        # Initialize Active Learning System (Research-Grade Feature #2)
+        self.active_learning = get_active_learning_system()
+        if self.enable_logging:
+            logger.info("Active Learning System initialized for self-improvement")
+
         # Ensure no corrupted multilingual keyword lists leak into runtime
         # Prefer empty lists over unreliable matches; production should load UTF-8 resources
         for lang in ['si', 'ta']:
@@ -215,6 +233,65 @@ class TextValidator:
                 logger.error(f"Failed to load NLP models: {str(e)}")
             raise
     
+
+    
+    def check_plausibility(self, text: str, entities: Dict) -> Dict:
+        """
+        Check the plausibility of the description and generate clarification questions
+        if unlikely combinations are detected (e.g., "Gucci iPhone").
+        
+        Args:
+            text: Original text description
+            entities: Extracted entities dictionary
+            
+        Returns:
+            Dict containing plausibility check results and clarification questions
+        """
+        questions = []
+        warnings = []
+        
+        # Check for Fashion Brand + Tech Item combination
+        # This usually implies the user meant a case/accessory, or it's a fake/custom item
+        
+        tech_items = ['phone', 'laptop', 'tablet', 'computer', 'camera', 'console', 'xbox', 'playstation']
+        
+        has_tech_item = any(item in text.lower() for item in tech_items)
+        has_fashion_brand = len(entities.get('style_mentions', [])) > 0
+        
+        if has_tech_item and has_fashion_brand:
+            fashion_brand = entities['style_mentions'][0]
+            item_type = next((item for item in tech_items if item in text.lower()), "item")
+            
+            questions.append(
+                f"You mentioned a {fashion_brand} {item_type}. "
+                f"Did you mean a {fashion_brand} CASE or accessory for your {item_type}? "
+                f"{fashion_brand} typically doesn't make {item_type}s."
+            )
+            warnings.append("Unlikely brand-item combination detected")
+            
+        return {
+            "plausible": len(warnings) == 0,
+            "warnings": warnings,
+            "clarification_questions": questions
+        }
+
+    def analyze_with_llm(self, text: str) -> Dict:
+        """
+        Perform research-grade analysis using the LLM client.
+        
+        Args:
+            text: The text description to analyze
+            
+        Returns:
+            Dict containing LLM analysis results
+        """
+        try:
+            return self.llm_client.analyze_text(text)
+        except Exception as e:
+            if self.enable_logging:
+                logger.error(f"LLM analysis failed: {str(e)}")
+            return {"error": str(e)}
+
     def validate_text(
         self,
         text: str,
@@ -261,6 +338,7 @@ class TextValidator:
                     "missing_elements": List[str],
                     "message": str
                 },
+                "clarification_questions": List[str], # New field for interactive clarifications
                 "processing_time": float,  # Total processing time in seconds
                 "message": str  # Overall validation message
             }
@@ -275,18 +353,19 @@ class TextValidator:
             "coherence": {},
             "entities": {},
             "overall_score": 0.0,
-            "valid": False
+            "valid": False,
+            "clarification_questions": []
         }
         
         try:
             # Check if language is supported
             if language not in self.SUPPORTED_LANGUAGES:
-                result["feedback"] = f"Unsupported language: {language}. Supported languages: {', '.join(self.SUPPORTED_LANGUAGES)}"
+                result["feedback"] = {"message": f"Unsupported language: {language}. Supported languages: {', '.join(self.SUPPORTED_LANGUAGES)}"}
                 return result
             
             # Check text length
             if len(text) > self.MAX_TEXT_LENGTH:
-                result["feedback"] = f"Text exceeds maximum length of {self.MAX_TEXT_LENGTH} characters"
+                result["feedback"] = {"message": f"Text exceeds maximum length of {self.MAX_TEXT_LENGTH} characters"}
                 return result
             
             # Step 1: Perform completeness analysis
@@ -307,6 +386,11 @@ class TextValidator:
             entities_result = self.extract_entities(text, language)
             result["entities"] = entities_result
             
+            # Step 4: Plausibility Check (New)
+            plausibility_result = self.check_plausibility(text, entities_result)
+            result["clarification_questions"] = plausibility_result["clarification_questions"]
+            
+
             # Calculate overall score
             completeness_normalized = completeness_result["score"] / 100
             overall_score = (0.7 * completeness_normalized) + (0.3 * coherence_result["score"])
@@ -315,10 +399,36 @@ class TextValidator:
             # Determine overall validity
             result["valid"] = overall_score >= 0.7
             
+            # Generate final feedback
+            result["feedback"] = completeness_result["feedback"]
+
+            # Step 5: Research-Grade LLM Analysis (New)
+            llm_result = self.analyze_with_llm(text)
+            if llm_result:
+                # Merge clarification questions
+                if llm_result.get("clarification_needed") and llm_result.get("clarification_question"):
+                    result["clarification_questions"].append(llm_result["clarification_question"])
+                
+                # Add reasoning to feedback
+                if llm_result.get("reasoning"):
+                    reasoning_msg = f"\n\nAnalysis: {llm_result['reasoning']}"
+                    if isinstance(result["feedback"], dict):
+                        result["feedback"]["message"] += reasoning_msg
+                    else:
+                        result["feedback"] += reasoning_msg
+            
+            # If we have clarification questions, append them to feedback message
+            if result["clarification_questions"]:
+                q_text = " ".join(result["clarification_questions"])
+                if isinstance(result["feedback"], dict):
+                    result["feedback"]["message"] += f" {q_text}"
+                else:
+                    result["feedback"] += f" {q_text}"
+            
         except Exception as e:
             if self.enable_logging:
                 logger.error(f"Error during text validation: {str(e)}")
-            result["feedback"] = f"Error during validation: {str(e)}"
+            result["feedback"] = {"message": f"Error during validation: {str(e)}"}
         
         return result
 
@@ -575,6 +685,42 @@ class TextValidator:
 
 
     
+    PRODUCT_BRAND_MAP = {
+        'iphone': 'Apple',
+        'ipad': 'Apple',
+        'macbook': 'Apple',
+        'airpods': 'Apple',
+        'apple watch': 'Apple',
+        'galaxy': 'Samsung',
+        'pixel': 'Google',
+        'playstation': 'Sony',
+        'xbox': 'Microsoft',
+        'thinkpad': 'Lenovo',
+        'surface': 'Microsoft',
+        'kindle': 'Amazon',
+        'switch': 'Nintendo',
+        'walkman': 'Sony',
+        'eos': 'Canon',
+        'cybershot': 'Sony',
+        'gopro': 'GoPro',
+        'fitbit': 'Fitbit'
+    }
+
+    BRAND_CATEGORIES = {
+        'manufacturer': [
+            'apple', 'samsung', 'google', 'sony', 'microsoft', 'lenovo', 'dell', 'hp', 
+            'asus', 'acer', 'nokia', 'motorola', 'lg', 'htc', 'huawei', 'xiaomi', 
+            'oppo', 'vivo', 'oneplus', 'canon', 'nikon', 'fujifilm', 'gopro', 'fitbit',
+            'bose', 'jbl', 'beats', 'nintendo', 'amazon'
+        ],
+        'fashion': [
+            'gucci', 'prada', 'louis vuitton', 'hermes', 'chanel', 'dior', 'versace', 
+            'armani', 'fendi', 'balenciaga', 'burberry', 'coach', 'michael kors', 
+            'kate spade', 'supreme', 'nike', 'adidas', 'puma', 'under armour', 'zara',
+            'h&m', 'uniqlo', 'levis', 'calvin klein', 'tommy hilfiger', 'ralph lauren'
+        ]
+    }
+
     def extract_entities(self, text: str, language: str) -> Dict:
         """Extract named entities from a text description using spaCy NER.
         
@@ -590,7 +736,8 @@ class TextValidator:
             "item_mentions": [],
             "color_mentions": [],
             "location_mentions": [],
-            "brand_mentions": []
+            "brand_mentions": [],
+            "style_mentions": []  # New field for fashion/style brands
         }
         
         try:
@@ -606,25 +753,69 @@ class TextValidator:
                     "end": ent.end_char
                 })
             
+            text_lower = text.lower()
+            
             # Extract item mentions
             for item_type in self.item_types[language]:
-                if item_type in text.lower():
+                if item_type in text_lower:
                     result["item_mentions"].append(item_type)
             
             # Extract color mentions
             for color in self.colors[language]:
-                if color in text.lower():
+                if color in text_lower:
                     result["color_mentions"].append(color)
             
             # Extract location mentions
             for location in self.locations[language]:
-                if location in text.lower():
+                if location in text_lower:
                     result["location_mentions"].append(location)
 
-            # Extract brand mentions
+            # ------------------------------------------------------------------
+            # Enhanced Brand Detection Logic
+            # ------------------------------------------------------------------
+            detected_brands = set()
+            detected_styles = set()
+            
+            # 1. Explicit Brand Detection
+            # Check against known brand list
             for brand in self.brands.get(language, self.brands['en']):
-                if brand and brand.lower() in text.lower():
-                    result["brand_mentions"].append(brand)
+                if brand and brand.lower() in text_lower:
+                    # Categorize detected brand
+                    if brand.lower() in self.BRAND_CATEGORIES['fashion']:
+                        detected_styles.add(brand)
+                    else:
+                        detected_brands.add(brand)
+            
+            # 2. Implicit Brand Detection (Product -> Brand)
+            # e.g., "iPhone" -> "Apple"
+            for product, brand in self.PRODUCT_BRAND_MAP.items():
+                if product in text_lower:
+                    detected_brands.add(brand)
+                    
+            # 3. Conflict Resolution / Prioritization
+            # If we have both a manufacturer and a fashion brand, the manufacturer 
+            # is likely the "main" brand (e.g., "Gucci iPhone" -> Brand: Apple, Style: Gucci)
+            
+            # Convert sets to lists for JSON serialization
+            result["brand_mentions"] = list(detected_brands)
+            result["style_mentions"] = list(detected_styles)
+            
+            # If no manufacturer brand found but style found, and the item is typically
+            # a fashion item (bag, wallet, clothing), we might want to promote style to brand.
+            # But for now, keeping them separate is safer for logic.
+            
+            # Special Case: If "brand_mentions" is empty but we have "style_mentions",
+            # and the item is NOT an electronic device, we might consider the style as the brand.
+            # e.g., "Gucci bag" -> Brand: Gucci.
+            # e.g., "Gucci iPhone" -> Brand: Apple (implicit), Style: Gucci.
+            
+            is_electronic = any(x in text_lower for x in ['phone', 'laptop', 'tablet', 'watch', 'camera', 'headphones'])
+            
+            if not result["brand_mentions"] and result["style_mentions"]:
+                if not is_electronic:
+                    # Promote style to brand for non-electronics
+                    result["brand_mentions"] = result["style_mentions"]
+                    result["style_mentions"] = []
             
         except Exception as e:
             if self.enable_logging:

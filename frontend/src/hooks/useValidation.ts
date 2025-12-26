@@ -96,5 +96,48 @@ export const useValidation = () => {
     return validate('/validate/complete', formData);
   }, [validate]);
 
-  return { isLoading, error, validateText, validateImage, validateVoice, validateComplete };
+  // NEW: Gemini-powered chat conversation
+  const sendChatMessage = useCallback(async (
+    message: string,
+    history: Array<{ role: string; content: string }> = []
+  ) => {
+    const payload = { message, history };
+    const response = await axios.post(
+      `${API_BASE_URL}/api/chat/message`,
+      payload,
+      { headers: { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' } }
+    );
+    return response.data;
+  }, [API_BASE_URL, API_KEY]);
+
+  // NEW: Submit feedback for active learning
+  const submitFeedback = useCallback(async (
+    inputText: string,
+    originalPrediction: any,
+    userCorrection: any
+  ) => {
+    const payload = {
+      input_text: inputText,
+      original_prediction: originalPrediction,
+      user_correction: userCorrection,
+      feedback_type: "correction"
+    };
+    const response = await axios.post(
+      `${API_BASE_URL}/api/feedback/submit`,
+      payload,
+      { headers: { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' } }
+    );
+    return response.data;
+  }, [API_BASE_URL, API_KEY]);
+
+  return {
+    isLoading,
+    error,
+    validateText,
+    validateImage,
+    validateVoice,
+    validateComplete,
+    sendChatMessage,
+    submitFeedback
+  };
 };

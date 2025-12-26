@@ -1,0 +1,8014 @@
+[
+  {
+    "text": "I lost my brown phone",
+    "item": "phone",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop in the classroom",
+    "item": "laptop",
+    "location": "classroom",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone in the classroom",
+    "item": "phone",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch in the gym",
+    "item": "watch",
+    "location": "gym",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch in the gym",
+    "item": "watch",
+    "location": "gym",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue keys in the classroom",
+    "item": "keys",
+    "location": "classroom",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag in the office",
+    "item": "bag",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the cafeteria",
+    "item": "watch",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses in the office",
+    "item": "glasses",
+    "location": "office",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys in the library",
+    "item": "keys",
+    "location": "library",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch",
+    "item": "watch",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses in the office",
+    "item": "glasses",
+    "location": "office",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone in the library",
+    "item": "phone",
+    "location": "library",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black phone",
+    "item": "phone",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the parking",
+    "item": "book",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone in the classroom",
+    "item": "phone",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue bag in the classroom",
+    "item": "bag",
+    "location": "classroom",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys in the classroom",
+    "item": "keys",
+    "location": "classroom",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue keys in the cafeteria",
+    "item": "keys",
+    "location": "cafeteria",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet in the cafeteria",
+    "item": "wallet",
+    "location": "cafeteria",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue watch in the gym",
+    "item": "watch",
+    "location": "gym",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the cafeteria",
+    "item": "bag",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown laptop in the office",
+    "item": "laptop",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag in the cafeteria",
+    "item": "bag",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet in the classroom",
+    "item": "wallet",
+    "location": "classroom",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses in the gym",
+    "item": "glasses",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the library",
+    "item": "glasses",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown bag in the classroom",
+    "item": "bag",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet in the classroom",
+    "item": "wallet",
+    "location": "classroom",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the library",
+    "item": "glasses",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses in the parking",
+    "item": "glasses",
+    "location": "parking",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch",
+    "item": "watch",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue bag",
+    "item": "bag",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the classroom",
+    "item": "watch",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag in the cafeteria",
+    "item": "bag",
+    "location": "cafeteria",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book in the parking",
+    "item": "book",
+    "location": "parking",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue keys",
+    "item": "keys",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown laptop in the gym",
+    "item": "laptop",
+    "location": "gym",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the library",
+    "item": "bag",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag in the office",
+    "item": "bag",
+    "location": "office",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the classroom",
+    "item": "laptop",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the cafeteria",
+    "item": "laptop",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the library",
+    "item": "glasses",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone in the gym",
+    "item": "phone",
+    "location": "gym",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag in the office",
+    "item": "bag",
+    "location": "office",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red watch",
+    "item": "watch",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the office",
+    "item": "wallet",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book in the office",
+    "item": "book",
+    "location": "office",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the classroom",
+    "item": "laptop",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book",
+    "item": "book",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the classroom",
+    "item": "watch",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue keys in the cafeteria",
+    "item": "keys",
+    "location": "cafeteria",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the office",
+    "item": "book",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone in the parking",
+    "item": "phone",
+    "location": "parking",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver book in the gym",
+    "item": "book",
+    "location": "gym",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses in the gym",
+    "item": "glasses",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses in the cafeteria",
+    "item": "glasses",
+    "location": "cafeteria",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch",
+    "item": "watch",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet in the cafeteria",
+    "item": "wallet",
+    "location": "cafeteria",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown bag",
+    "item": "bag",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue bag in the office",
+    "item": "bag",
+    "location": "office",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the parking",
+    "item": "phone",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch",
+    "item": "watch",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown bag",
+    "item": "bag",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch in the gym",
+    "item": "watch",
+    "location": "gym",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown bag",
+    "item": "bag",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys",
+    "item": "keys",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black phone",
+    "item": "phone",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown bag",
+    "item": "bag",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet in the classroom",
+    "item": "wallet",
+    "location": "classroom",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver laptop in the gym",
+    "item": "laptop",
+    "location": "gym",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the parking",
+    "item": "watch",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses in the office",
+    "item": "glasses",
+    "location": "office",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag",
+    "item": "bag",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone in the library",
+    "item": "phone",
+    "location": "library",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the library",
+    "item": "keys",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone",
+    "item": "phone",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver book in the cafeteria",
+    "item": "book",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone",
+    "item": "phone",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black phone",
+    "item": "phone",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the parking",
+    "item": "wallet",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys",
+    "item": "keys",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses in the cafeteria",
+    "item": "glasses",
+    "location": "cafeteria",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys",
+    "item": "keys",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black phone in the classroom",
+    "item": "phone",
+    "location": "classroom",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet in the cafeteria",
+    "item": "wallet",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys",
+    "item": "keys",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the cafeteria",
+    "item": "glasses",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue watch",
+    "item": "watch",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys in the classroom",
+    "item": "keys",
+    "location": "classroom",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop in the classroom",
+    "item": "laptop",
+    "location": "classroom",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book",
+    "item": "book",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch",
+    "item": "watch",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the classroom",
+    "item": "glasses",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown book in the classroom",
+    "item": "book",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag in the gym",
+    "item": "bag",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet in the office",
+    "item": "wallet",
+    "location": "office",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag in the classroom",
+    "item": "bag",
+    "location": "classroom",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone in the gym",
+    "item": "phone",
+    "location": "gym",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the cafeteria",
+    "item": "glasses",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue watch in the library",
+    "item": "watch",
+    "location": "library",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red book",
+    "item": "book",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch in the cafeteria",
+    "item": "watch",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red wallet in the office",
+    "item": "wallet",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue watch",
+    "item": "watch",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet in the parking",
+    "item": "wallet",
+    "location": "parking",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses in the cafeteria",
+    "item": "glasses",
+    "location": "cafeteria",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the cafeteria",
+    "item": "watch",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch",
+    "item": "watch",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch",
+    "item": "watch",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the classroom",
+    "item": "laptop",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet in the cafeteria",
+    "item": "wallet",
+    "location": "cafeteria",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book in the office",
+    "item": "book",
+    "location": "office",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the office",
+    "item": "bag",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black phone",
+    "item": "phone",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch in the cafeteria",
+    "item": "watch",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the cafeteria",
+    "item": "wallet",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch",
+    "item": "watch",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop in the gym",
+    "item": "laptop",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag",
+    "item": "bag",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch",
+    "item": "watch",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the library",
+    "item": "watch",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch in the parking",
+    "item": "watch",
+    "location": "parking",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch in the gym",
+    "item": "watch",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag",
+    "item": "bag",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown laptop in the parking",
+    "item": "laptop",
+    "location": "parking",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book in the gym",
+    "item": "book",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book in the gym",
+    "item": "book",
+    "location": "gym",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet in the parking",
+    "item": "wallet",
+    "location": "parking",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet in the gym",
+    "item": "wallet",
+    "location": "gym",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black phone",
+    "item": "phone",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys",
+    "item": "keys",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the parking",
+    "item": "wallet",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses in the office",
+    "item": "glasses",
+    "location": "office",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the classroom",
+    "item": "bag",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red book",
+    "item": "book",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys",
+    "item": "keys",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver book in the classroom",
+    "item": "book",
+    "location": "classroom",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys",
+    "item": "keys",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag in the gym",
+    "item": "bag",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the cafeteria",
+    "item": "watch",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag",
+    "item": "bag",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue keys",
+    "item": "keys",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch",
+    "item": "watch",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys in the classroom",
+    "item": "keys",
+    "location": "classroom",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red wallet in the cafeteria",
+    "item": "wallet",
+    "location": "cafeteria",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses in the gym",
+    "item": "glasses",
+    "location": "gym",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet in the gym",
+    "item": "wallet",
+    "location": "gym",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet in the cafeteria",
+    "item": "wallet",
+    "location": "cafeteria",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses in the gym",
+    "item": "glasses",
+    "location": "gym",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue phone",
+    "item": "phone",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop in the parking",
+    "item": "laptop",
+    "location": "parking",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses in the gym",
+    "item": "glasses",
+    "location": "gym",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red phone in the cafeteria",
+    "item": "phone",
+    "location": "cafeteria",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch",
+    "item": "watch",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses in the office",
+    "item": "glasses",
+    "location": "office",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book",
+    "item": "book",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet in the cafeteria",
+    "item": "wallet",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet in the cafeteria",
+    "item": "wallet",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch in the parking",
+    "item": "watch",
+    "location": "parking",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys",
+    "item": "keys",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the cafeteria",
+    "item": "wallet",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black phone in the parking",
+    "item": "phone",
+    "location": "parking",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag",
+    "item": "bag",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch",
+    "item": "watch",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the office",
+    "item": "book",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the gym",
+    "item": "wallet",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the gym",
+    "item": "wallet",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch in the parking",
+    "item": "watch",
+    "location": "parking",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the parking",
+    "item": "phone",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown bag in the cafeteria",
+    "item": "bag",
+    "location": "cafeteria",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet in the office",
+    "item": "wallet",
+    "location": "office",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop in the office",
+    "item": "laptop",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag in the gym",
+    "item": "bag",
+    "location": "gym",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue phone",
+    "item": "phone",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue phone",
+    "item": "phone",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the gym",
+    "item": "laptop",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch in the classroom",
+    "item": "watch",
+    "location": "classroom",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys in the library",
+    "item": "keys",
+    "location": "library",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black phone",
+    "item": "phone",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver laptop in the library",
+    "item": "laptop",
+    "location": "library",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown book in the gym",
+    "item": "book",
+    "location": "gym",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red wallet in the gym",
+    "item": "wallet",
+    "location": "gym",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag",
+    "item": "bag",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the cafeteria",
+    "item": "bag",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver book",
+    "item": "book",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue watch",
+    "item": "watch",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red book in the parking",
+    "item": "book",
+    "location": "parking",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue phone",
+    "item": "phone",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch",
+    "item": "watch",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses in the cafeteria",
+    "item": "glasses",
+    "location": "cafeteria",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag in the office",
+    "item": "bag",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys in the classroom",
+    "item": "keys",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch",
+    "item": "watch",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys in the cafeteria",
+    "item": "keys",
+    "location": "cafeteria",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the library",
+    "item": "glasses",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the cafeteria",
+    "item": "watch",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the library",
+    "item": "glasses",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue phone",
+    "item": "phone",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the gym",
+    "item": "watch",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop in the gym",
+    "item": "laptop",
+    "location": "gym",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag",
+    "item": "bag",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the cafeteria",
+    "item": "keys",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown bag",
+    "item": "bag",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop in the cafeteria",
+    "item": "laptop",
+    "location": "cafeteria",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys",
+    "item": "keys",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the library",
+    "item": "wallet",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book",
+    "item": "book",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet in the library",
+    "item": "wallet",
+    "location": "library",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag",
+    "item": "bag",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone",
+    "item": "phone",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag",
+    "item": "bag",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book",
+    "item": "book",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue phone",
+    "item": "phone",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the classroom",
+    "item": "book",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the office",
+    "item": "bag",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the gym",
+    "item": "wallet",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red watch",
+    "item": "watch",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue bag in the parking",
+    "item": "bag",
+    "location": "parking",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone in the classroom",
+    "item": "phone",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag",
+    "item": "bag",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the library",
+    "item": "phone",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet in the cafeteria",
+    "item": "wallet",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch",
+    "item": "watch",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book in the cafeteria",
+    "item": "book",
+    "location": "cafeteria",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag in the gym",
+    "item": "bag",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown bag in the parking",
+    "item": "bag",
+    "location": "parking",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone",
+    "item": "phone",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the parking",
+    "item": "keys",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the classroom",
+    "item": "wallet",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses in the office",
+    "item": "glasses",
+    "location": "office",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the library",
+    "item": "bag",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver book in the library",
+    "item": "book",
+    "location": "library",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown bag",
+    "item": "bag",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses in the classroom",
+    "item": "glasses",
+    "location": "classroom",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book in the classroom",
+    "item": "book",
+    "location": "classroom",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the classroom",
+    "item": "phone",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet in the office",
+    "item": "wallet",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch",
+    "item": "watch",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the library",
+    "item": "book",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red book in the classroom",
+    "item": "book",
+    "location": "classroom",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown book",
+    "item": "book",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book in the library",
+    "item": "book",
+    "location": "library",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys",
+    "item": "keys",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the cafeteria",
+    "item": "laptop",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the parking",
+    "item": "phone",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet in the classroom",
+    "item": "wallet",
+    "location": "classroom",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag",
+    "item": "bag",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the cafeteria",
+    "item": "bag",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue bag in the office",
+    "item": "bag",
+    "location": "office",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag in the cafeteria",
+    "item": "bag",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue bag",
+    "item": "bag",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book",
+    "item": "book",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book in the library",
+    "item": "book",
+    "location": "library",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet in the classroom",
+    "item": "wallet",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch",
+    "item": "watch",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses in the library",
+    "item": "glasses",
+    "location": "library",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses in the classroom",
+    "item": "glasses",
+    "location": "classroom",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch",
+    "item": "watch",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver laptop in the classroom",
+    "item": "laptop",
+    "location": "classroom",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the office",
+    "item": "book",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown book",
+    "item": "book",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch",
+    "item": "watch",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue watch in the classroom",
+    "item": "watch",
+    "location": "classroom",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch",
+    "item": "watch",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys",
+    "item": "keys",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the cafeteria",
+    "item": "watch",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet in the office",
+    "item": "wallet",
+    "location": "office",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys",
+    "item": "keys",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet in the parking",
+    "item": "wallet",
+    "location": "parking",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the office",
+    "item": "wallet",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the gym",
+    "item": "laptop",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag in the cafeteria",
+    "item": "bag",
+    "location": "cafeteria",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue keys",
+    "item": "keys",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses in the library",
+    "item": "glasses",
+    "location": "library",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red wallet in the library",
+    "item": "wallet",
+    "location": "library",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver book in the office",
+    "item": "book",
+    "location": "office",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys in the classroom",
+    "item": "keys",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch",
+    "item": "watch",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys",
+    "item": "keys",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red book in the cafeteria",
+    "item": "book",
+    "location": "cafeteria",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the office",
+    "item": "wallet",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone",
+    "item": "phone",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue watch",
+    "item": "watch",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone in the library",
+    "item": "phone",
+    "location": "library",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue keys in the cafeteria",
+    "item": "keys",
+    "location": "cafeteria",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black phone in the office",
+    "item": "phone",
+    "location": "office",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the parking",
+    "item": "bag",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone in the library",
+    "item": "phone",
+    "location": "library",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the cafeteria",
+    "item": "phone",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys",
+    "item": "keys",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag in the classroom",
+    "item": "bag",
+    "location": "classroom",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag in the library",
+    "item": "bag",
+    "location": "library",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses in the gym",
+    "item": "glasses",
+    "location": "gym",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book",
+    "item": "book",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses in the library",
+    "item": "glasses",
+    "location": "library",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone in the parking",
+    "item": "phone",
+    "location": "parking",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black phone",
+    "item": "phone",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch",
+    "item": "watch",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book",
+    "item": "book",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the parking",
+    "item": "bag",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the parking",
+    "item": "phone",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red phone",
+    "item": "phone",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag",
+    "item": "bag",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag in the office",
+    "item": "bag",
+    "location": "office",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown bag",
+    "item": "bag",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the parking",
+    "item": "keys",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys",
+    "item": "keys",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book in the cafeteria",
+    "item": "book",
+    "location": "cafeteria",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop in the gym",
+    "item": "laptop",
+    "location": "gym",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch in the parking",
+    "item": "watch",
+    "location": "parking",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys in the cafeteria",
+    "item": "keys",
+    "location": "cafeteria",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys in the library",
+    "item": "keys",
+    "location": "library",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone in the office",
+    "item": "phone",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone",
+    "item": "phone",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the classroom",
+    "item": "laptop",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue bag in the parking",
+    "item": "bag",
+    "location": "parking",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the office",
+    "item": "glasses",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown bag",
+    "item": "bag",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue bag in the gym",
+    "item": "bag",
+    "location": "gym",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the library",
+    "item": "watch",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys",
+    "item": "keys",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the gym",
+    "item": "phone",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone in the office",
+    "item": "phone",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown laptop in the office",
+    "item": "laptop",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses in the gym",
+    "item": "glasses",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop in the office",
+    "item": "laptop",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch in the library",
+    "item": "watch",
+    "location": "library",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue bag in the cafeteria",
+    "item": "bag",
+    "location": "cafeteria",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch in the library",
+    "item": "watch",
+    "location": "library",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the office",
+    "item": "bag",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the parking",
+    "item": "book",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys in the library",
+    "item": "keys",
+    "location": "library",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red phone",
+    "item": "phone",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the gym",
+    "item": "wallet",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone in the cafeteria",
+    "item": "phone",
+    "location": "cafeteria",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone in the classroom",
+    "item": "phone",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver book in the classroom",
+    "item": "book",
+    "location": "classroom",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the office",
+    "item": "laptop",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue keys",
+    "item": "keys",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys in the library",
+    "item": "keys",
+    "location": "library",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue watch",
+    "item": "watch",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop in the library",
+    "item": "laptop",
+    "location": "library",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue keys",
+    "item": "keys",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag in the parking",
+    "item": "bag",
+    "location": "parking",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag",
+    "item": "bag",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys in the cafeteria",
+    "item": "keys",
+    "location": "cafeteria",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop in the parking",
+    "item": "laptop",
+    "location": "parking",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch",
+    "item": "watch",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the cafeteria",
+    "item": "wallet",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue phone in the parking",
+    "item": "phone",
+    "location": "parking",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys",
+    "item": "keys",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch",
+    "item": "watch",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys",
+    "item": "keys",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red phone in the classroom",
+    "item": "phone",
+    "location": "classroom",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone",
+    "item": "phone",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the office",
+    "item": "glasses",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red wallet in the office",
+    "item": "wallet",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop in the cafeteria",
+    "item": "laptop",
+    "location": "cafeteria",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black phone",
+    "item": "phone",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the office",
+    "item": "glasses",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver laptop in the gym",
+    "item": "laptop",
+    "location": "gym",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone",
+    "item": "phone",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver laptop in the classroom",
+    "item": "laptop",
+    "location": "classroom",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone in the office",
+    "item": "phone",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet in the office",
+    "item": "wallet",
+    "location": "office",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the library",
+    "item": "watch",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone in the classroom",
+    "item": "phone",
+    "location": "classroom",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the classroom",
+    "item": "phone",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the library",
+    "item": "bag",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone",
+    "item": "phone",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop in the parking",
+    "item": "laptop",
+    "location": "parking",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch",
+    "item": "watch",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue keys",
+    "item": "keys",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver laptop in the cafeteria",
+    "item": "laptop",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue bag",
+    "item": "bag",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the classroom",
+    "item": "watch",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys",
+    "item": "keys",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue watch",
+    "item": "watch",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the office",
+    "item": "book",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys",
+    "item": "keys",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver laptop in the cafeteria",
+    "item": "laptop",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red phone in the office",
+    "item": "phone",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book in the classroom",
+    "item": "book",
+    "location": "classroom",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the parking",
+    "item": "wallet",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the library",
+    "item": "keys",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the library",
+    "item": "laptop",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys",
+    "item": "keys",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red phone in the parking",
+    "item": "phone",
+    "location": "parking",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the library",
+    "item": "laptop",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book in the cafeteria",
+    "item": "book",
+    "location": "cafeteria",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet in the gym",
+    "item": "wallet",
+    "location": "gym",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the gym",
+    "item": "bag",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown bag in the classroom",
+    "item": "bag",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the classroom",
+    "item": "book",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown book in the office",
+    "item": "book",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the gym",
+    "item": "wallet",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book in the classroom",
+    "item": "book",
+    "location": "classroom",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the gym",
+    "item": "laptop",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue bag",
+    "item": "bag",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone in the classroom",
+    "item": "phone",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue bag",
+    "item": "bag",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses in the cafeteria",
+    "item": "glasses",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the parking",
+    "item": "phone",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book in the cafeteria",
+    "item": "book",
+    "location": "cafeteria",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses in the office",
+    "item": "glasses",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys",
+    "item": "keys",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet in the classroom",
+    "item": "wallet",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue phone",
+    "item": "phone",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet in the gym",
+    "item": "wallet",
+    "location": "gym",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch",
+    "item": "watch",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue bag in the parking",
+    "item": "bag",
+    "location": "parking",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet in the classroom",
+    "item": "wallet",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop in the office",
+    "item": "laptop",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet in the cafeteria",
+    "item": "wallet",
+    "location": "cafeteria",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book in the library",
+    "item": "book",
+    "location": "library",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses in the classroom",
+    "item": "glasses",
+    "location": "classroom",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet in the parking",
+    "item": "wallet",
+    "location": "parking",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the library",
+    "item": "bag",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the classroom",
+    "item": "keys",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag in the gym",
+    "item": "bag",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book in the library",
+    "item": "book",
+    "location": "library",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the library",
+    "item": "book",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the library",
+    "item": "phone",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch in the library",
+    "item": "watch",
+    "location": "library",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag",
+    "item": "bag",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the office",
+    "item": "glasses",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red book",
+    "item": "book",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag",
+    "item": "bag",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag",
+    "item": "bag",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the classroom",
+    "item": "bag",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book",
+    "item": "book",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book in the cafeteria",
+    "item": "book",
+    "location": "cafeteria",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses in the parking",
+    "item": "glasses",
+    "location": "parking",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the gym",
+    "item": "phone",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the library",
+    "item": "glasses",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the office",
+    "item": "wallet",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black phone in the library",
+    "item": "phone",
+    "location": "library",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book",
+    "item": "book",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver book",
+    "item": "book",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver book in the parking",
+    "item": "book",
+    "location": "parking",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses in the cafeteria",
+    "item": "glasses",
+    "location": "cafeteria",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue watch in the parking",
+    "item": "watch",
+    "location": "parking",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the office",
+    "item": "book",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses in the classroom",
+    "item": "glasses",
+    "location": "classroom",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys in the parking",
+    "item": "keys",
+    "location": "parking",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet in the gym",
+    "item": "wallet",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone",
+    "item": "phone",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses in the parking",
+    "item": "glasses",
+    "location": "parking",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red book",
+    "item": "book",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop in the library",
+    "item": "laptop",
+    "location": "library",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses in the office",
+    "item": "glasses",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses in the classroom",
+    "item": "glasses",
+    "location": "classroom",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red book",
+    "item": "book",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the cafeteria",
+    "item": "book",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag in the library",
+    "item": "bag",
+    "location": "library",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses in the parking",
+    "item": "glasses",
+    "location": "parking",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the classroom",
+    "item": "phone",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the gym",
+    "item": "laptop",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone",
+    "item": "phone",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone in the cafeteria",
+    "item": "phone",
+    "location": "cafeteria",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue watch in the parking",
+    "item": "watch",
+    "location": "parking",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue phone",
+    "item": "phone",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the gym",
+    "item": "wallet",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red phone in the classroom",
+    "item": "phone",
+    "location": "classroom",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag",
+    "item": "bag",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red wallet in the classroom",
+    "item": "wallet",
+    "location": "classroom",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the parking",
+    "item": "watch",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red watch in the parking",
+    "item": "watch",
+    "location": "parking",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch",
+    "item": "watch",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the office",
+    "item": "laptop",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue phone",
+    "item": "phone",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue phone",
+    "item": "phone",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the office",
+    "item": "laptop",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet in the library",
+    "item": "wallet",
+    "location": "library",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the library",
+    "item": "phone",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop in the library",
+    "item": "laptop",
+    "location": "library",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue watch in the gym",
+    "item": "watch",
+    "location": "gym",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book",
+    "item": "book",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the parking",
+    "item": "keys",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone",
+    "item": "phone",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys",
+    "item": "keys",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the library",
+    "item": "keys",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red watch",
+    "item": "watch",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red phone",
+    "item": "phone",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue keys in the cafeteria",
+    "item": "keys",
+    "location": "cafeteria",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book",
+    "item": "book",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the library",
+    "item": "keys",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag",
+    "item": "bag",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses in the cafeteria",
+    "item": "glasses",
+    "location": "cafeteria",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the library",
+    "item": "laptop",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the classroom",
+    "item": "glasses",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the office",
+    "item": "bag",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop in the gym",
+    "item": "laptop",
+    "location": "gym",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue phone",
+    "item": "phone",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the parking",
+    "item": "book",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown laptop in the cafeteria",
+    "item": "laptop",
+    "location": "cafeteria",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch",
+    "item": "watch",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the library",
+    "item": "watch",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet in the gym",
+    "item": "wallet",
+    "location": "gym",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the library",
+    "item": "glasses",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the office",
+    "item": "laptop",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag in the cafeteria",
+    "item": "bag",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book",
+    "item": "book",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the classroom",
+    "item": "phone",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the parking",
+    "item": "phone",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the office",
+    "item": "bag",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the cafeteria",
+    "item": "keys",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the classroom",
+    "item": "phone",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag in the library",
+    "item": "bag",
+    "location": "library",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop in the library",
+    "item": "laptop",
+    "location": "library",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue phone",
+    "item": "phone",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone",
+    "item": "phone",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver book",
+    "item": "book",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown laptop in the gym",
+    "item": "laptop",
+    "location": "gym",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag",
+    "item": "bag",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the library",
+    "item": "bag",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red book",
+    "item": "book",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the office",
+    "item": "book",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver laptop in the gym",
+    "item": "laptop",
+    "location": "gym",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the office",
+    "item": "phone",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag in the classroom",
+    "item": "bag",
+    "location": "classroom",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone",
+    "item": "phone",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys",
+    "item": "keys",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag",
+    "item": "bag",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red watch",
+    "item": "watch",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag in the classroom",
+    "item": "bag",
+    "location": "classroom",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the classroom",
+    "item": "wallet",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue watch in the library",
+    "item": "watch",
+    "location": "library",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone",
+    "item": "phone",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown book in the classroom",
+    "item": "book",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses in the classroom",
+    "item": "glasses",
+    "location": "classroom",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the library",
+    "item": "laptop",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the office",
+    "item": "phone",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses in the library",
+    "item": "glasses",
+    "location": "library",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the cafeteria",
+    "item": "watch",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver book",
+    "item": "book",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys",
+    "item": "keys",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black phone in the gym",
+    "item": "phone",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown laptop in the library",
+    "item": "laptop",
+    "location": "library",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch",
+    "item": "watch",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch in the classroom",
+    "item": "watch",
+    "location": "classroom",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red watch in the library",
+    "item": "watch",
+    "location": "library",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the library",
+    "item": "book",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys",
+    "item": "keys",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch",
+    "item": "watch",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys in the classroom",
+    "item": "keys",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys in the classroom",
+    "item": "keys",
+    "location": "classroom",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses in the cafeteria",
+    "item": "glasses",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown bag in the gym",
+    "item": "bag",
+    "location": "gym",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone in the parking",
+    "item": "phone",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag",
+    "item": "bag",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop in the office",
+    "item": "laptop",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the parking",
+    "item": "wallet",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red phone in the parking",
+    "item": "phone",
+    "location": "parking",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver book",
+    "item": "book",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys in the office",
+    "item": "keys",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red watch in the office",
+    "item": "watch",
+    "location": "office",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red wallet in the gym",
+    "item": "wallet",
+    "location": "gym",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys",
+    "item": "keys",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet in the classroom",
+    "item": "wallet",
+    "location": "classroom",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone in the parking",
+    "item": "phone",
+    "location": "parking",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses in the gym",
+    "item": "glasses",
+    "location": "gym",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys in the parking",
+    "item": "keys",
+    "location": "parking",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the cafeteria",
+    "item": "keys",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone in the gym",
+    "item": "phone",
+    "location": "gym",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue phone",
+    "item": "phone",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys",
+    "item": "keys",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys",
+    "item": "keys",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the gym",
+    "item": "laptop",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the parking",
+    "item": "glasses",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch",
+    "item": "watch",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver phone in the parking",
+    "item": "phone",
+    "location": "parking",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys",
+    "item": "keys",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys in the cafeteria",
+    "item": "keys",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag",
+    "item": "bag",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch",
+    "item": "watch",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch in the gym",
+    "item": "watch",
+    "location": "gym",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown book in the gym",
+    "item": "book",
+    "location": "gym",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys in the library",
+    "item": "keys",
+    "location": "library",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red book in the cafeteria",
+    "item": "book",
+    "location": "cafeteria",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop in the parking",
+    "item": "laptop",
+    "location": "parking",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone",
+    "item": "phone",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book",
+    "item": "book",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown laptop in the parking",
+    "item": "laptop",
+    "location": "parking",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses in the parking",
+    "item": "glasses",
+    "location": "parking",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop in the parking",
+    "item": "laptop",
+    "location": "parking",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag in the classroom",
+    "item": "bag",
+    "location": "classroom",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys in the classroom",
+    "item": "keys",
+    "location": "classroom",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue keys",
+    "item": "keys",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses in the library",
+    "item": "glasses",
+    "location": "library",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag in the parking",
+    "item": "bag",
+    "location": "parking",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red keys",
+    "item": "keys",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my book in the office",
+    "item": "book",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red phone in the library",
+    "item": "phone",
+    "location": "library",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown wallet in the cafeteria",
+    "item": "wallet",
+    "location": "cafeteria",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the parking",
+    "item": "laptop",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown glasses in the gym",
+    "item": "glasses",
+    "location": "gym",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the office",
+    "item": "laptop",
+    "location": "office",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red phone in the cafeteria",
+    "item": "phone",
+    "location": "cafeteria",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the cafeteria",
+    "item": "watch",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book",
+    "item": "book",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver book in the parking",
+    "item": "book",
+    "location": "parking",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue keys",
+    "item": "keys",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch in the library",
+    "item": "watch",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys",
+    "item": "keys",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone in the library",
+    "item": "phone",
+    "location": "library",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown keys",
+    "item": "keys",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch",
+    "item": "watch",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red watch",
+    "item": "watch",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys",
+    "item": "keys",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses in the classroom",
+    "item": "glasses",
+    "location": "classroom",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop in the library",
+    "item": "laptop",
+    "location": "library",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black wallet in the parking",
+    "item": "wallet",
+    "location": "parking",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses in the classroom",
+    "item": "glasses",
+    "location": "classroom",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book",
+    "item": "book",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black book in the parking",
+    "item": "book",
+    "location": "parking",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the library",
+    "item": "laptop",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag in the classroom",
+    "item": "bag",
+    "location": "classroom",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver watch in the library",
+    "item": "watch",
+    "location": "library",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red book in the classroom",
+    "item": "book",
+    "location": "classroom",
+    "color": "red",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop in the library",
+    "item": "laptop",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown bag in the parking",
+    "item": "bag",
+    "location": "parking",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue bag in the cafeteria",
+    "item": "bag",
+    "location": "cafeteria",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red bag",
+    "item": "bag",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver wallet in the office",
+    "item": "wallet",
+    "location": "office",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys in the gym",
+    "item": "keys",
+    "location": "gym",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown bag",
+    "item": "bag",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet in the cafeteria",
+    "item": "wallet",
+    "location": "cafeteria",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the parking",
+    "item": "glasses",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue glasses in the gym",
+    "item": "glasses",
+    "location": "gym",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch",
+    "item": "watch",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag in the parking",
+    "item": "bag",
+    "location": "parking",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys",
+    "item": "keys",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my phone",
+    "item": "phone",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag",
+    "item": "bag",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my wallet",
+    "item": "wallet",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the classroom",
+    "item": "bag",
+    "location": "classroom",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my watch",
+    "item": "watch",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book in the gym",
+    "item": "book",
+    "location": "gym",
+    "color": "blue",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue book",
+    "item": "book",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver bag",
+    "item": "bag",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses",
+    "item": "glasses",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown phone",
+    "item": "phone",
+    "location": null,
+    "color": "brown",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red phone",
+    "item": "phone",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my keys in the library",
+    "item": "keys",
+    "location": "library",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red book",
+    "item": "book",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my bag in the parking",
+    "item": "bag",
+    "location": "parking",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses in the library",
+    "item": "glasses",
+    "location": "library",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys in the parking",
+    "item": "keys",
+    "location": "parking",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue wallet",
+    "item": "wallet",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver laptop",
+    "item": "laptop",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses in the parking",
+    "item": "glasses",
+    "location": "parking",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my laptop",
+    "item": "laptop",
+    "location": null,
+    "color": null,
+    "quality_score": 0.4,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my brown laptop in the parking",
+    "item": "laptop",
+    "location": "parking",
+    "color": "brown",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my blue watch",
+    "item": "watch",
+    "location": null,
+    "color": "blue",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black bag in the cafeteria",
+    "item": "bag",
+    "location": "cafeteria",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black watch in the parking",
+    "item": "watch",
+    "location": "parking",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver keys in the cafeteria",
+    "item": "keys",
+    "location": "cafeteria",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black glasses",
+    "item": "glasses",
+    "location": null,
+    "color": "black",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my red book",
+    "item": "book",
+    "location": null,
+    "color": "red",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver glasses in the parking",
+    "item": "glasses",
+    "location": "parking",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my black keys in the library",
+    "item": "keys",
+    "location": "library",
+    "color": "black",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver book",
+    "item": "book",
+    "location": null,
+    "color": "silver",
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my glasses in the gym",
+    "item": "glasses",
+    "location": "gym",
+    "color": null,
+    "quality_score": 0.7,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my silver book in the library",
+    "item": "book",
+    "location": "library",
+    "color": "silver",
+    "quality_score": 1.0,
+    "plausibility": "plausible"
+  },
+  {
+    "text": "I lost my swimsuit in the server room",
+    "plausibility": "implausible"
+  },
+  {
+    "text": "I lost my surfboard in the library",
+    "plausibility": "implausible"
+  },
+  {
+    "text": "I lost my scuba gear in the classroom",
+    "plausibility": "implausible"
+  }
+]

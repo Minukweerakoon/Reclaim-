@@ -177,11 +177,11 @@ class ConsistencyEngine:
             # Encode both texts
             embeddings = self.sentence_model.encode([voice_transcription, text_description])
             # Calculate cosine similarity
-            similarity = np.dot(embeddings[0], embeddings[1]) / (np.linalg.norm(embeddings[0]) * np.linalg.norm(embeddings[1]))
+            similarity = float(np.dot(embeddings[0], embeddings[1]) / (np.linalg.norm(embeddings[0]) * np.linalg.norm(embeddings[1])))
             result["similarity"] = similarity
             
             # Determine validity based on threshold
-            result["valid"] = similarity >= self.text_similarity_threshold
+            result["valid"] = bool(similarity >= self.text_similarity_threshold)
             
             if result["valid"]:
                 result["feedback"] = "Voice and text are semantically consistent"
