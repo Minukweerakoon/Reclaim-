@@ -23,6 +23,13 @@ class LLMClient:
         self.api_key = os.getenv("OPENAI_API_KEY") if self.provider == "openai" else os.getenv("GEMINI_API_KEY")
         self.model = os.getenv("LLM_MODEL", "gpt-4-turbo")
         
+        # Retry configuration for rate limit handling
+        self.retry_config = {
+            "max_attempts": 3,
+            "backoff_factor": 2,  # Exponential backoff: 1s, 2s, 4s
+            "timeout": 10
+        }
+        
         if self.provider != "mock" and not self.api_key:
             logger.warning(f"No API key found for {self.provider}. Falling back to mock provider.")
             self.provider = "mock"
@@ -31,6 +38,8 @@ class LLMClient:
             genai.configure(api_key=self.api_key)
             # Using gemini-2.5-flash (confirmed available via list_models())
             self.gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+            # Fallback to cheaper model if rate limited
+            self.gemini_fallback_model = genai.GenerativeModel('gemini-1.5-flash')
             
         # DEBUG LOGGING
         masked_key = f"{self.api_key[:4]}...{self.api_key[-4:]}" if self.api_key else "None"
@@ -70,6 +79,68 @@ class LLMClient:
             return self._gemini_guide_conversation(user_message, conversation_history)
         else:
             return self._mock_guide_conversation(user_message, conversation_history)
+    
+    def _call_gemini_with_retry(self, prompt: str, use_fallback: bool = False) -> str:
+        """
+        Call Gemini API with retry logic and exponential backoff.
+        
+        Args:
+            prompt: The prompt to send
+            use_fallback: If True, use fallback model (gemini-1.5-flash)
+            
+        Returns:
+            Response text from Gemini
+            
+        Raises:
+            Exception: If all retries fail
+        """
+        import time
+        
+        model = self.gemini_fallback_model if use_fallback else self.gemini_model
+        model_name = "gemini-1.5-flash" if use_fallback else "gemini-2.5-flash"
+        
+        for attempt in range(self.retry_config["max_attempts"]):
+            try:
+                logger.info(f"Calling {model_name} (attempt {attempt + 1}/{self.retry_config['max_attempts']})")
+                
+                response = model.generate_content(
+                    prompt,
+                    generation_config=genai.GenerationConfig(
+                        response_mime_type="application/json"
+                    )
+                )
+                
+                return response.text.strip()
+                
+            except Exception as e:
+                error_msg = str(e).lower()
+                
+                # Check if it's a rate limit error
+                if "429" in error_msg or "quota" in error_msg or "rate limit" in error_msg:
+                    if attempt < self.retry_config["max_attempts"] - 1:
+                        # Exponential backoff
+                        wait_time = self.retry_config["backoff_factor"] ** attempt
+                        logger.warning(f"Rate limit hit. Retrying in {wait_time}s...")
+                        time.sleep(wait_time)
+                        continue
+                    elif not use_fallback:
+                        # Try fallback model
+                        logger.warning("Primary model rate limited. Trying fallback model...")
+                        return self._call_gemini_with_retry(prompt, use_fallback=True)
+                    else:
+                        # Both models failed, raise exception
+                        logger.error("Both Gemini models rate limited")
+                        raise
+                else:
+                    # Non-rate-limit error, log and retry
+                    logger.error(f"Gemini API error (attempt {attempt + 1}): {e}")
+                    if attempt < self.retry_config["max_attempts"] - 1:
+                        time.sleep(1)  # Brief pause before retry
+                        continue
+                    else:
+                        raise
+        
+        raise Exception("All retry attempts failed")
     
     def _gemini_guide_conversation(self, user_message: str, conversation_history: List[Dict] = None) -> Dict:
         """Use Gemini to guide conversation intelligently."""
@@ -125,16 +196,10 @@ Respond in JSON format:
 """
         
         try:
-            # Configure generation to prefer JSON output
-            response = self.gemini_model.generate_content(
-                prompt,
-                generation_config=genai.GenerationConfig(
-                    response_mime_type="application/json"
-                )
-            )
+            # Use retry wrapper for robust API calls
+            response_text = self._call_gemini_with_retry(prompt)
             
             # Parse the JSON response
-            response_text = response.text.strip()
             logger.info(f"Gemini raw response: {response_text[:200]}...")  # Log first 200 chars
             
             # Try to parse JSON
@@ -142,7 +207,7 @@ Respond in JSON format:
             return result
         except json.JSONDecodeError as e:
             logger.error(f"Gemini returned invalid JSON: {e}")
-            logger.error(f"Response was: {response.text[:500]}")
+            logger.error(f"Response was: {response_text[:500]}")
             return self._mock_guide_conversation(user_message, conversation_history)
         except Exception as e:
             logger.error(f"Gemini conversation error: {e}")
