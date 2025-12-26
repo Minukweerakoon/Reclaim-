@@ -1,284 +1,227 @@
 """
-Spatial-Temporal Context Engine - Knowledge Graph Module
+Advanced Knowledge Graph Module (Neo4j + NetworkX Fallback)
 Part of Research-Grade Enhancement (Novel Contribution #1)
 
-This module implements Bayesian reasoning for item-location-time plausibility.
-Example: "Swimsuit in Server Room" → P(Swimsuit|ServerRoom) ≈ 0.001 → Implausible
+This module implements a hybrid Knowledge Graph architecture:
+1. Primary: Neo4j (for complex relationship mining and huge datasets)
+2. Fallback: NetworkX (in-memory graph for offline resilience)
 
-Research Novelty: First lost-and-found system to use probabilistic context validation.
+Research Value: Enables "Spatial-Temporal Risk Assessment" and pattern mining.
 """
 
-import json
-import logging
-from typing import Dict, List, Tuple, Optional
-from collections import defaultdict
 import os
+import logging
+import time
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+from collections import defaultdict
+
+# Try to import NetworkX and Neo4j
+try:
+    import networkx as nx
+except ImportError:
+    nx = None
+
+try:
+    from neo4j import GraphDatabase
+    NEO4J_AVAILABLE = True
+except ImportError:
+    NEO4J_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
+class GraphManager:
+    """
+    Hybrid Knowledge Graph Manager.
+    Automatically switches between Neo4j and NetworkX based on availability.
+    """
+    
+    def __init__(self):
+        """Initialize the graph manager."""
+        self.use_neo4j = False
+        self.driver = None
+        self.nx_graph = nx.DiGraph() if nx else None
+        
+        # Neo4j Configuration
+        self.uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+        self.user = os.getenv("NEO4J_USER", "neo4j")
+        self.password = os.getenv("NEO4J_PASSWORD", "password")
+        
+        # Attempt Neo4j connection
+        if NEO4J_AVAILABLE:
+            try:
+                self.driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
+                self.driver.verify_connectivity()
+                self.use_neo4j = True
+                logger.info("✓ Connected to Neo4j Knowledge Graph")
+                self._init_neo4j_schema()
+            except Exception as e:
+                logger.warning(f"⚠ Could not connect to Neo4j ({e}). Using NetworkX fallback.")
+                self.use_neo4j = False
+        else:
+            logger.info("ℹ Neo4j driver not installed. Using NetworkX fallback.")
+            
+        if not self.use_neo4j and self.nx_graph is None:
+            logger.error("CRITICAL: Neither Neo4j nor NetworkX is available!")
+            
+        # Initialize NetworkX (always available as fallback/cache)
+        if self.nx_graph is not None:
+            self._init_networkx_schema()
+        
+    def close(self):
+        """Close Neo4j connection."""
+        if self.driver:
+            self.driver.close()
 
-class KnowledgeGraph:
-    """
-    Probabilistic Knowledge Graph for Spatial-Temporal Context.
-    
-    Implements Bayesian inference for item-location-time plausibility.
-    """
-    
-    def __init__(self, data_path: Optional[str] = None):
+    def _init_neo4j_schema(self):
+        """Initialize Neo4j constraints and indexes."""
+        if not self.use_neo4j:
+            return
+            
+        queries = [
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (i:Item) REQUIRE i.name IS UNIQUE",
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (l:Location) REQUIRE l.name IS UNIQUE",
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (c:Category) REQUIRE c.name IS UNIQUE",
+            "CREATE INDEX IF NOT EXISTS FOR (i:Item) ON (i.category)"
+        ]
+        
+        with self.driver.session() as session:
+            for q in queries:
+                session.run(q)
+
+    def _init_networkx_schema(self):
+        """Initialize NetworkX structure (if needed)."""
+        # NetworkX is schema-less, but we can pre-populate static data
+        pass
+
+    def add_item_event(self, item_type: str, location: str, category: str = "unknown") -> bool:
         """
-        Initialize the knowledge graph.
+        Ingest a new item event into the Knowledge Graph.
         
         Args:
-            data_path: Path to pre-computed probability data (JSON file)
+            item_type: Type of item (e.g., "phone")
+            location: Place found (e.g., "library")
+            category: Item category (e.g., "electronics")
         """
-        self.item_categories = {}      # Item → Category mapping
-        self.location_types = {}       # Location → Type mapping
-        self.time_periods = {}         # Hour → Period mapping
+        day_of_week = datetime.now().strftime("%A")
         
-        # Probability tables
-        self.p_item_location = defaultdict(lambda: defaultdict(float))  # P(Item|Location)
-        self.p_item_time = defaultdict(lambda: defaultdict(float))      # P(Item|Time)
-        self.p_location_time = defaultdict(lambda: defaultdict(float))  # P(Location|Time)
-        
-        # Load pre-computed probabilities if available
-        if data_path and os.path.exists(data_path):
-            self.load_probabilities(data_path)
-        else:
-            # Initialize with default probabilities (can be updated with real data)
-            self._initialize_default_probabilities()
-    
-    def _initialize_default_probabilities(self):
-        """
-        Initialize with common-sense probabilities.
-        
-        This is a starting point. In production, these would be learned from real data.
-        """
-        # Define item categories
-        self.item_categories = {
-            'phone': 'electronics',
-            'laptop': 'electronics',
-            'keys': 'personal',
-            'wallet': 'personal',
-            'bag': 'container',
-            'backpack': 'container',
-            'book': 'academic',
-            'notebook': 'academic',
-            'pen': 'academic',
-            'glasses': 'personal',
-            'watch': 'personal',
-            'umbrella': 'accessories',
-            'water bottle': 'accessories',
-            # Add more items...
-        }
-        
-        # Define location types
-        self.location_types = {
-            'library': 'academic',
-            'classroom': 'academic',
-            'cafeteria': 'dining',
-            'gym': 'sports',
-            'parking': 'outdoor',
-            'server room': 'restricted',
-            'office': 'professional',
-            'bathroom': 'facility',
-            'lab': 'academic',
-            # Add more locations...
-        }
-        
-        # Define time periods
-        for hour in range(24):
-            if 6 <= hour < 12:
-                self.time_periods[hour] = 'morning'
-            elif 12 <= hour < 17:
-                self.time_periods[hour] = 'afternoon'
-            elif 17 <= hour < 22:
-                self.time_periods[hour] = 'evening'
-            else:
-                self.time_periods[hour] = 'night'
-        
-        # Initialize default probabilities (common sense)
-        # P(Item|Location) - Example: High probability of laptop in library
-        self.p_item_location['laptop']['library'] = 0.85
-        self.p_item_location['laptop']['classroom'] = 0.80
-        self.p_item_location['laptop']['cafeteria'] = 0.30
-        self.p_item_location['laptop']['gym'] = 0.10
-        self.p_item_location['laptop']['server room'] = 0.05
-        
-        self.p_item_location['phone']['library'] = 0.90
-        self.p_item_location['phone']['cafeteria'] = 0.85
-        self.p_item_location['phone']['gym'] = 0.70
-        
-        self.p_item_location['keys']['parking'] = 0.80
-        self.p_item_location['keys']['office'] = 0.75
-        
-        self.p_item_location['book']['library'] = 0.95
-        self.p_item_location['book']['classroom'] = 0.90
-        self.p_item_location['book']['gym'] = 0.05
-        
-        # Implausible combinations (low probability)
-        self.p_item_location['swimsuit']['server room'] = 0.001
-        self.p_item_location['surfboard']['library'] = 0.001
-        
-        # P(Item|Time) - Example: Laptop more common during day
-        self.p_item_time['laptop']['morning'] = 0.85
-        self.p_item_time['laptop']['afternoon'] = 0.90
-        self.p_item_time['laptop']['evening'] = 0.60
-        self.p_item_time['laptop']['night'] = 0.20
-        
-        # P(Location|Time) - Example: Library busy during day
-        self.p_location_time['library']['morning'] = 0.80
-        self.p_location_time['library']['afternoon'] = 0.90
-        self.p_location_time['library']['evening'] = 0.50
-        self.p_location_time['library']['night'] = 0.10
-        
-        logger.info("Initialized knowledge graph with default probabilities")
-    
-    def calculate_plausibility(
-        self, 
-        item: str, 
-        location: Optional[str] = None, 
-        time_hour: Optional[int] = None
-    ) -> Dict:
-        """
-        Calculate plausibility score for an item-location-time combination.
-        
-        Args:
-            item: Item description (e.g., "laptop", "phone")
-            location: Location description (e.g., "library", "gym")
-            time_hour: Hour of the day (0-23)
-        
-        Returns:
-            Dict containing:
-                - plausibility_score: 0.0-1.0 (1.0 = highly plausible)
-                - reasoning: Explanation of the score
-                - flags: List of warnings/alerts
-        """
-        item_lower = item.lower()
-        location_lower = location.lower() if location else None
-        
-        # Normalize item and location to known categories
-        item_normalized = self._normalize_item(item_lower)
-        location_normalized = self._normalize_location(location_lower) if location_lower else None
-        
-        # Calculate components
-        scores = []
-        reasoning_parts = []
-        flags = []
-        
-        # Component 1: P(Item|Location)
-        if location_normalized:
-            prob_item_loc = self.p_item_location.get(item_normalized, {}).get(location_normalized, 0.5)
-            scores.append(prob_item_loc)
-            
-            if prob_item_loc < 0.1:
-                flags.append(f"Very rare: '{item}' in '{location}' (probability: {prob_item_loc:.3f})")
-                reasoning_parts.append(f"'{item}' is rarely found in '{location}'")
-            elif prob_item_loc > 0.8:
-                reasoning_parts.append(f"'{item}' is commonly found in '{location}'")
-        
-        # Component 2: P(Item|Time)
-        if time_hour is not None:
-            period = self.time_periods.get(time_hour, 'unknown')
-            prob_item_time = self.p_item_time.get(item_normalized, {}).get(period, 0.5)
-            scores.append(prob_item_time)
-            
-            if prob_item_time < 0.2:
-                flags.append(f"Unusual time: '{item}' at {time_hour}:00 ({period})")
-                reasoning_parts.append(f"'{item}' is rarely reported during {period}")
-        
-        # Component 3: P(Location|Time)
-        if location_normalized and time_hour is not None:
-            period = self.time_periods.get(time_hour, 'unknown')
-            prob_loc_time = self.p_location_time.get(location_normalized, {}).get(period, 0.5)
-            scores.append(prob_loc_time)
-            
-            if prob_loc_time < 0.2:
-                flags.append(f"Location unusual at this time: '{location}' during {period}")
-        
-        # Calculate final plausibility score (geometric mean to penalize low probabilities)
-        if scores:
-            plausibility_score = pow(sum(scores) / len(scores), 1.5)  # Slightly penalize edge cases
-        else:
-            plausibility_score = 0.5  # Neutral if no data
-        
-        # Generate reasoning
-        if not reasoning_parts:
-            reasoning = "Insufficient context data to assess plausibility."
-        else:
-            reasoning = " ".join(reasoning_parts)
-        
-        return {
-            "plausibility_score": round(plausibility_score, 3),
-            "reasoning": reasoning,
-            "flags": flags,
-            "is_plausible": plausibility_score >= 0.3,  # Threshold for flagging
-            "confidence": "high" if scores else "low"
-        }
-    
-    def _normalize_item(self, item: str) -> str:
-        """Normalize item to known category."""
-        # Direct match
-        if item in self.item_categories:
-            return item
-        
-        # Fuzzy match (simple substring matching)
-        for known_item in self.item_categories.keys():
-            if known_item in item or item in known_item:
-                return known_item
-        
-        # Fallback to original
-        return item
-    
-    def _normalize_location(self, location: str) -> str:
-        """Normalize location to known type."""
-        if location in self.location_types:
-            return location
-        
-        for known_loc in self.location_types.keys():
-            if known_loc in location or location in known_loc:
-                return known_loc
-        
-        return location
-    
-    def load_probabilities(self, data_path: str):
-        """Load pre-computed probabilities from JSON file."""
         try:
-            with open(data_path, 'r') as f:
-                data = json.load(f)
+            # 1. Update NetworkX (Always)
+            if self.nx_graph is not None:
+                self._add_to_networkx(item_type, location, category, day_of_week)
             
-            self.item_categories = data.get('item_categories', {})
-            self.location_types = data.get('location_types', {})
-            self.p_item_location = defaultdict(lambda: defaultdict(float), data.get('p_item_location', {}))
-            self.p_item_time = defaultdict(lambda: defaultdict(float), data.get('p_item_time', {}))
-            self.p_location_time = defaultdict(lambda: defaultdict(float), data.get('p_location_time', {}))
-            
-            logger.info(f"Loaded probabilities from {data_path}")
+            # 2. Update Neo4j (If available)
+            if self.use_neo4j:
+                self._add_to_neo4j(item_type, location, category, day_of_week)
+                
+            return True
         except Exception as e:
-            logger.error(f"Failed to load probabilities: {e}")
-            self._initialize_default_probabilities()
-    
-    def save_probabilities(self, output_path: str):
-        """Save current probabilities to JSON file."""
-        data = {
-            'item_categories': self.item_categories,
-            'location_types': self.location_types,
-            'p_item_location': dict(self.p_item_location),
-            'p_item_time': dict(self.p_item_time),
-            'p_location_time': dict(self.p_location_time)
-        }
+            logger.error(f"Error adding event to Knowledge Graph: {e}")
+            return False
+
+    def _add_to_neo4j(self, item: str, location: str, category: str, day: str):
+        """Add event to Neo4j."""
+        query = """
+        MERGE (c:Category {name: $category})
+        MERGE (i:Item {name: $item})
+        MERGE (l:Location {name: $location})
+        MERGE (t:Time {day: $day})
         
-        with open(output_path, 'w') as f:
-            json.dump(data, f, indent=2)
+        MERGE (i)-[:BELONGS_TO]->(c)
+        MERGE (i)-[:FOUND_AT {confidence: 1.0}]->(l)
+        MERGE (i)-[:REPORTED_ON]->(t)
         
-        logger.info(f"Saved probabilities to {output_path}")
+        # Update occurrence count on the relationship
+        MERGE (i)-[r:OFTEN_FOUND_IN]->(l)
+        ON CREATE SET r.count = 1
+        ON MATCH SET r.count = r.count + 1
+        """
+        with self.driver.session() as session:
+            session.run(query, item=item, location=location, category=category, day=day)
 
+    def _add_to_networkx(self, item: str, location: str, category: str, day: str):
+        """Add event to NetworkX."""
+        # Nodes
+        self.nx_graph.add_node(item, type="Item", category=category)
+        self.nx_graph.add_node(location, type="Location")
+        self.nx_graph.add_node(category, type="Category")
+        
+        # Relationships
+        self.nx_graph.add_edge(item, location, relation="FOUND_AT")
+        self.nx_graph.add_edge(item, category, relation="BELONGS_TO")
+        
+        # Track frequency (simple weight)
+        edge_key = (item, location)
+        if self.nx_graph.has_edge(*edge_key):
+            self.nx_graph.edges[edge_key]['weight'] = self.nx_graph.edges[edge_key].get('weight', 0) + 1
+        else:
+            self.nx_graph.add_edge(item, location, weight=1, relation="OFTEN_FOUND_IN")
 
-# Singleton instance
-_knowledge_graph = None
+    def find_patterns(self, item_category: str) -> List[Dict]:
+        """
+        Discover spatial patterns for a category.
+        e.g., "Where are electronics usually found?"
+        """
+        if self.use_neo4j:
+            return self._query_neo4j_patterns(item_category)
+        elif self.nx_graph is not None:
+            return self._query_networkx_patterns(item_category)
+        return []
 
-def get_knowledge_graph() -> KnowledgeGraph:
-    """Get or create the global knowledge graph instance."""
-    global _knowledge_graph
-    if _knowledge_graph is None:
-        _knowledge_graph = KnowledgeGraph()
-    return _knowledge_graph
+    def _query_neo4j_patterns(self, category: str) -> List[Dict]:
+        """Run Cypher query for user patterns."""
+        query = """
+        MATCH (c:Category {name: $category})<-[:BELONGS_TO]-(i:Item)
+        MATCH (i)-[r:OFTEN_FOUND_IN]->(l:Location)
+        RETURN i.name as item, l.name as location, r.count as count
+        ORDER BY count DESC
+        LIMIT 5
+        """
+        with self.driver.session() as session:
+            result = session.run(query, category=category)
+            return [{"item": r["item"], "location": r["location"], "count": r["count"]} for r in result]
+
+    def _query_networkx_patterns(self, category: str) -> List[Dict]:
+        """Run Graph traversal for patterns."""
+        results = []
+        
+        # Find all items in category
+        items = [n for n, attr in self.nx_graph.nodes(data=True) 
+                 if attr.get('type') == 'Item' and attr.get('category') == category]
+        
+        for item in items:
+            # Find locations connected to these items
+            for neighbor in self.nx_graph.neighbors(item):
+                edge_data = self.nx_graph.get_edge_data(item, neighbor)
+                if edge_data.get('relation') == 'OFTEN_FOUND_IN':
+                    results.append({
+                        "item": item,
+                        "location": neighbor,
+                        "count": edge_data.get('weight', 1)
+                    })
+        
+        # Sort by count
+        return sorted(results, key=lambda x: x['count'], reverse=True)[:5]
+
+    def get_relationship_mining_stats(self) -> Dict:
+        """Get stats about graph size and connectivity."""
+        if self.use_neo4j:
+            try:
+                with self.driver.session() as session:
+                    res = session.run("MATCH (n) RETURN count(n) as nodes")
+                    nodes = res.single()["nodes"]
+                    res = session.run("MATCH ()-[r]->() RETURN count(r) as rels")
+                    rels = res.single()["rels"]
+                    return {"engine": "Neo4j", "nodes": nodes, "relationships": rels}
+            except Exception as e:
+                logger.error(f"Error getting Neo4j stats: {e}")
+                return {"engine": "Neo4j (Error)", "error": str(e)}
+        else:
+            if self.nx_graph is not None:
+                return {
+                    "engine": "NetworkX (Fallback)", 
+                    "nodes": self.nx_graph.number_of_nodes(),
+                    "relationships": self.nx_graph.number_of_edges()
+                }
+            else:
+                return {"engine": "None", "nodes": 0, "relationships": 0}
