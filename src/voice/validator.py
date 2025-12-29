@@ -119,6 +119,15 @@ class VoiceValidator:
             quality_result = self.assess_audio_quality(audio_path)
             result["quality"] = quality_result
             
+            # Initialize transcription_result with default values
+            transcription_result = {
+                "valid": False,
+                "transcription": "",
+                "confidence": 0.0,
+                "language": "",
+                "feedback": ""
+            }
+            
             # Step 3: Perform speech-to-text transcription if audio quality is acceptable
             if quality_result["valid"]:
                 transcription_result = self.transcribe_audio(audio_path)

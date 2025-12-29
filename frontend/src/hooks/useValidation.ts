@@ -130,6 +130,46 @@ export const useValidation = () => {
     return response.data;
   }, [API_BASE_URL, API_KEY]);
 
+  // NEW: Novel Feature #1 Spatial-Temporal Context Validation
+  const validateContext = useCallback(async (
+    item_type: string,
+    location: string,
+    time?: string
+  ) => {
+    const payload = { item_type, location, time };
+    const response = await axios.post(
+      `${API_BASE_URL}/api/validate/context`,
+      payload,
+      { headers: { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' } }
+    );
+    return response.data;
+  }, [API_BASE_URL, API_KEY]);
+
+  // NEW: Phase 2 XAI Attention
+  const getAttentionMap = useCallback(async (image: File, text: string) => {
+    const formData = new FormData();
+    formData.append('image_file', image);
+    formData.append('text', text);
+
+    // Use validate helper if available, else direct axios
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/api/xai/attention`,
+        formData,
+        {
+          headers: {
+            'X-API-Key': API_KEY,
+            // Axios handles multipart/form-data content-type automatically
+          }
+        }
+      );
+      return response.data;
+    } catch (err: any) {
+      console.error("Attention map error:", err);
+      return { error: err.message };
+    }
+  }, [API_BASE_URL, API_KEY]);
+
   return {
     isLoading,
     error,
@@ -138,6 +178,8 @@ export const useValidation = () => {
     validateVoice,
     validateComplete,
     sendChatMessage,
-    submitFeedback
+    submitFeedback,
+    validateContext,
+    getAttentionMap
   };
 };

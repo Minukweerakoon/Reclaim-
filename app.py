@@ -14,7 +14,7 @@ from datetime import datetime
 
 import uvicorn
 import asyncio
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends, BackgroundTasks, WebSocket, WebSocketDisconnect, status, Request, Response
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends, BackgroundTasks, WebSocket, WebSocketDisconnect, status, Request, Response, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader, APIKey
 from fastapi.responses import JSONResponse, Response
@@ -223,8 +223,15 @@ def get_consistency_engine():
     global _consistency_engine
     if _consistency_engine is None:
         try:
-            mod = importlib.import_module('src.cross_modal.consistency_engine')
+            import importlib
+            import sys
+            # Force fresh import by removing cached module
+            module_name = 'src.cross_modal.consistency_engine'
+            if module_name in sys.modules:
+                del sys.modules[module_name]
+            mod = importlib.import_module(module_name)
             _consistency_engine = mod.ConsistencyEngine()
+            logger.info(f"ConsistencyEngine initialized: {_consistency_engine}")
         except Exception as e:
             logger.warning(f"Consistency engine unavailable: {e}")
             _consistency_engine = False
@@ -422,6 +429,43 @@ class ErrorResponse(BaseModel):
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
     path: Optional[str] = None
     suggestion: Optional[str] = None
+
+# Novel Feature #1: Spatial-Temporal Context Validation Models
+class SpatialTemporalRequest(BaseModel):
+    """Request model for spatial-temporal context validation"""
+    item_type: str = Field(..., description="Type of item (e.g., 'laptop', 'phone', 'wallet')")
+    location: str = Field(..., description="Where the item was lost/found")
+    time: Optional[str] = Field(None, description="When the item was lost/found (e.g., '2pm', 'morning')")
+
+class SpatialTemporalResponse(BaseModel):
+    """Response model for spatial-temporal context validation"""
+    plausibility_score: float = Field(..., description="Score from 0.0 to 1.0")
+    valid: bool = Field(..., description="True if plausibility >= 0.4")
+    location_probability: float
+    time_probability: Optional[float] = None  # None when time is not provided
+    explanation: str
+    suggestions: List[str] = []
+    confidence_level: str
+    normalized_inputs: dict
+
+# Phase 2: XAI Attention Visualization Models
+class AttentionMapRequest(BaseModel):
+    """Request model for generating attention heatmaps"""
+    text: str = Field(..., description="Text description to match with image")
+
+class AttentionMapResponse(BaseModel):
+    """Response model for attention heatmap generation"""
+    heatmap_url: Optional[str] = Field(None, description="URL to generated heatmap image")
+    attention_scores: List[float] = Field(default_factory=list, description="Raw attention weights")
+    top_regions: List[Dict[str, Any]] = Field(default_factory=list, description="Most attended regions")
+    explanation: str = Field("", description="Human-readable explanation")
+    error: Optional[str] = None
+
+class EnhancedXAIRequest(BaseModel):
+    """Request for comprehensive XAI explanation"""
+    include_attention: bool = Field(False, description="Include attention analysis")
+    include_discrepancies: bool = Field(True, description="Include multi-dimensional discrepancy checks")
+
 
 # Helper functions
 def save_uploaded_file(upload_file: UploadFile) -> str:
@@ -852,6 +896,212 @@ async def get_result(request_id: str):
         return {"status": "in_progress", **entry}
     raise HTTPException(status_code=404, detail="Result not found")
 
+# ------------------------------------------------------------------ #
+# Novel Feature #1: Spatial-Temporal Context Validation
+# Research Contribution: Bayesian Probabilistic Plausibility Assessment
+# ------------------------------------------------------------------ #
+@app.post("/api/validate/context", response_model=SpatialTemporalResponse)
+async def validate_spatial_temporal_context(
+    request: SpatialTemporalRequest,
+    api_key: APIKey = Depends(get_api_key)
+):
+    """
+    Validate the plausibility of an item-location-time combination.
+    
+    This implements Novel Feature #1: Bayesian Probabilistic Spatial-Temporal
+    Context Validation for A-Grade research publication.
+    
+    Mathematical Model:
+        Plausibility = P(Location|Item) × P(Time|Item)
+    
+    Examples:
+        - "laptop" + "library" + "2pm" → 0.85 (Very Plausible)
+        - "swimsuit" + "server room" + "9am" → 0.02 (Highly Implausible)
+    
+    Returns:
+        SpatialTemporalResponse with plausibility score and explanation
+    """
+    try:
+        from src.intelligence.spatial_temporal_validator import get_spatial_temporal_validator
+        validator = get_spatial_temporal_validator()
+        
+        result = validator.calculate_plausibility(
+            item=request.item_type,
+            location=request.location,
+            time=request.time
+        )
+        
+        # Log for research metrics
+        logger.info(
+            f"Spatial-Temporal Validation: {request.item_type} @ {request.location} "
+            f"({request.time}) → Score: {result['plausibility_score']}"
+        )
+        
+        return SpatialTemporalResponse(**result)
+        
+    except Exception as e:
+        logger.error(f"Spatial-temporal validation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Spatial-temporal validation failed: {str(e)}"
+        )
+
+@app.get("/api/spatial-temporal/stats")
+async def get_spatial_temporal_stats(api_key: APIKey = Depends(get_api_key)):
+    """
+    Get statistics about the spatial-temporal validation system.
+    Shows learned patterns and prior data status.
+    """
+    try:
+        from src.intelligence.spatial_temporal_validator import get_spatial_temporal_validator
+        validator = get_spatial_temporal_validator()
+        
+        return {
+            "status": "operational",
+            "learning_stats": validator.get_learning_stats(),
+            "sample_validations": [
+                validator.calculate_plausibility("laptop", "library", "2pm"),
+                validator.calculate_plausibility("phone", "cafeteria", "noon"),
+                validator.calculate_plausibility("swimsuit", "server room", "9am"),
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Failed to get spatial-temporal stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+# ================================================================
+# Phase 2: XAI Attention Visualization Endpoints
+# ================================================================
+
+@app.post("/api/xai/attention", response_model=AttentionMapResponse)
+async def generate_attention_heatmap(
+    image_file: UploadFile = File(...),
+    text: str = Form(...),
+    api_key: APIKey = Depends(get_api_key),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+):
+    """
+    Generate attention heatmap for image-text pair.
+    Shows which image regions the model focuses on when matching text.
+    
+    Phase 2: XAI Attention Visualization
+    """
+    try:
+        from src.cross_modal.attention_visualizer import get_attention_visualizer
+        from src.image.clip_validator import get_clip_validator
+        
+        # Validate and save image
+        if not validate_file_type(image_file, ALLOWED_IMAGE_TYPES):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid image type. Allowed: {ALLOWED_IMAGE_TYPES}"
+            )
+        
+        image_path = save_uploaded_file(image_file)
+        background_tasks.add_task(cleanup_file, image_path)
+        
+        # Get CLIP model  
+        clip_validator = get_clip_validator()
+        if not clip_validator:
+            return AttentionMapResponse(
+                explanation="CLIP model unavailable - attention analysis not possible",
+                error="Model unavailable"
+            )
+        
+        # Generate attention map
+        visualizer = get_attention_visualizer()
+        result = visualizer.generate_attention_map(
+            image_path=image_path,
+            text=text,
+            clip_model=clip_validator.model
+        )
+        
+        # Convert file path to URL if heatmap generated
+        if result.get("heatmap_path"):
+            heatmap_filename = os.path.basename(result["heatmap_path"])
+            result["heatmap_url"] = f"/uploads/heatmaps/{heatmap_filename}"
+            background_tasks.add_task(cleanup_file, result["heatmap_path"])
+        
+        logger.info(f"Attention heatmap generated for: '{text[:50]}...'")
+        
+        return AttentionMapResponse(**result)
+        
+    except Exception as e:
+        logger.error(f"Attention heatmap failed: {e}")
+        return AttentionMapResponse(
+            explanation=f"Attention analysis failed: {str(e)}",
+            error=str(e)
+        )
+
+@app.post("/api/xai/explain-enhanced")
+async def get_enhanced_xai_explanation(
+    image_result: Optional[Dict] = None,
+    text_result: Optional[Dict] = None,
+    voice_result: Optional[Dict] = None,
+    include_discrepancies: bool = True,
+    api_key: APIKey = Depends(get_api_key)
+):
+    """
+    Get comprehensive XAI explanation with multi-dimensional discrepancy detection.
+    
+    Phase 2: Enhanced XAI with brand, location, and condition checks.
+    """
+    try:
+        from src.cross_modal.xai_explainer import XAIExplainer
+        from src.cross_modal.enhanced_discrepancies import (
+            check_brand_mismatch,
+            check_location_consistency,
+            check_condition_mismatch
+        )
+        
+        explainer = XAIExplainer()
+        
+        # Get basic explanation
+        base_explanation = explainer.generate_explanation(
+            image_result=image_result,
+            text_result=text_result,
+            voice_result=voice_result
+        )
+        
+        # Add enhanced discrepancy checks if requested
+        if include_discrepancies:
+            enhanced_checks = {}
+            
+            # Brand mismatch
+            if image_result and text_result:
+                brand_check = check_brand_mismatch(image_result, text_result)
+                if brand_check.get("has_mismatch"):
+                    enhanced_checks["brand_mismatch"] = brand_check
+            
+            # Location consistency (text vs voice)
+            if text_result and voice_result:
+                location_check = check_location_consistency(text_result, voice_result)
+                if location_check.get("has_mismatch"):
+                    enhanced_checks["location_inconsistency"] = location_check
+            
+            # Condition mismatch
+            if image_result and text_result:
+                condition_check = check_condition_mismatch(image_result, text_result)
+                if condition_check.get("has_mismatch"):
+                    enhanced_checks["condition_mismatch"] = condition_check
+            
+            if enhanced_checks:
+                base_explanation["enhanced_checks"] = enhanced_checks
+                base_explanation["has_discrepancy"] = True
+                logger.info(f"Enhanced XAI: {len(enhanced_checks)} additional discrepancies detected")
+        
+        return base_explanation
+        
+    except Exception as e:
+        logger.error(f"Enhanced XAI explanation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"XAI explanation failed: {str(e)}"
+        )
+
 @app.post("/validate/text", response_model=ValidationResponse)
 async def validate_text(
     request: TextValidationRequest,
@@ -1217,6 +1467,135 @@ async def validate_complete(
             cross_modal_results["voice_text"] = voice_text_consistency_result
             context_consistency = cached()(ce.validate_context_consistency)(text_result, voice_result)
             cross_modal_results["context"] = context_consistency
+        
+        # XAI Integration: Generate detailed explanations for cross-modal discrepancies
+        if image_path and text and cross_modal_results.get("image_text"):
+            image_text_result = cross_modal_results["image_text"]
+            # Check if there's a mismatch (low similarity or invalid)
+            if not image_text_result.get("valid", True) or image_text_result.get("similarity", 1.0) < 0.85:
+                # DEBUG PRINT
+                print(f"DEBUG: Mismatch detected. Checking XAI...")
+                # Debug: Verify XAI explainer existence and inputs
+                print(f"DEBUG: ce_xai object: {ce_xai}")
+                print(f"DEBUG: hasattr xai_explainer: {hasattr(ce_xai, 'xai_explainer')}")
+                print(f"DEBUG: xai_explainer value: {getattr(ce_xai, 'xai_explainer', None)}")
+                print(f"DEBUG: image_result keys: {list(image_result.keys()) if isinstance(image_result, dict) else 'N/A'}")
+                print(f"DEBUG: text_result keys: {list(text_result.keys()) if isinstance(text_result, dict) else 'N/A'}")
+                # End of debug prints
+                print(f"DEBUG: ce_xai is: {ce_xai}")
+                if ce_xai:
+                    print(f"DEBUG: Has xai_explainer attr? {hasattr(ce_xai, 'xai_explainer')}")
+                    if hasattr(ce_xai, 'xai_explainer'):
+                        print(f"DEBUG: ce_xai.xai_explainer value: {ce_xai.xai_explainer}")
+                
+                # Use hasattr to safely check if xai_explainer exists
+                if ce_xai and hasattr(ce_xai, 'xai_explainer') and ce_xai.xai_explainer:
+                    print("DEBUG: Entering XAI generation block...")
+                    try:
+                        # Generate XAI explanation using the correct method
+                        # Pass the text description for accurate color/object detection
+                        xai_explanation = ce_xai.xai_explainer.generate_explanation(
+                            image_result=image_result,
+                            text_result=text_result,
+                            voice_result=voice_result,
+                            cross_modal_results=cross_modal_results,
+                            description=text  # Pass the original description text
+                        )
+                        
+                        logger.info(f"Raw XAI Explanation: {xai_explanation}")
+                        print(f"DEBUG: XAI has_discrepancy={xai_explanation.get('has_discrepancy')}, type={xai_explanation.get('discrepancy_type')}")
+                        
+                        # Only add if there's actually a discrepancy
+                        if xai_explanation.get("has_discrepancy"):
+                            # Format for frontend consumption
+                            cross_modal_results["xai_explanation"] = {
+                                "discrepancies": [{
+                                    "type": xai_explanation.get("discrepancy_type", "unknown"),
+                                    "explanation": xai_explanation.get("explanation", "")
+                                }],
+                                "severity": xai_explanation.get("severity", "medium"),
+                                "suggestion": xai_explanation.get("suggestions", ["Please review your inputs"])[0] if xai_explanation.get("suggestions") else "Please review your inputs"
+                            }
+                            logger.info(f"XAI Explanation generated: {xai_explanation.get('severity')} severity - {xai_explanation.get('discrepancy_type')}")
+                            print(f"DEBUG: Added XAI to cross_modal_results: {cross_modal_results.get('xai_explanation')}")
+                        else:
+                            print(f"DEBUG: XAI returned no discrepancy, checking why...")
+                    except Exception as e:
+                        logger.error(f"XAI explanation generation failed: {str(e)}")
+                        print(f"DEBUG: XAI Exception: {e}")
+                        # Don't fail the request if XAI fails, just log it
+                
+                # The following 'else' block was misplaced and has been removed as per instruction.
+                # The logic it contained (logging why XAI was skipped) should be handled
+                # by the 'if ce_xai and hasattr(ce_xai, 'xai_explainer') and ce_xai.xai_explainer:' condition itself.
+                # If the condition is false, XAI generation is implicitly skipped.
+        
+        # ============================================================
+        # Novel Feature #1: Spatial-Temporal Context Validation
+        # ============================================================
+        spatial_temporal_result = None
+        if text_result:
+            try:
+                from src.intelligence.spatial_temporal_validator import get_spatial_temporal_validator
+                
+                # Extract context from text analysis
+                entities = text_result.get("entities", {})
+                item_mentions = entities.get("item_mentions", [])
+                location_mentions = entities.get("location_mentions", [])
+                
+                # Extract item type (use first mention or hint)
+                item_type = None
+                if item_mentions and len(item_mentions) > 0:
+                    item_type = item_mentions[0]
+                elif text_result.get("completeness", {}).get("entities", {}).get("item_type"):
+                    item_hints = text_result["completeness"]["entities"]["item_type"]
+                    if item_hints and len(item_hints) > 0:
+                        item_type = item_hints[0]
+                
+                # Extract location (prioritize explicit mentions)
+                location = None
+                if location_mentions and len(location_mentions) > 0:
+                    location = location_mentions[0]
+                
+                # Extract time from text (keywords like "morning", "afternoon", "2pm")
+                time_mention = None
+                text_lower = text.lower() if text else ""
+                time_keywords = ["morning", "afternoon", "evening", "night", "noon", "am", "pm"]
+                for keyword in time_keywords:
+                    if keyword in text_lower:
+                        time_mention = keyword
+                        break
+                
+                # Only run validation if we have at least item and location
+                if item_type and location:
+                    logger.info(f"Spatial-Temporal Validation: item={item_type}, location={location}, time={time_mention}")
+                    
+                    validator = get_spatial_temporal_validator()
+                    spatial_temporal_result = validator.calculate_plausibility(
+                        item=item_type,
+                        location=location,
+                        time=time_mention
+                    )
+                    
+                    # Add to cross_modal results for frontend consumption
+                    cross_modal_results["spatial_temporal"] = spatial_temporal_result
+                    
+                    # Record validated item for learning (if plausible)
+                    if spatial_temporal_result.get("valid", False):
+                        validator.record_validated_item(item_type, location, time_mention)
+                    
+                    logger.info(
+                        f"Spatial-Temporal Score: {spatial_temporal_result['plausibility_score']:.2f} "
+                        f"({spatial_temporal_result['confidence_level']})"
+                    )
+                else:
+                    logger.debug(f"Skipping spatial-temporal validation: item={item_type}, location={location}")
+                    
+            except Exception as e:
+                logger.error(f"Spatial-temporal validation failed: {e}")
+                # Don't fail the entire request if spatial-temporal fails
+        # ============================================================
+        
         
         # Calculate overall confidence
         ce2 = get_consistency_engine()
@@ -1594,6 +1973,65 @@ try:
 except Exception as _e:
     logger.warning(f"Static mount skipped: {_e}")
 
+# ------------------------------------------------------------------ #
+# Active Learning Feedback Endpoint
+# ------------------------------------------------------------------ #
+
+# ------------------------------------------------------------------ #
+# Active Learning Feedback Endpoint
+# ------------------------------------------------------------------ #
+class FeedbackRequest(BaseModel):
+    request_id: str
+    modality: str
+    predicted_label: Optional[str] = None
+    user_correction: Optional[str] = None
+    is_correct: bool
+    comments: Optional[str] = None
+
+@app.post("/feedback")
+async def submit_feedback(feedback: FeedbackRequest, x_api_key: str = Header(None)):
+    """
+    Submit user feedback for Active Learning.
+    Stores corrections for low-confidence predictions to improve future models.
+    """
+    # Verify API Key
+    if x_api_key != API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key"
+        )
+        
+    try:
+        # Store in database
+        query = db_manager.feedback_logs.insert().values(
+            request_id=feedback.request_id,
+            modality=feedback.modality,
+            predicted_label=feedback.predicted_label,
+            user_correction=feedback.user_correction,
+            is_correct=feedback.is_correct,
+            comments=feedback.comments,
+            timestamp=datetime.now()
+        )
+        
+        with db_manager.engine.connect() as conn:
+            conn.execute(query)
+            conn.commit()
+            
+        logger.info(f"Feedback received for request {feedback.request_id}: Correct={feedback.is_correct}")
+        
+        return {
+            "status": "success", 
+            "message": "Feedback stored for active learning",
+            "active_learning_triggered": not feedback.is_correct # Retraining candidate if wrong
+        }
+        
+    except Exception as e:
+        logger.error(f"Error storing feedback: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to store feedback: {str(e)}"
+        )
+
 # Main entry point
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=8000)
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)

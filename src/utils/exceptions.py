@@ -70,6 +70,51 @@ class VoiceValidationError(ValidationError):
         super().__init__(message, "VOICE_VALIDATION_ERROR")
 
 
+# ============================================================
+# Novel Feature Exceptions (A-Grade Research)
+# ============================================================
+
+class SpatialTemporalException(ValidationError):
+    """Raised when spatial-temporal validation encounters errors."""
+    def __init__(self, message: str, code: str = "ST000"):
+        super().__init__(message, code)
+
+
+class XAIException(ValidationError):
+    """Raised when XAI explanation generation fails."""
+    def __init__(self, message: str, code: str = "XAI000"):
+        super().__init__(message, code)
+
+
+class ActiveLearningException(ValidationError):
+    """Raised when active learning operations fail."""
+    def __init__(self, message: str, code: str = "AL000"):
+        super().__init__(message, code)
+
+
+# Error Code Taxonomy for Novel Features
+NOVEL_FEATURE_ERROR_CODES = {
+    # Spatial-Temporal (ST)
+    "ST001": "Unknown item type - cannot calculate plausibility",
+    "ST002": "Unknown location - cannot match to known places",
+    "ST003": "Invalid time format - use 'morning', 'afternoon', or HH:MM",
+    "ST004": "Database persistence failed - patterns not saved",
+    "ST005": "Pattern loading failed - using static priors only",
+    
+    # XAI Explainability (XAI)
+    "XAI001": "CLIP model unavailable - cannot generate visual explanations",
+    "XAI002": "Attention map generation failed",
+    "XAI003": "Discrepancy detection failed",
+    "XAI004": "SHAP explainer initialization failed",
+    
+    # Active Learning (AL)
+    "AL001": "Feedback submission failed - not recorded for training",
+    "AL002": "Retraining trigger failed - model update postponed",
+    "AL003": "Insufficient feedback data - need minimum 100 samples",
+    "AL004": "Model versioning error - cannot track improvements",
+}
+
+
 # User-friendly error messages
 ERROR_MESSAGES = {
     "FILE_FORMAT_ERROR": "Invalid file format. Please upload a JPEG, PNG, or WebP image.",
