@@ -18,10 +18,16 @@ class LLMClient:
     Enhanced with conversational guidance for lost & found items.
     """
     
+    
     def __init__(self):
         self.provider = os.getenv("LLM_PROVIDER", "mock").lower()
         self.api_key = os.getenv("OPENAI_API_KEY") if self.provider == "openai" else os.getenv("GEMINI_API_KEY")
         self.model = os.getenv("LLM_MODEL", "gpt-4-turbo")
+        
+        # Groq fallback configuration
+        self.groq_api_key = os.getenv("GROQ_API_KEY")
+        self.groq_model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+        self.groq_client = None
         
         # Retry configuration for rate limit handling
         self.retry_config = {
@@ -38,8 +44,19 @@ class LLMClient:
             genai.configure(api_key=self.api_key)
             # Using gemini-2.5-flash (confirmed available via list_models())
             self.gemini_model = genai.GenerativeModel('gemini-2.5-flash')
-            # Fallback to cheaper model if rate limited
-            self.gemini_fallback_model = genai.GenerativeModel('gemini-1.5-flash')
+            
+            # Initialize Groq as fallback if API key available
+            if self.groq_api_key:
+                try:
+                    from groq import Groq
+                    self.groq_client = Groq(api_key=self.groq_api_key)
+                    logger.info("Groq fallback initialized successfully")
+                except ImportError:
+                    logger.warning("Groq package not installed. Install with: pip install groq")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize Groq fallback: {e}")
+            else:
+                logger.warning("No GROQ_API_KEY found. Groq fallback unavailable.")
             
         # DEBUG LOGGING
         masked_key = f"{self.api_key[:4]}...{self.api_key[-4:]}" if self.api_key else "None"
@@ -103,11 +120,13 @@ class LLMClient:
             try:
                 logger.info(f"Calling {model_name} (attempt {attempt + 1}/{self.retry_config['max_attempts']})")
                 
+                # Add timeout to prevent indefinite hangs
                 response = model.generate_content(
                     prompt,
                     generation_config=genai.GenerationConfig(
                         response_mime_type="application/json"
-                    )
+                    ),
+                    request_options={"timeout": 30}  # 30 second timeout
                 )
                 
                 return response.text.strip()
@@ -123,13 +142,13 @@ class LLMClient:
                         logger.warning(f"Rate limit hit. Retrying in {wait_time}s...")
                         time.sleep(wait_time)
                         continue
-                    elif not use_fallback:
-                        # Try fallback model
-                        logger.warning("Primary model rate limited. Trying fallback model...")
-                        return self._call_gemini_with_retry(prompt, use_fallback=True)
+                    elif self.groq_client:
+                        # Try Groq fallback instead of non-existent gemini-1.5-flash
+                        logger.warning("Gemini rate limited. Switching to Groq fallback...")
+                        return self._call_groq_with_retry(prompt)
                     else:
-                        # Both models failed, raise exception
-                        logger.error("Both Gemini models rate limited")
+                        # No fallback available
+                        logger.error("Gemini rate limited and no Groq fallback available")
                         raise
                 else:
                     # Non-rate-limit error, log and retry
@@ -141,6 +160,49 @@ class LLMClient:
                         raise
         
         raise Exception("All retry attempts failed")
+    
+    def _call_groq_with_retry(self, prompt: str) -> str:
+        """
+        Call Groq API with retry logic.
+        
+        Args:
+            prompt: The prompt to send
+            
+        Returns:
+            Response text from Groq
+            
+        Raises:
+            Exception: If all retries fail
+        """
+        import time
+        import json
+        
+        for attempt in range(self.retry_config["max_attempts"]):
+            try:
+                logger.info(f"Calling Groq {self.groq_model} (attempt {attempt + 1}/{self.retry_config['max_attempts']})")
+                
+                response = self.groq_client.chat.completions.create(
+                    model=self.groq_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format={"type": "json_object"},
+                    timeout=30
+                )
+                
+                return response.choices[0].message.content.strip()
+                
+            except Exception as e:
+                error_msg = str(e).lower()
+                logger.error(f"Groq API error (attempt {attempt + 1}): {e}")
+                
+                if attempt < self.retry_config["max_attempts"] - 1:
+                    wait_time = self.retry_config["backoff_factor"] ** attempt
+                    logger.warning(f"Groq error. Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    raise
+        
+        raise Exception("All Groq retry attempts failed")
     
     def _gemini_guide_conversation(self, user_message: str, conversation_history: List[Dict] = None) -> Dict:
         """Use Gemini to guide conversation intelligently."""

@@ -69,10 +69,11 @@ class GraphManager:
             self._init_networkx_schema()
         
     def close(self):
-        """Close Neo4j connection."""
+        """Close Neo4j connection.        """
         if self.driver:
             self.driver.close()
-
+            logger.info("Neo4j connection closed")
+        
     def _init_neo4j_schema(self):
         """Initialize Neo4j constraints and indexes."""
         if not self.use_neo4j:
@@ -225,3 +226,92 @@ class GraphManager:
                 }
             else:
                 return {"engine": "None", "nodes": 0, "relationships": 0}
+
+    # ------------------------------------------------------------------ #
+    # Spatial-Temporal Context Methods (Novel Feature #1)
+    # ------------------------------------------------------------------ #
+    def record_item_context(
+        self, 
+        item_type: str, 
+        location: str, 
+        time_of_day: Optional[str] = None,
+        validated: bool = True
+    ) -> bool:
+        """
+        Record a validated item's spatial-temporal context.
+        This data is used to improve Bayesian plausibility scoring.
+        
+        Args:
+            item_type: Type of item (e.g., "phone", "laptop")
+            location: Where the item was found/lost
+            time_of_day: Time period or specific time
+            validated: Whether this was a validated (confirmed) report
+            
+        Returns:
+            bool: True if recorded successfully
+        """
+        try:
+            # Also update the spatial-temporal validator's learned patterns
+            from src.intelligence.spatial_temporal_validator import get_spatial_temporal_validator
+            stv = get_spatial_temporal_validator()
+            stv.record_validated_item(item_type, location, time_of_day)
+            
+            # Add to graph for relationship mining
+            category = self._infer_category(item_type)
+            self.add_item_event(item_type, location, category)
+            
+            logger.info(f"Recorded spatial-temporal context: {item_type} at {location}, time={time_of_day}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to record item context: {e}")
+            return False
+    
+    def _infer_category(self, item_type: str) -> str:
+        """Infer category from item type."""
+        item_lower = item_type.lower()
+        if any(x in item_lower for x in ["phone", "laptop", "tablet", "watch", "headphone", "airpod"]):
+            return "electronics"
+        elif any(x in item_lower for x in ["bag", "backpack", "wallet", "purse"]):
+            return "personal"
+        elif any(x in item_lower for x in ["key", "umbrella", "glasses"]):
+            return "accessories"
+        elif any(x in item_lower for x in ["jacket", "coat", "hat", "clothing"]):
+            return "clothing"
+        elif any(x in item_lower for x in ["swim", "sport", "ball", "racket"]):
+            return "sports"
+        return "other"
+    
+    def get_spatial_temporal_stats(self) -> Dict:
+        """Get combined stats from graph and spatial-temporal validator."""
+        try:
+            from src.intelligence.spatial_temporal_validator import get_spatial_temporal_validator
+            stv = get_spatial_temporal_validator()
+            stv_stats = stv.get_learning_stats()
+        except Exception:
+            stv_stats = {"error": "Spatial-temporal validator not available"}
+        
+        graph_stats = self.get_relationship_mining_stats()
+        
+        return {
+            "graph": graph_stats,
+            "spatial_temporal": stv_stats
+        }
+
+
+# ------------------------------------------------------------------ #
+# Singleton Pattern for Global Access
+# ------------------------------------------------------------------ #
+_graph_manager_instance = None
+
+def get_knowledge_graph() -> GraphManager:
+    """
+    Get or create the global GraphManager instance (singleton pattern).
+    
+    Returns:
+        GraphManager: The global knowledge graph manager instance
+    """
+    global _graph_manager_instance
+    if _graph_manager_instance is None:
+        _graph_manager_instance = GraphManager()
+    return _graph_manager_instance
+

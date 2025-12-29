@@ -27,7 +27,8 @@ class XAIExplainer:
                            image_result: Optional[Dict] = None,
                            text_result: Optional[Dict] = None,
                            voice_result: Optional[Dict] = None,
-                           cross_modal_results: Optional[Dict] = None) -> Dict[str, Any]:
+                           cross_modal_results: Optional[Dict] = None,
+                           description: Optional[str] = None) -> Dict[str, Any]:
         """
         Generate a comprehensive explanation for validation failures.
         
@@ -48,34 +49,99 @@ class XAIExplainer:
             "suggestions": []
         }
         
-        # Check for object mismatch
-        object_explanation = self._check_object_mismatch(image_result, text_result, voice_result)
-        if object_explanation:
-            result.update(object_explanation)
+        # Get description from various sources
+        desc_text = description or ""
+        if not desc_text and text_result:
+            desc_text = text_result.get("text", "") or text_result.get("description", "")
+        if not desc_text and cross_modal_results:
+            # Try to get from image_text result
+            image_text = cross_modal_results.get("image_text", {})
+            desc_text = image_text.get("text", "") or image_text.get("description", "")
+        
+        desc_lower = desc_text.lower()
+        
+        # Extract colors mentioned in description
+        mentioned_colors = [c for c in self.color_keywords if c in desc_lower]
+        
+        # Get detected object from image
+        detected_object = None
+        if image_result:
+            objects = image_result.get("objects", {})
+            detections = objects.get("detections", [])
+            if detections and len(detections) > 0:
+                detected_object = detections[0].get("class", detections[0].get("label", ""))
+        
+        # Check for object type mismatch
+        object_mismatch = self._check_object_type_mismatch(detected_object, desc_lower)
+        if object_mismatch:
+            result.update(object_mismatch)
             return result
             
-        # Check for color mismatch
-        color_explanation = self._check_color_mismatch(image_result, text_result)
-        if color_explanation:
-            result.update(color_explanation)
-            return result
+        # Check for color mismatch - if user mentioned blue but image likely shows different color
+        if mentioned_colors:
+            # Get image dominant color (if available in results)
+            image_color = None
+            if image_result:
+                image_color = image_result.get("dominant_color")
+                if not image_color and "quality" in image_result:
+                    image_color = image_result["quality"].get("dominant_color")
             
-        # Check for CLIP similarity issues
+            # If we have both image color and mentioned colors, check mismatch
+            if image_color:
+                image_color_lower = image_color.lower()
+                if image_color_lower not in [c.lower() for c in mentioned_colors]:
+                    return {
+                        "has_discrepancy": True,
+                        "discrepancy_type": "color_mismatch",
+                        "severity": "medium",
+                        "explanation": (
+                            f"Color mismatch: You described '{', '.join(mentioned_colors)}' "
+                            f"but the image appears to be {image_color}."
+                        ),
+                        "suggestions": [
+                            f"Update your description to match the actual color ({image_color})",
+                            "Upload a photo of the correct item",
+                            "Take a clearer photo with better lighting"
+                        ]
+                    }
+            
+            # Even without dominant_color, note the colors mentioned for context
+            result["mentioned_colors"] = mentioned_colors
+            
+        # Check for CLIP similarity issues (semantic mismatch)
         if cross_modal_results and "image_text" in cross_modal_results:
             clip_result = cross_modal_results["image_text"]
-            if not clip_result.get("valid", True):
-                similarity = clip_result.get("similarity", 0)
+            similarity = clip_result.get("similarity", 1.0)
+            if not clip_result.get("valid", True) or similarity < 0.85:
+                # Create smart explanation based on what we know
+                explanation_parts = []
+                
+                if detected_object and detected_object.lower() not in desc_lower:
+                    explanation_parts.append(
+                        f"The image shows '{detected_object}' which may not match your description"
+                    )
+                
+                if mentioned_colors:
+                    explanation_parts.append(
+                        f"You mentioned '{', '.join(mentioned_colors)}' colors"
+                    )
+                
+                if not explanation_parts:
+                    explanation_parts.append(
+                        "The image content doesn't match the description well"
+                    )
+                
                 result["has_discrepancy"] = True
                 result["discrepancy_type"] = "semantic_mismatch"
                 result["severity"] = "high" if similarity < 0.5 else "medium"
                 result["explanation"] = (
-                    f"The image and description don't align well (similarity: {similarity:.0%}). "
-                    f"Make sure your photo clearly shows the item you're describing."
+                    f"Low similarity ({similarity:.0%}): {'. '.join(explanation_parts)}. "
+                    f"Please verify the photo matches your description."
                 )
                 result["suggestions"] = [
-                    "Take a clearer photo of the item",
-                    "Ensure your description matches what's in the photo",
-                    "Try describing the item's most visible features"
+                    "Ensure the photo clearly shows the item you described",
+                    "Update description to match what's in the photo",
+                    "Take a clearer, well-lit photo of the item"
                 ]
                 return result
         
@@ -98,6 +164,72 @@ class XAIExplainer:
                 return result
         
         return result
+    
+    def _check_object_type_mismatch(self, detected_object: Optional[str], description_lower: str) -> Optional[Dict]:
+        """
+        Check if detected object type doesn't match what user described.
+        Works with simple string matching for common item types.
+        """
+        if not detected_object or not description_lower:
+            return None
+        
+        detected_lower = detected_object.lower()
+        
+        # Common item type mappings (what YOLO detects -> what user might describe)
+        item_aliases = {
+            "luggage": ["suitcase", "luggage", "bag", "travel bag"],
+            "backpack": ["backpack", "bag", "school bag", "rucksack"],
+            "handbag": ["handbag", "purse", "bag"],
+            "suitcase": ["suitcase", "luggage", "travel bag"],
+            "umbrella": ["umbrella"],
+            "cell phone": ["phone", "mobile", "smartphone", "cell phone"],
+            "laptop": ["laptop", "notebook", "computer"],
+            "wallet": ["wallet", "billfold"],
+            "watch": ["watch", "wristwatch"],
+            "glasses": ["glasses", "spectacles", "eyeglasses", "sunglasses"],
+            "keys": ["keys", "key"],
+        }
+        
+        # Find what user described
+        described_item = None
+        for item_type in ["backpack", "bag", "phone", "wallet", "laptop", "umbrella", 
+                          "suitcase", "luggage", "watch", "glasses", "keys"]:
+            if item_type in description_lower:
+                described_item = item_type
+                break
+        
+        if not described_item:
+            return None  # Can't determine what user described
+        
+        # Check if detected object is compatible with description
+        compatible = False
+        for detected_type, aliases in item_aliases.items():
+            if detected_lower in detected_type or detected_type in detected_lower:
+                if any(alias in description_lower for alias in aliases):
+                    compatible = True
+                    break
+        
+        # Also check direct match
+        if described_item in detected_lower or detected_lower in described_item:
+            compatible = True
+        
+        if not compatible and detected_lower != described_item:
+            return {
+                "has_discrepancy": True,
+                "discrepancy_type": "object_mismatch",
+                "severity": "high",
+                "explanation": (
+                    f"Object mismatch: You described a '{described_item}' but the image "
+                    f"shows a '{detected_object}'. Please verify you uploaded the correct photo."
+                ),
+                "suggestions": [
+                    f"Upload a photo of your {described_item}",
+                    f"Update your description to match '{detected_object}'",
+                    "Verify you're describing the correct item"
+                ]
+            }
+        
+        return None
     
     def _check_object_mismatch(self,
                               image_result: Optional[Dict],

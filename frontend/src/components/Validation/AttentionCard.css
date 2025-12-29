@@ -1,0 +1,146 @@
+.attention-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 16px 0;
+  color: white;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.attention-card h3 {
+  margin: 0 0 16px 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.attention-card.error {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.error-message {
+  color: #ffe6e6;
+  font-size: 0.95rem;
+}
+
+/* Heatmap */
+.heatmap-container {
+  margin: 16px 0;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.heatmap-image {
+  width: 100%;
+  max-width: 500px;
+  height: auto;
+  border-radius: 6px;
+  display: block;
+  margin: 0 auto;
+}
+
+.caption {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  text-align: center;
+  opacity: 0.9;
+}
+
+.red-indicator {
+  color: #ff6b6b;
+  font-weight: 600;
+}
+
+.blue-indicator {
+  color: #4dabf7;
+  font-weight: 600;
+}
+
+/* Top Regions */
+.top-regions {
+  margin: 20px 0;
+}
+
+.top-regions h4 {
+  font-size: 1rem;
+  margin: 0 0 12px 0;
+  opacity: 0.95;
+}
+
+.regions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.region-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.region-name {
+  flex-shrink: 0;
+  min-width: 120px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.score-bar {
+  flex-grow: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.score-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4dabf7 0%, #ff6b6b 100%);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.score-value {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  min-width: 40px;
+  text-align: right;
+}
+
+/* Explanation */
+.explanation {
+  margin: 16px 0 0 0;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border-left: 3px solid rgba(255, 255, 255, 0.5);
+}
+
+.explanation p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  opacity: 0.95;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .attention-card {
+    padding: 16px;
+  }
+  
+  .region-name {
+    min-width: 90px;
+    font-size: 0.85rem;
+  }
+  
+  .score-value {
+    font-size: 0.85rem;
+  }
+}

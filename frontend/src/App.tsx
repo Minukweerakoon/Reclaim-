@@ -17,6 +17,8 @@ import {
   ValidationSummary,
   SummaryCard,
 } from './components/Validation/ValidationSummary';
+import { PlausibilityCard } from './components/Validation/PlausibilityCard';
+import { AttentionCard } from './components/Validation/AttentionCard';
 
 const COLOR_KEYWORDS = [
   'black',
@@ -100,6 +102,8 @@ interface ValidationState {
   voiceResult?: any;
   crossModalPreview?: any;
   overallResult?: any;
+  spatialTemporalResult?: any;
+  attentionResult?: any;
 }
 
 interface ProgressEntry {
@@ -157,7 +161,7 @@ const App: React.FC = () => {
 
 
   const { sendMessage, wsConnected, lastMessage } = useWebSocket();
-  const { validateComplete, validateImage, validateText, validateVoice, sendChatMessage } =
+  const { validateComplete, validateImage, validateText, validateVoice, sendChatMessage, validateContext, getAttentionMap } =
     useValidation();
 
   const addBotMessage = useCallback((content: string, metadata?: any) => {
@@ -398,6 +402,15 @@ const App: React.FC = () => {
               crossModalPreview: combined.cross_modal,
             });
 
+            // NEW: Generate Attention Heatmap (Phase 2)
+            if (combined?.cross_modal && validationStateRef.current.text) {
+              getAttentionMap(file, validationStateRef.current.text).then(attMap => {
+                if (attMap && !attMap.error) {
+                  updateValidationState({ attentionResult: attMap });
+                }
+              });
+            }
+
             const imageText = combined?.cross_modal?.image_text;
 
             if (imageText?.valid) {
@@ -407,12 +420,29 @@ const App: React.FC = () => {
               setConversationState('awaiting_voice');
             } else {
               const similarity = formatPercent(imageText?.similarity);
-              // Use backend feedback if available for explainable AI
-              const feedbackMsg = imageText?.feedback || `The photo highlights ${detected}, but it does not quite align with the written description (similarity ${similarity}).`;
 
-              addBotMessage(
-                `${feedbackMsg} Could you clarify or update the description?`
-              );
+              // Check for XAI explanation in cross_modal results
+              const xaiExplanation = combined?.cross_modal?.xai_explanation;
+
+              // DEBUG: Log XAI explanation data
+              console.log('[XAI DEBUG] XAI Explanation:', xaiExplanation);
+              console.log('[XAI DEBUG] Has discrepancies:', xaiExplanation?.discrepancies?.length);
+
+              let feedbackMsg = imageText?.feedback || `The photo highlights ${detected}, but it does not quite align with the written description (similarity ${similarity}).`;
+
+              // If XAI explanation is available, add detailed discrepancy information
+              if (xaiExplanation && xaiExplanation.discrepancies && xaiExplanation.discrepancies.length > 0) {
+                console.log('[XAI DEBUG] Generating detailed feedback with XAI');
+                const discrepancyDetails = xaiExplanation.discrepancies
+                  .map((d: any) => `• ${d.type}: ${d.explanation}`)
+                  .join('\n');
+
+                feedbackMsg = `Image and text are not well aligned (similarity: ${similarity}, threshold: 0.85). Could you clarify or update the description?\n\n🔍 Discrepancy Analysis:\n${discrepancyDetails}\n\nSeverity: ${xaiExplanation.severity}\nSuggestion: ${xaiExplanation.suggestion}`;
+              } else {
+                console.log('[XAI DEBUG] No XAI explanation available, using generic message');
+              }
+
+              addBotMessage(feedbackMsg);
               setConversationState('resolving_mismatch');
             }
           } else {
@@ -669,6 +699,17 @@ const App: React.FC = () => {
           if (Object.keys(updates).length > 0) {
             updateValidationState(updates);
             pushProgress('Extracted Details', 'Updated');
+          }
+
+          // Novel Feature #1: Trigger Spatial-Temporal Validation if context is available
+          if (info.item_type && info.location) {
+            console.log('[App] Triggering spatial-temporal validation:', info.item_type, info.location);
+            validateContext(info.item_type, info.location, info.time)
+              .then(result => {
+                console.log('[App] Spatial-temporal result:', result);
+                updateValidationState({ spatialTemporalResult: result });
+              })
+              .catch(err => console.error("Context validation failed", err));
           }
         }
 
@@ -948,26 +989,44 @@ const App: React.FC = () => {
             </button>
           )}
 
-          {!['awaiting_image', 'awaiting_voice', 'resolving_mismatch', 'completed'].includes(
-            conversationState
-          ) && (
-              <div className="chat-input">
-                <ChatInput
-                  onSend={handleUserInput}
-                  disabled={isProcessing}
-                  placeholder="Share the details here..."
-                />
-              </div>
-            )}
+          {/* Chat input - Always visible except when completed */}
+          {conversationState !== 'completed' && (
+            <div className="chat-input">
+              <ChatInput
+                onSend={handleUserInput}
+                disabled={isProcessing}
+                placeholder={
+                  conversationState === 'awaiting_voice'
+                    ? 'Record voice above or type to continue...'
+                    : conversationState === 'awaiting_image'
+                      ? 'Upload image or type to continue...'
+                      : 'Share the details here...'
+                }
+              />
+            </div>
+          )}
         </section>
 
-        <ValidationSummary
-          cards={summaryCards}
-          wsConnected={wsConnected}
-          progressLog={progressLog}
-          activeTaskId={activeTaskId}
-          overallResult={validationState.overallResult}
-        />
+        <div className="summary-pane">
+          <PlausibilityCard
+            result={validationState.spatialTemporalResult}
+          />
+          {validationState.attentionResult && (
+            <AttentionCard
+              heatmapUrl={validationState.attentionResult.heatmap_url}
+              explanation={validationState.attentionResult.explanation}
+              topRegions={validationState.attentionResult.top_regions}
+              error={validationState.attentionResult.error}
+            />
+          )}
+          <ValidationSummary
+            cards={summaryCards}
+            wsConnected={wsConnected}
+            progressLog={progressLog}
+            activeTaskId={activeTaskId}
+            overallResult={validationState.overallResult}
+          />
+        </div>
       </div>
     </div>
   );

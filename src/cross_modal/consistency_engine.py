@@ -17,7 +17,8 @@ except ImportError:
 # Import XAI Explainer
 try:
     from src.cross_modal.xai_explainer import XAIExplainer
-except ImportError:
+except ImportError as e:
+    logging.warning(f"Failed to import XAIExplainer: {e}")
     XAIExplainer = None
 
 # Configure logging
@@ -38,19 +39,38 @@ class ConsistencyEngine:
         self.text_similarity_threshold = 0.75
         
         # Initialize Cross-Attention Fusion (Heuristic Mode)
+        self.fusion_model = None
         if CrossAttentionFusion:
-            self.fusion_model = CrossAttentionFusion()
-            self.fusion_model.eval() # Inference mode
+            try:
+                self.fusion_model = CrossAttentionFusion()
+                self.fusion_model.eval() # Inference mode
+                logger.info("Cross-Attention Fusion model initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Fusion model: {e}")
+                self.fusion_model = None
         else:
-            self.fusion_model = None
+            logger.warning("CrossAttentionFusion not available (import failed)")
             
-        # Initialize XAI Explainer
+        # Initialize XAI Explainer (always set attribute)
+        self.xai_explainer = None  # Default to None
+        print(f"DEBUG: Initializing ConsistencyEngine. XAIExplainer class is: {XAIExplainer}")
         if XAIExplainer:
-            self.xai_explainer = XAIExplainer()
+            try:
+                self.xai_explainer = XAIExplainer()
+                print(f"DEBUG: XAI Explainer initialized successfully: {self.xai_explainer}")
+                logger.info("XAI Explainer initialized successfully")
+            except Exception as e:
+                print(f"DEBUG: Failed to initialize XAI Explainer: {e}")
+                logger.warning(f"Failed to initialize XAI Explainer: {e}")
+                self.xai_explainer = None
         else:
-            self.xai_explainer = None
+            print("DEBUG: XAI Explainer not available (class is None)")
+            logger.warning("XAI Explainer not available (import failed)")
             
         self.location_keywords = [
+            "library", "cafeteria", "classroom", "lab", "gym", "parking", 
+            "auditorium", "office", "hallway", "restroom", "entrance", "exit"
+        ]
     
     # ------------------------------------------------------------------ #
     # Adaptive Thresholds by Item Category
