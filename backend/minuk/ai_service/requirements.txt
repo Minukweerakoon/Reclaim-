@@ -9,3 +9,4 @@ torchvision
 faiss-cpu
 open_clip_torch
 timm
+requests
