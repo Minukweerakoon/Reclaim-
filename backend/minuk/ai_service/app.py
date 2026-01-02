@@ -264,6 +264,8 @@ def run_uacr(query_img: Image.Image, k: int = 10, mc_T: int = 20, debug: bool = 
     if len(hits) == 0:
         return {
             "predicted_category": pred_cat,
+            "final_category": pred_cat,
+            "final_id": None, 
             "entropy": entropy,
             "alpha": alpha,
             "chosen_categories": chosen_cats,
@@ -299,9 +301,13 @@ def run_uacr(query_img: Image.Image, k: int = 10, mc_T: int = 20, debug: bool = 
                 "metric_sim": float(metric[idx]),
                 "clip_sim": 0.0,
             })
+        final_category = results[0]["category"] if results else pred_cat
+        final_id = results[0]["id"] if results else None
 
         return {
             "predicted_category": pred_cat,
+            "final_category": final_category,
+            "final_id": final_id,
             "entropy": entropy,
             "alpha": alpha,
             "chosen_categories": chosen_cats,
@@ -348,9 +354,13 @@ def run_uacr(query_img: Image.Image, k: int = 10, mc_T: int = 20, debug: bool = 
             "metric_sim": float(metric_ok[idx]),
             "clip_sim": float(clip[idx]),
         })
+    final_category = results[0]["category"] if results else pred_cat
+    final_id = results[0]["id"] if results else None
 
     return {
         "predicted_category": pred_cat,
+        "final_category": final_category,
+        "final_id": final_id,
         "entropy": entropy,
         "alpha": alpha,
         "chosen_categories": chosen_cats,
