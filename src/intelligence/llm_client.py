@@ -9,7 +9,13 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-import google.generativeai as genai
+try:
+    import google.generativeai as genai
+    _GENAI_AVAILABLE = True
+except (ImportError, Exception) as e:
+    logger.warning(f"Failed to import google.generativeai: {e}")
+    _GENAI_AVAILABLE = False
+    genai = None
 
 class LLMClient:
     """
@@ -41,9 +47,13 @@ class LLMClient:
             self.provider = "mock"
         
         if self.provider == "gemini":
-            genai.configure(api_key=self.api_key)
-            # Using gemini-2.5-flash (confirmed available via list_models())
-            self.gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+            if not _GENAI_AVAILABLE:
+                logger.warning("Gemini provider requested but google.generativeai package not available. Falling back to mock.")
+                self.provider = "mock"
+            else:
+                genai.configure(api_key=self.api_key)
+                # Using gemini-2.5-flash (confirmed available via list_models())
+                self.gemini_model = genai.GenerativeModel('gemini-2.5-flash')
             
             # Initialize Groq as fallback if API key available
             if self.groq_api_key:

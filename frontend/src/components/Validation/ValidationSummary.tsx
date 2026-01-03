@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 export interface SummaryCard {
   id: string;
@@ -24,6 +24,12 @@ export const ValidationSummary: React.FC<ValidationSummaryProps> = ({
   activeTaskId,
   overallResult,
 }) => {
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
+
+  const toggleCard = (cardId: string) => {
+    setExpandedCard(expandedCard === cardId ? null : cardId);
+  };
+
   return (
     <aside className="summary-pane">
       <div className="summary-header">
@@ -39,28 +45,49 @@ export const ValidationSummary: React.FC<ValidationSummaryProps> = ({
       </div>
 
       <div className="summary-grid">
-        {cards.map((card) => (
-          <article key={card.id} className="summary-card">
-            <div className="summary-card__title">
-              <span>{card.title}</span>
-              <span className="summary-card__status">{card.status}</span>
-            </div>
-            <div className="summary-card__metric">{card.metric}</div>
-            <div className="summary-card__meta">
-              {card.details[0]}
-              {card.details.length > 1 && (
-                <ul className="summary-card__list">
-                  {card.details.slice(1).map((detail, index) => (
-                    <li key={`${card.id}-detail-${index}`}>{detail}</li>
-                  ))}
-                </ul>
+        {cards.map((card) => {
+          const isExpanded = expandedCard === card.id;
+
+          return (
+            <article
+              key={card.id}
+              className={`summary-card ${isExpanded ? 'summary-card--expanded' : ''}`}
+              onClick={() => toggleCard(card.id)}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="summary-card__header">
+                <div className="summary-card__title">
+                  <span>{card.title}</span>
+                  <span className="summary-card__status">{card.status}</span>
+                </div>
+                <div className="summary-card__top-row">
+                  <div className="summary-card__metric">{card.metric}</div>
+                  <div className="summary-card__chevron">
+                    {isExpanded ? '▼' : '▶'}
+                  </div>
+                </div>
+              </div>
+
+              {isExpanded && (
+                <div className="summary-card__details">
+                  <div className="summary-card__meta">
+                    {card.details[0]}
+                    {card.details.length > 1 && (
+                      <ul className="summary-card__list">
+                        {card.details.slice(1).map((detail, index) => (
+                          <li key={`${card.id}-detail-${index}`}>{detail}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  {card.actionHint && (
+                    <p className="summary-card__action">{card.actionHint}</p>
+                  )}
+                </div>
               )}
-            </div>
-            {card.actionHint && (
-              <p className="summary-card__action">{card.actionHint}</p>
-            )}
-          </article>
-        ))}
+            </article>
+          );
+        })}
       </div>
 
       {overallResult && (

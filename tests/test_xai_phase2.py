@@ -37,7 +37,15 @@ def test_attention_map_generation():
         
         # Mock CLIP model
         class MockCLIPModel:
-            pass
+            def encode_text(self, text):
+                import torch
+                # Return dummy features (1, 512)
+                return torch.rand(1, 512)
+                
+            def encode_image(self, image):
+                import torch
+                # Return dummy features (1, 512)
+                return torch.rand(1, 512)
         
         result = visualizer.generate_attention_map(
             image_path=test_image_path,

@@ -11,6 +11,7 @@ import uuid
 from typing import Dict, List, Optional, Any, Union
 from functools import wraps
 from datetime import datetime
+from src.integration.external_service import ExternalIntegrationService
 
 import uvicorn
 import asyncio
@@ -212,10 +213,15 @@ def get_clip_validator():
     global _clip_validator
     if _clip_validator is None:
         try:
+            logger.info("[DEBUG] Attempting to import src.cross_modal.clip_validator")
             mod = importlib.import_module('src.cross_modal.clip_validator')
+            logger.info(f"[DEBUG] Successfully imported module: {mod}")
             _clip_validator = mod.CLIPValidator(enable_logging=True)
+            logger.info(f"[DEBUG] Successfully initialized CLIPValidator: {_clip_validator}")
         except Exception as e:
+            import traceback
             logger.warning(f"CLIP validator unavailable: {e}")
+            logger.error(f"[DEBUG] Full traceback:\n{traceback.format_exc()}")
             _clip_validator = False
     return _clip_validator or None
 
@@ -973,6 +979,154 @@ async def get_spatial_temporal_stats(api_key: APIKey = Depends(get_api_key)):
         )
 
 # ================================================================
+# Phase 3: Advanced Entity Detection Endpoints
+# ================================================================
+
+@app.post("/api/entities/detect")
+async def detect_advanced_entities(
+    image_file: UploadFile = File(...),
+    text: Optional[str] = Form(None),
+    detect_brand: bool = Form(True),
+    detect_material: bool = Form(True),
+    detect_size: bool = Form(True),
+    detect_ocr: bool = Form(True),
+    detect_condition: bool = Form(True),
+    api_key: APIKey = Depends(get_api_key),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+):
+    """
+    Advanced entity detection endpoint.
+    
+    Detects:
+    - Brand/Logo (CLIP zero-shot)
+    - Material (leather, metal, plastic, etc.)
+    - Size category (small, medium, large)
+    - OCR text and serial numbers
+    - Condition (new, used, good)
+    
+    Args:
+        image_file: Image to analyze
+        text: Optional text description for context
+        detect_*: Flags to enable/disable specific detections
+    """
+    start_time = time.time()
+    
+    try:
+        # Validate image
+        if not validate_file_type(image_file, ALLOWED_IMAGE_TYPES):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported image type: {image_file.content_type}"
+            )
+        
+        # Save uploaded file
+        image_path = save_uploaded_file(image_file)
+        background_tasks.add_task(cleanup_file, image_path)
+        
+        # Import detector
+        from src.cross_modal.advanced_entity_detector import (
+            detect_brand_logo,
+            detect_material,
+            estimate_size,
+            extract_text_ocr,
+            get_custom_entity_detector
+        )
+        
+        results = {
+            "image_path": image_path,
+            "text_hint": text,
+            "detections": {}
+        }
+        
+        # Run requested detections
+        if detect_brand:
+            try:
+                results["detections"]["brand"] = detect_brand_logo(image_path)
+            except Exception as e:
+                results["detections"]["brand"] = {"error": str(e)}
+        
+        if detect_material:
+            try:
+                results["detections"]["material"] = detect_material(image_path)
+            except Exception as e:
+                results["detections"]["material"] = {"error": str(e)}
+        
+        if detect_size:
+            try:
+                results["detections"]["size"] = estimate_size(image_path)
+            except Exception as e:
+                results["detections"]["size"] = {"error": str(e)}
+        
+        if detect_ocr:
+            try:
+                results["detections"]["ocr"] = extract_text_ocr(image_path)
+            except Exception as e:
+                results["detections"]["ocr"] = {"error": str(e)}
+        
+        if detect_condition:
+            try:
+                detector = get_custom_entity_detector()
+                results["detections"]["condition"] = detector.detect(image_path, "condition")
+            except Exception as e:
+                results["detections"]["condition"] = {"error": str(e)}
+        
+        results["processing_time"] = round(time.time() - start_time, 3)
+        
+        logger.info(f"Advanced entity detection complete in {results['processing_time']}s")
+        return results
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Advanced entity detection failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Entity detection failed: {str(e)}"
+        )
+
+
+@app.get("/api/entities/types")
+async def list_entity_types(api_key: APIKey = Depends(get_api_key)):
+    """
+    List available entity detection types and custom entities.
+    """
+    try:
+        from src.cross_modal.advanced_entity_detector import (
+            KNOWN_BRANDS, MATERIALS, SIZE_CATEGORIES, get_custom_entity_detector
+        )
+        
+        detector = get_custom_entity_detector()
+        
+        return {
+            "built_in_detections": {
+                "brand": {
+                    "description": "Detect brand logos using CLIP",
+                    "supported_brands": KNOWN_BRANDS[:20],  # Sample
+                    "total_brands": len(KNOWN_BRANDS)
+                },
+                "material": {
+                    "description": "Detect material type",
+                    "supported_materials": MATERIALS
+                },
+                "size": {
+                    "description": "Estimate relative size category",
+                    "categories": [cat for cat, _ in SIZE_CATEGORIES]
+                },
+                "ocr": {
+                    "description": "Extract text and serial numbers from image",
+                    "features": ["text_extraction", "serial_number_detection"]
+                }
+            },
+            "custom_entities": detector.list_entities()
+        }
+    except Exception as e:
+        logger.error(f"Failed to list entity types: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+# ================================================================
 # Phase 2: XAI Attention Visualization Endpoints
 # ================================================================
 
@@ -1373,6 +1527,10 @@ async def validate_complete(
     request_id = str(uuid.uuid4())
 
     try:
+        # DEBUGGING: Log what text data we receive
+        logger.info(f"[FRONTEND DATA] Received text parameter: '{text}'")
+        logger.info(f"[FRONTEND DATA] Has image: {image_file is not None}, Has audio: {audio_file is not None}")
+        
         # Check if at least one modality is provided
         if text is None and image_file is None and audio_file is None:
             raise HTTPException(
@@ -1468,67 +1626,82 @@ async def validate_complete(
             context_consistency = cached()(ce.validate_context_consistency)(text_result, voice_result)
             cross_modal_results["context"] = context_consistency
         
-        # XAI Integration: Generate detailed explanations for cross-modal discrepancies
-        if image_path and text and cross_modal_results.get("image_text"):
-            image_text_result = cross_modal_results["image_text"]
-            # Check if there's a mismatch (low similarity or invalid)
-            if not image_text_result.get("valid", True) or image_text_result.get("similarity", 1.0) < 0.85:
-                # DEBUG PRINT
-                print(f"DEBUG: Mismatch detected. Checking XAI...")
-                # Debug: Verify XAI explainer existence and inputs
-                print(f"DEBUG: ce_xai object: {ce_xai}")
-                print(f"DEBUG: hasattr xai_explainer: {hasattr(ce_xai, 'xai_explainer')}")
-                print(f"DEBUG: xai_explainer value: {getattr(ce_xai, 'xai_explainer', None)}")
-                print(f"DEBUG: image_result keys: {list(image_result.keys()) if isinstance(image_result, dict) else 'N/A'}")
-                print(f"DEBUG: text_result keys: {list(text_result.keys()) if isinstance(text_result, dict) else 'N/A'}")
-                # End of debug prints
-                print(f"DEBUG: ce_xai is: {ce_xai}")
-                if ce_xai:
-                    print(f"DEBUG: Has xai_explainer attr? {hasattr(ce_xai, 'xai_explainer')}")
-                    if hasattr(ce_xai, 'xai_explainer'):
-                        print(f"DEBUG: ce_xai.xai_explainer value: {ce_xai.xai_explainer}")
+        # Enhanced XAI Discrepancy Checks (Phase 2)
+        logger.info(f"[XAI DEBUG] Checking discrepancies. Has image: {bool(image_result)}, Has text: {bool(text_result)}, Has voice: {bool(voice_result)}")
+        if (image_result and text_result) or (text_result and voice_result):
+            try:
+                from src.cross_modal.enhanced_discrepancies import (
+                    check_brand_mismatch, 
+                    check_location_consistency, 
+                    check_condition_mismatch,
+                    check_color_mismatch
+                )
                 
-                # Use hasattr to safely check if xai_explainer exists
-                if ce_xai and hasattr(ce_xai, 'xai_explainer') and ce_xai.xai_explainer:
-                    print("DEBUG: Entering XAI generation block...")
-                    try:
-                        # Generate XAI explanation using the correct method
-                        # Pass the text description for accurate color/object detection
-                        xai_explanation = ce_xai.xai_explainer.generate_explanation(
-                            image_result=image_result,
-                            text_result=text_result,
-                            voice_result=voice_result,
-                            cross_modal_results=cross_modal_results,
-                            description=text  # Pass the original description text
-                        )
-                        
-                        logger.info(f"Raw XAI Explanation: {xai_explanation}")
-                        print(f"DEBUG: XAI has_discrepancy={xai_explanation.get('has_discrepancy')}, type={xai_explanation.get('discrepancy_type')}")
-                        
-                        # Only add if there's actually a discrepancy
-                        if xai_explanation.get("has_discrepancy"):
-                            # Format for frontend consumption
-                            cross_modal_results["xai_explanation"] = {
-                                "discrepancies": [{
-                                    "type": xai_explanation.get("discrepancy_type", "unknown"),
-                                    "explanation": xai_explanation.get("explanation", "")
-                                }],
-                                "severity": xai_explanation.get("severity", "medium"),
-                                "suggestion": xai_explanation.get("suggestions", ["Please review your inputs"])[0] if xai_explanation.get("suggestions") else "Please review your inputs"
-                            }
-                            logger.info(f"XAI Explanation generated: {xai_explanation.get('severity')} severity - {xai_explanation.get('discrepancy_type')}")
-                            print(f"DEBUG: Added XAI to cross_modal_results: {cross_modal_results.get('xai_explanation')}")
-                        else:
-                            print(f"DEBUG: XAI returned no discrepancy, checking why...")
-                    except Exception as e:
-                        logger.error(f"XAI explanation generation failed: {str(e)}")
-                        print(f"DEBUG: XAI Exception: {e}")
-                        # Don't fail the request if XAI fails, just log it
+                # Log what data we're passing
+                logger.info(f"[XAI DEBUG] Text content: {text_result.get('text', 'N/A')[:100] if text_result else 'No text'}")
+                logger.info(f"[XAI DEBUG] Image OCR: {image_result.get('ocr_text', 'N/A')[:100] if image_result else 'No image'}")
+                logger.info(f"[XAI DEBUG] Text entities: {text_result.get('entities', {}) if text_result else {}}")
                 
-                # The following 'else' block was misplaced and has been removed as per instruction.
-                # The logic it contained (logging why XAI was skipped) should be handled
-                # by the 'if ce_xai and hasattr(ce_xai, 'xai_explainer') and ce_xai.xai_explainer:' condition itself.
-                # If the condition is false, XAI generation is implicitly skipped.
+                brand_check = check_brand_mismatch(image_result, text_result) if image_result and text_result else {"has_mismatch": False}
+                logger.info(f"[XAI DEBUG] Brand check: {brand_check}")
+                
+                color_check = check_color_mismatch(image_result, text_result) if image_result and text_result else {"has_mismatch": False}
+                logger.info(f"[XAI DEBUG] Color check: {color_check}")
+                
+                cond_check = check_condition_mismatch(image_result, text_result) if image_result and text_result else {"has_mismatch": False}
+                logger.info(f"[XAI DEBUG] Condition check: {cond_check}")
+                
+                loc_check = check_location_consistency(text_result, voice_result) if text_result and voice_result else {"has_mismatch": False}
+                logger.info(f"[XAI DEBUG] Location check: {loc_check}")
+                
+                has_discrepancy = (
+                    brand_check.get("has_mismatch") or 
+                    color_check.get("has_mismatch") or
+                    loc_check.get("has_mismatch") or
+                    cond_check.get("has_mismatch")
+                )
+                
+                if has_discrepancy:
+                    # Construct explanations for both UI Card and Legacy Chat
+                    explanations = []
+                    discrepancy_list = []
+                    
+                    if brand_check.get("has_mismatch"):
+                        explanations.append(brand_check["explanation"])
+                        discrepancy_list.append({"type": "Brand", "explanation": brand_check["explanation"]})
+                    
+                    if color_check.get("has_mismatch"):
+                        explanations.append(color_check["explanation"])
+                        discrepancy_list.append({"type": "Color", "explanation": color_check["explanation"]})
+                        
+                    if loc_check.get("has_mismatch"):
+                        explanations.append(loc_check["explanation"])
+                        discrepancy_list.append({"type": "Location", "explanation": loc_check["explanation"]})
+                        
+                    if cond_check.get("has_mismatch"):
+                        explanations.append(cond_check["explanation"])
+                        discrepancy_list.append({"type": "Condition", "explanation": cond_check["explanation"]})
+                    
+                    full_explanation = " ".join(explanations)
+                    
+                    cross_modal_results["xai_explanation"] = {
+                        "has_discrepancy": True,
+                        "explanation": full_explanation,
+                        "severity": "medium", # Aggregate severity could be calculated
+                        "details": {
+                            "brand": brand_check,
+                            "color": color_check,
+                            "location": loc_check, 
+                            "condition": cond_check
+                        },
+                        "discrepancies": discrepancy_list, # For legacy Chat support
+                        "suggestion": "Please review the discrepancies highlighted above."
+                    }
+                    logger.info(f"Enhanced XAI Discrepancies found: {full_explanation}")
+                    
+            except Exception as e:
+                logger.error(f"Enhanced XAI check failed: {e}")
+
         
         # ============================================================
         # Novel Feature #1: Spatial-Temporal Context Validation
@@ -1644,6 +1817,20 @@ async def validate_complete(
         else:
             metrics_collector.record_validation_failure("multimodal", "low_confidence")
         
+        # Phase 3: External Integration - Forward to Matching Engine
+        if confidence_results.get("action") == "forward_to_matching":
+            try:
+                integration_service = ExternalIntegrationService()
+                forward_result = integration_service.post_validated_item(response_data, image_path)
+                logger.info(f"External integration result: {forward_result}")
+                
+                # Add integration status to response (optional)
+                response_data["metadata"] = response_data.get("metadata", {})
+                response_data["metadata"]["integration_status"] = forward_result
+                
+            except Exception as e:
+                logger.error(f"Failed to forward to matching engine: {e}")
+
         persist_validation_result(request_id, response_data)
         return ValidationResponse(**response_data)
         
@@ -2031,6 +2218,132 @@ async def submit_feedback(feedback: FeedbackRequest, x_api_key: str = Header(Non
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to store feedback: {str(e)}"
         )
+
+
+# Phase 2: XAI Endpoints
+# ------------------------------------------------------------------ #
+
+try:
+    from src.cross_modal.attention_visualizer import get_attention_visualizer
+    logger.info("[DEBUG] Successfully imported get_attention_visualizer")
+except Exception as e:
+    import traceback
+    logger.error(f"[DEBUG] Failed to import attention_visualizer: {e}")
+    logger.error(f"[DEBUG] Full import traceback:\n{traceback.format_exc()}")
+    # Create dummy function so endpoint doesn't crash at startup
+    def get_attention_visualizer():
+        return None
+
+@app.post("/api/xai/attention", response_model=AttentionMapResponse)
+async def generate_attention_heatmap(
+    image_file: UploadFile = File(...),
+    text: str = Form(...),
+    x_api_key: str = Depends(get_api_key)
+):
+    """
+    Generate an explainable AI attention heatmap for an image-text pair.
+    Visualize where the model 'looks' to match the text.
+    """
+    if not validate_file_type(image_file, ALLOWED_IMAGE_TYPES):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file type. Allowed: {ALLOWED_IMAGE_TYPES}"
+        )
+        
+    try:
+        # Save temp file
+        file_path = save_uploaded_file(image_file)
+        
+        # Get Visualizer
+        visualizer = get_attention_visualizer()
+        
+        # Get CLIP model (reuse from validator for efficiency)
+        clip_validator = get_clip_validator()
+        clip_model = clip_validator.model if clip_validator else None
+        
+        # Run Visualization
+        # Use run_in_executor to avoid blocking event loop with heavy ML ops
+        result = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: visualizer.generate_attention_map(
+                file_path, text, clip_model=clip_model
+            )
+        )
+        
+        # Cleanup
+        asyncio.create_task(cleanup_file(file_path))
+        
+        if "error" in result:
+             raise HTTPException(status_code=500, detail=result["error"])
+             
+        return AttentionMapResponse(**result)
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"Attention heatmap failed: {e}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        return AttentionMapResponse(
+            heatmap_url="",
+            attention_scores=[],
+            explanation=f"Error: {str(e)}",
+            top_regions=[],
+            baseline_similarity=0.0
+        )
+
+
+@app.post("/api/xai/explain-enhanced")
+async def explain_enhanced(
+    request: dict,
+    x_api_key: str = Depends(get_api_key)
+):
+    """
+    Comprehensive XAI explanation including brand, location, and condition discrepancies.
+    """
+    from src.cross_modal.enhanced_discrepancies import (
+        check_brand_mismatch,
+        check_location_consistency,
+        check_condition_mismatch
+    )
+    
+    image_result = request.get("image_result", {})
+    text_result = request.get("text_result", {})
+    voice_result = request.get("voice_result", {})
+    
+    # Run Checks
+    brand_check = check_brand_mismatch(image_result, text_result)
+    loc_check = check_location_consistency(text_result, voice_result)
+    cond_check = check_condition_mismatch(image_result, text_result)
+    
+    # Compile response
+    has_discrepancy = (
+        brand_check.get("has_mismatch", False) or 
+        loc_check.get("has_mismatch", False) or 
+        cond_check.get("has_mismatch", False)
+    )
+    
+    details = {
+        "brand": brand_check,
+        "location": loc_check,
+        "condition": cond_check
+    }
+    
+    # Generate unified explanation
+    explanations = []
+    if brand_check.get("has_mismatch"):
+        explanations.append(brand_check["explanation"])
+    if loc_check.get("has_mismatch"):
+        explanations.append(loc_check["explanation"])
+    if cond_check.get("has_mismatch"):
+        explanations.append(cond_check["explanation"])
+        
+    explanation_text = " ".join(explanations) if explanations else "No significant discrepancies detected."
+    
+    return {
+        "has_discrepancy": has_discrepancy,
+        "explanation": explanation_text,
+        "details": details
+    }
+
 
 # Main entry point
 if __name__ == "__main__":

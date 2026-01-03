@@ -22,7 +22,7 @@ VIT_CATEGORIES = [
 
 # Category aliases for better matching
 CATEGORY_ALIASES = {
-    'headphone': ['headphones', 'earphones', 'airpods'],
+    'headphone': ['headphones', 'earphones', 'airpods', 'headset', 'wireless headphones'],
     'key': ['keys', 'keychain'],
     'laptop': ['notebook', 'macbook', 'computer'],
     'laptop_charger': ['charger', 'adapter', 'power supply'],
@@ -40,6 +40,7 @@ class ViTImageValidator:
     """
     
     def __init__(self, model_path='models/best_vit_lostfound.pth'):
+        self.model_loaded = False
         """
         Initialize ViT validator.
         
@@ -67,13 +68,16 @@ class ViTImageValidator:
             try:
                 state_dict = torch.load(self.model_path, map_location=self.device)
                 self.model.load_state_dict(state_dict)
+                self.model_loaded = True
                 print(f"✓ Loaded trained weights (95% accuracy, 11 categories including phone)")
             except Exception as e:
+                self.model_loaded = False
                 print(f"⚠️  Error loading weights: {e}")
-                print("   Using pre-trained weights only")
+                print("   Using pre-trained weights only (low accuracy)")
         else:
+            self.model_loaded = False
             print(f"⚠️  Model file not found: {model_path}")
-            print("   Using pre-trained weights only")
+            print("   Using pre-trained weights only (low accuracy)")
         
         self.model.to(self.device)
         self.model.eval()
@@ -132,10 +136,15 @@ class ViTImageValidator:
         valid = confidence >= 0.7  # High confidence threshold
         
         if valid:
-            feedback = f"✓ Detected {detected_item} ({confidence*100:.1f}% confidence)"
+            if self.model_loaded:
+                feedback = f"✓ Detected {detected_item} ({confidence*100:.1f}% confidence)"
+            else:
+                feedback = f"⚠️  Detected {detected_item} ({confidence*100:.1f}%) - using untrained model"
         else:
-            feedback = f"⚠️  Uncertain detection: {detected_item} ({confidence*100:.1f}% confidence). "
-            feedback += f"Could also be {all_predictions[1][0]} ({all_predictions[1][1]*100:.1f}%)"
+            feedback = f"⚠️  Uncertain: {detected_item} ({confidence*100:.1f}%). "
+            feedback += f"Could be {all_predictions[1][0]} ({all_predictions[1][1]*100:.1f}%) or {all_predictions[2][0]} ({all_predictions[2][1]*100:.1f}%)"
+            if not self.model_loaded:
+                feedback += " (untrained model)"
         
         return {
             'detected_item': detected_item,
@@ -143,7 +152,8 @@ class ViTImageValidator:
             'all_predictions': all_predictions,
             'valid': valid,
             'feedback': feedback,
-            'model': 'ViT-Custom-95%'
+            'model': 'ViT-Custom-95%' if self.model_loaded else 'ViT-Base-Untrained',
+            'model_loaded': self.model_loaded
         }
     
     def get_model_info(self) -> Dict:

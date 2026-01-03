@@ -1,345 +1,228 @@
-"""
-Attention Visualizer for CLIP Model
-Generates attention heatmaps showing which image regions contribute most to text-image alignment.
-"""
-
 import os
+import time
+import logging
 import cv2
 import numpy as np
 import torch
-import logging
-from typing import Dict, List, Tuple, Optional, Any
+import uuid
 from PIL import Image
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
+from typing import Dict, List, Optional, Any, Union
+import clip
 
-logger = logging.getLogger(__name__)
-
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger('AttentionVisualizer')
 
 class AttentionVisualizer:
     """
-    Generate visual attention maps for CLIP image-text pairs.
-    Shows which parts of an image the model focuses on when matching text.
+    Generates explainable attention maps for Image-Text pairs using CLIP.
+    
+    Uses an Occlusion Sensitivity approach to visualize which parts of an image
+    contribute most to the semantic similarity with the text. This renders a 
+    heatmap overlay showing 'where the model is looking'.
     """
     
     def __init__(self, output_dir: str = "uploads/heatmaps"):
-        """
-        Initialize the attention visualizer.
-        
-        Args:
-            output_dir: Directory to save generated heatmaps
-        """
         self.output_dir = output_dir
-        os.makedirs(output_dir, exist_ok=True)
-        logger.info(f"AttentionVisualizer initialized, saving to {output_dir}")
-    
-    def generate_attention_map(
-        self,
-        image_path: str,
-        text: str,
-        clip_model: Any,
-        image_encoder: Any = None
-    ) -> Dict[str, Any]:
+        os.makedirs(self.output_dir, exist_ok=True)
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"AttentionVisualizer initialized on {self.device}, saving to {output_dir}")
+        
+    def generate_attention_map(self, 
+                               image_path: str, 
+                               text: str, 
+                               clip_model: Any = None, 
+                               grid_size: int = 8) -> Dict[str, Any]:
         """
-        Create attention heatmap overlaying image regions.
+        Generate attention heatmap for a given image and text.
         
         Args:
-            image_path: Path to input image
-            text: Text description to match
-            clip_model: CLIP model instance
-            image_encoder: Optional image encoder (extracted from clip_model if None)
-        
+            image_path: Path to the image file.
+            text: Text description.
+            clip_model: Loaded CLIP model instance (optional).
+            grid_size: Granularity of the heatmap (default 8x8).
+            
         Returns:
-            Dictionary containing:
-                - heatmap_path: Path to saved heatmap image
-                - attention_scores: Raw attention weights
-                - top_regions: List of most attended regions
-                - explanation: Human-readable explanation
+            Dict containing paths to the heatmap, raw scores, and explanation.
         """
         try:
-            # 1. Load and preprocess image
-            image, original_size = self._preprocess_image(image_path)
+            # Load basic image
+            if not os.path.exists(image_path):
+                raise FileNotFoundError(f"Image not found at {image_path}")
             
-            # 2. Extract attention weights from CLIP
-            attention_weights = self._get_attention_weights(
-                image, text, clip_model, image_encoder
-            )
+            original_image = Image.open(image_path).convert("RGB")
             
-            # 3. Resize attention map to original image dimensions
-            attention_map = self._resize_attention(
-                attention_weights, original_size
-            )
+            # Helper: Load model if not provided
+            if clip_model is None:
+                # Fallback to loading a new model if one isn't passed (Slow!)
+                model_name = "ViT-B/32"
+                logger.info(f"Loading fallback CLIP model {model_name}...")
+                model, preprocess = clip.load(model_name, device=self.device)
+            else:
+                # Handle both raw CLIP model or our CLIPValidator wrapper
+                if hasattr(clip_model, 'model'):
+                    model = clip_model.model
+                    preprocess = clip_model.preprocess
+                else:
+                    # Raw model passed
+                    model = clip_model
+                    # Need preprocess. Try standard.
+                    try:
+                        _, preprocess = clip.load("ViT-B/32", device=self.device)
+                    except:
+                        # Fallback for mocking/testing
+                        logger.warning("Could not load standard preprocess, using identity.")
+                        preprocess = lambda x: x
+
+            # Prepare text embedding
+            with torch.no_grad():
+                text_tokens = clip.tokenize([text]).to(self.device)
+                text_features = model.encode_text(text_tokens)
+                text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+
+            # Get Baseline Score
+            image_input = preprocess(original_image).unsqueeze(0).to(self.device)
+            with torch.no_grad():
+                image_features = model.encode_image(image_input)
+                image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+                baseline_similarity = (image_features @ text_features.T).item()
+
+            # Generate Heatmap via Occlusion
+            width, height = original_image.size
+            step_x = max(1, width // grid_size)
+            step_y = max(1, height // grid_size)
             
-            # 4. Create heatmap visualization
-            heatmap_image = self._create_heatmap(image_path, attention_map)
+            heatmap = np.zeros((grid_size, grid_size))
             
-            # 5. Save heatmap
-            heatmap_path = self._save_heatmap(heatmap_image, image_path)
+            # Pre-calculate mask color (mean color of image to be neutral)
+            img_array = np.array(original_image)
+            mean_color = tuple(np.mean(img_array, axis=(0, 1)).astype(int))
+
+            # Occlusion loop
+            for i in range(grid_size):
+                for j in range(grid_size):
+                    # Create occluded image
+                    occluded_img = original_image.copy()
+                    
+                    x1 = i * step_x
+                    y1 = j * step_y
+                    x2 = (i + 1) * step_x if i < grid_size - 1 else width
+                    y2 = (j + 1) * step_y if j < grid_size - 1 else height
+                    
+                    # Apply mask
+                    mask = Image.new('RGB', (x2-x1, y2-y1), color=mean_color)
+                    occluded_img.paste(mask, (x1, y1))
+                    
+                    # Score occluded image
+                    occ_input = preprocess(occluded_img).unsqueeze(0).to(self.device)
+                    with torch.no_grad():
+                        occ_features = model.encode_image(occ_input)
+                        occ_features = occ_features / occ_features.norm(dim=-1, keepdim=True)
+                        occ_similarity = (occ_features @ text_features.T).item()
+                    
+                    # Importance = Drop in score
+                    importance = max(0, baseline_similarity - occ_similarity)
+                    heatmap[j, i] = importance
+
+            # Normalize Heatmap
+            if np.max(heatmap) > 0:
+                heatmap_norm = heatmap / np.max(heatmap)
+            else:
+                heatmap_norm = heatmap
+
+            # Upscale heatmap to image size (Bilinear)
+            heatmap_resized = cv2.resize(heatmap_norm, (width, height), interpolation=cv2.INTER_LINEAR)
             
-            # 6. Identify top attended regions
-            top_regions = self._identify_top_regions(attention_map)
+            # Apply Color Map (Jet)
+            heatmap_uint8 = np.uint8(255 * heatmap_resized)
+            heatmap_color = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
             
-            # 7. Generate explanation
-            explanation = self._generate_attention_explanation(
-                top_regions, text
-            )
+            # Overlay
+            img_bgr = cv2.cvtColor(np.array(original_image), cv2.COLOR_RGB2BGR)
+            overlay = cv2.addWeighted(img_bgr, 0.6, heatmap_color, 0.4, 0)
+            overlay_rgb = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
+            final_img = Image.fromarray(overlay_rgb)
+            
+            # Save Result
+            filename = f"heatmap_{uuid.uuid4().hex}.jpg"
+            save_path = os.path.join(self.output_dir, filename)
+            final_img.save(save_path)
+            
+            # Identify Top Regions for Text Explanation
+            top_regions = self._identify_top_regions(heatmap, num_regions=3)
+            explanation = self._generate_explanation(top_regions, text, baseline_similarity)
             
             return {
-                "heatmap_path": heatmap_path,
-                "attention_scores": attention_weights.flatten().tolist()[:100],  # First 100
+                "heatmap_url": f"/uploads/heatmaps/{filename}",
+                "attention_scores": heatmap.flatten().tolist(),
                 "top_regions": top_regions,
                 "explanation": explanation,
-                "attention_map_shape": attention_map.shape
+                "baseline_similarity": float(baseline_similarity)
             }
             
         except Exception as e:
-            logger.error(f"Attention map generation failed: {e}")
+            logger.error(f"Error generating attention map: {e}")
             return {
-                "heatmap_path": None,
+                "error": str(e),
                 "attention_scores": [],
-                "top_regions": [],
-                "explanation": f"Attention analysis unavailable: {str(e)}",
-                "error": str(e)
+                "explanation": "Could not generate attention map."
             }
-    
-    def _preprocess_image(self, image_path: str) -> Tuple[np.ndarray, Tuple[int, int]]:
+
+    def _identify_top_regions(self, heatmap: np.ndarray, num_regions: int = 3) -> List[Dict]:
         """
-        Load and preprocess image for CLIP.
-        
-        Returns:
-            (preprocessed_image, original_size)
+        Identify the grid cells with highest attention.
+        Returns coordinates relative to grid (0..1)
         """
-        # Load image with PIL
-        pil_image = Image.open(image_path).convert('RGB')
-        original_size = pil_image.size  # (width, height)
-        
-        # Convert to numpy for OpenCV operations
-        image_np = np.array(pil_image)
-        
-        return image_np, original_size
-    
-    def _get_attention_weights(
-        self,
-        image: np.ndarray,
-        text: str,
-        clip_model: Any,
-        image_encoder: Any = None
-    ) -> np.ndarray:
-        """
-        Extract attention weights from CLIP model.
-        
-        This is a simplified version - actual implementation depends on CLIP architecture.
-        For research-grade, you'd extract the cross-attention layers.
-        """
-        try:
-            # Convert image to tensor
-            from torchvision import transforms
-            preprocess = transforms.Compose([
-                transforms.ToPILImage(),
-                transforms.Resize(224),
-                transforms.CenterCrop(224),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.48145466, 0.4578275, 0.40821073],
-                    std=[0.26862954, 0.26130258, 0.27577711]
-                )
-            ])
-            
-            image_tensor = preprocess(image).unsqueeze(0)
-            
-            # For now, create a simplified attention map based on gradient
-            # In production, extract from model.visual.transformer.attention_weights
-            
-            # Placeholder: Create attention based on image variance
-            # High variance areas = more attention
-            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-            attention = cv2.Laplacian(gray, cv2.CV_64F)
-            attention = np.abs(attention)
-            attention = cv2.GaussianBlur(attention, (21, 21), 0)
-            
-            # Normalize to [0, 1]
-            attention = (attention - attention.min()) / (attention.max() - attention.min() + 1e-8)
-            
-            return attention
-            
-        except Exception as e:
-            logger.warning(f"Attention extraction failed, using fallback: {e}")
-            # Fallback: uniform attention
-            return np.ones((14, 14)) * 0.5
-    
-    def _resize_attention(
-        self,
-        attention_weights: np.ndarray,
-        target_size: Tuple[int, int]
-    ) -> np.ndarray:
-        """
-        Resize attention map to match original image dimensions.
-        
-        Args:
-            attention_weights: Raw attention weights (e.g., 14x14)
-            target_size: Target (width, height)
-        
-        Returns:
-            Resized attention map
-        """
-        # OpenCV uses (height, width) order
-        target_h_w = (target_size[1], target_size[0])
-        resized = cv2.resize(
-            attention_weights,
-            target_size,  # (width, height)
-            interpolation=cv2.INTER_CUBIC
-        )
-        return resized
-    
-    def _create_heatmap(
-        self,
-        original_image_path: str,
-        attention_map: np.ndarray,
-        alpha: float = 0.4
-    ) -> np.ndarray:
-        """
-        Create heatmap overlay on original image.
-        
-        Args:
-            original_image_path: Path to original image
-            attention_map: Attention weights matching image size
-            alpha: Transparency of heatmap overlay
-        
-        Returns:
-            Combined heatmap image
-        """
-        # Load original image
-        original = cv2.imread(original_image_path)
-        original = cv2.cvtColor(original, cv2.COLOR_BGR2RGB)
-        
-        # Normalize attention map to [0, 255]
-        attention_normalized = (attention_map * 255).astype(np.uint8)
-        
-        # Apply colormap (JET: blue=low, red=high)
-        heatmap = cv2.applyColorMap(attention_normalized, cv2.COLORMAP_JET)
-        heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
-        
-        # Blend with original image
-        overlay = cv2.addWeighted(original, 1 - alpha, heatmap, alpha, 0)
-        
-        return overlay
-    
-    def _save_heatmap(
-        self,
-        heatmap_image: np.ndarray,
-        original_image_path: str
-    ) -> str:
-        """
-        Save heatmap image to disk.
-        
-        Returns:
-            Relative path to saved heatmap
-        """
-        # Generate filename
-        import os
-        import time
-        base_name = os.path.basename(original_image_path)
-        name_without_ext = os.path.splitext(base_name)[0]
-        timestamp = int(time.time() * 1000)
-        heatmap_filename = f"{name_without_ext}_heatmap_{timestamp}.png"
-        heatmap_path = os.path.join(self.output_dir, heatmap_filename)
-        
-        # Save
-        heatmap_bgr = cv2.cvtColor(heatmap_image, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(heatmap_path, heatmap_bgr)
-        
-        logger.info(f"Heatmap saved to {heatmap_path}")
-        return heatmap_path
-    
-    def _identify_top_regions(
-        self,
-        attention_map: np.ndarray,
-        num_regions: int = 5
-    ) -> List[Dict[str, Any]]:
-        """
-        Identify regions with highest attention.
-        
-        Args:
-            attention_map: 2D attention weights
-            num_regions: Number of top regions to return
-        
-        Returns:
-            List of dicts with region info
-        """
-        # Divide image into grid (e.g., 3x3)
-        h, w = attention_map.shape
-        grid_h, grid_w = 3, 3
-        cell_h, cell_w = h // grid_h, w // grid_w
+        flat_indices = np.argsort(heatmap.ravel())[::-1]
+        top_indices = flat_indices[:num_regions]
         
         regions = []
-        region_labels = [
-            ["top-left", "top-center", "top-right"],
-            ["middle-left", "center", "middle-right"],
-            ["bottom-left", "bottom-center", "bottom-right"]
-        ]
+        rows, cols = heatmap.shape
         
-        for i in range(grid_h):
-            for j in range(grid_w):
-                # Extract cell
-                cell = attention_map[
-                    i * cell_h:(i + 1) * cell_h,
-                    j * cell_w:(j + 1) * cell_w
-                ]
-                avg_attention = cell.mean()
-                
+        for idx in top_indices:
+            r, c = np.unravel_index(idx, (rows, cols))
+            score = float(heatmap[r, c])
+            if score > 0.0001:  # Filter out trivial info
                 regions.append({
-                    "region": region_labels[i][j],
-                    "score": float(avg_attention),
-                    "position": (i, j)
+                    "grid_x": int(c),
+                    "grid_y": int(r),
+                    "score": score,
+                    "normalized_x": c / cols,
+                    "normalized_y": r / rows,
+                    "region": self._get_region_name(c/cols, r/rows)
                 })
+                
+        return regions
+
+    def _get_region_name(self, x: float, y: float) -> str:
+        h_pos = "left" if x < 0.33 else "right" if x > 0.66 else "center"
+        v_pos = "top" if y < 0.33 else "bottom" if y > 0.66 else "center"
+        return f"{v_pos}-{h_pos}" if h_pos != "center" or v_pos != "center" else "center"
+
+    def _generate_explanation(self, regions: List[Dict], text: str, similarity: float) -> str:
+        """Generate human-readable explanation of the attention."""
+        if not regions:
+            return "No specific regions of the image strongly increased the match confidence."
+            
+        main_region = regions[0]["region"]
         
-        # Sort by score and return top N
-        regions.sort(key=lambda x: x["score"], reverse=True)
-        return regions[:num_regions]
-    
-    def _generate_attention_explanation(
-        self,
-        top_regions: List[Dict[str, Any]],
-        text: str
-    ) -> str:
-        """
-        Generate human-readable explanation of attention pattern.
-        
-        Args:
-            top_regions: List of top attended regions
-            text: Text description being matched
-        
-        Returns:
-            Explanation string
-        """
-        if not top_regions:
-            return "Unable to determine attention pattern."
-        
-        top_region = top_regions[0]
-        top_region_name = top_region["region"]
-        top_score = top_region["score"] * 100
-        
-        explanation = (
-            f"🔍 The model focused most on the **{top_region_name}** "
-            f"({top_score:.1f}% attention) when matching with '{text}'. "
+        strength = "strong" if similarity > 0.25 else "weak"
+        return (
+            f"The model focused primarily on the {main_region} "
+            f"part of the image to match the text '{text}'. "
+            f"Overall match confidence is {strength}."
         )
-        
-        if len(top_regions) > 1:
-            second_region = top_regions[1]["region"]
-            explanation += f"Secondary focus on **{second_region}**. "
-        
-        explanation += "Red areas indicate high attention, blue areas low attention."
-        
-        return explanation
 
-
-# Singleton for global access
-_attention_visualizer_instance = None
-
+# Singleton instance
+_attention_visualizer = None
 
 def get_attention_visualizer() -> AttentionVisualizer:
-    """Get or create singleton AttentionVisualizer instance."""
-    global _attention_visualizer_instance
-    if _attention_visualizer_instance is None:
-        _attention_visualizer_instance = AttentionVisualizer()
-    return _attention_visualizer_instance
+    """Get or create the global AttentionVisualizer instance."""
+    global _attention_visualizer
+    if _attention_visualizer is None:
+        _attention_visualizer = AttentionVisualizer()
+    return _attention_visualizer
+

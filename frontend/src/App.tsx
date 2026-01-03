@@ -19,6 +19,7 @@ import {
 } from './components/Validation/ValidationSummary';
 import { PlausibilityCard } from './components/Validation/PlausibilityCard';
 import { AttentionCard } from './components/Validation/AttentionCard';
+import { DiscrepancyCard } from './components/Validation/DiscrepancyCard';
 
 const COLOR_KEYWORDS = [
   'black',
@@ -95,6 +96,7 @@ interface ValidationState {
   brandHint?: string;
   initialMention?: string;
   text?: string;
+  originalMessage?: string;  // ADDED: Preserve original full user message before extraction
   image?: File;
   voice?: Blob;
   textResult?: any;
@@ -393,16 +395,49 @@ const App: React.FC = () => {
             imageResult?.objects?.detections?.[0]?.class || 'your item';
 
           if (validationStateRef.current.text) {
+            // Build COMPLETE description including ALL extracted metadata
+            const state = validationStateRef.current;
+            const parts: string[] = [];
+
+            // Add color hint if available
+            if (state.colorHint) {
+              parts.push(state.colorHint);
+            }
+
+            // Add brand hint if available  
+            if (state.brandHint) {
+              parts.push(state.brandHint);
+            }
+
+            // Add item type
+            if (state.itemType) {
+              parts.push(state.itemType);
+            }
+
+            // Add the rest of the text (location, time, etc.)
+            if (state.text) {
+              parts.push(state.text);
+            }
+
+            const fullCompleteDescription = parts.join(' ').trim();
+
+            console.log('[DEBUG] Sending to validateComplete - Full text:', fullCompleteDescription);
+            console.log('[DEBUG] State:', { color: state.colorHint, brand: state.brandHint, item: state.itemType, text: state.text });
+
             const combined = await validateComplete({
               image: file,
-              text: validationStateRef.current.text,
+              text: fullCompleteDescription,  // Send FULL description with color + brand
             });
 
             updateValidationState({
+              textResult: combined.text,  // Extract text validation result
+              imageResult: combined.image,  // Also update image result if present
               crossModalPreview: combined.cross_modal,
             });
 
             // NEW: Generate Attention Heatmap (Phase 2)
+            // TEMPORARILY DISABLED: Heatmap endpoint has import error
+            /*
             if (combined?.cross_modal && validationStateRef.current.text) {
               getAttentionMap(file, validationStateRef.current.text).then(attMap => {
                 if (attMap && !attMap.error) {
@@ -410,6 +445,7 @@ const App: React.FC = () => {
                 }
               });
             }
+            */
 
             const imageText = combined?.cross_modal?.image_text;
 
@@ -667,10 +703,12 @@ const App: React.FC = () => {
 
         console.log('[DEBUG] Received response from sendChatMessage:', response);
 
-        // 1. Show Bot Response
+        // 1. Show Bot Response with feedback indicator
         if (response.bot_response) {
           console.log('[DEBUG] Adding bot message:', response.bot_response);
-          addBotMessage(response.bot_response);
+          addBotMessage(response.bot_response, {
+            feedbackRecorded: response.feedback_recorded || false
+          });
         } else {
           console.warn('[DEBUG] No response.bot_response field in:', response);
         }
@@ -858,9 +896,9 @@ const App: React.FC = () => {
           ? [
             `Sharpness: ${formatSharpnessScore(imageResult?.sharpness)}`,
             imageResult?.objects?.detections?.length
-              ? `Detected: ${imageResult.objects.detections[0].class} (${Math.round(
-                imageResult.objects.detections[0].confidence * 100
-              )}%)`
+              ? `Detected: ${imageResult.objects.detections.slice(0, 3).map((d: any) =>
+                `${d.class} (${Math.round(d.confidence * 100)}%)`
+              ).join(', ')}${imageResult.objects.model_loaded === false ? ' ⚠️ Untrained Model' : ''}`
               : 'No objects detected',
           ]
           : ['Upload a recent photo to boost match accuracy.'],
@@ -1011,6 +1049,9 @@ const App: React.FC = () => {
           <PlausibilityCard
             result={validationState.spatialTemporalResult}
           />
+          {/* Enhanced Discrepancies */}
+          <DiscrepancyCard result={validationState.crossModalPreview?.xai_explanation} />
+
           {validationState.attentionResult && (
             <AttentionCard
               heatmapUrl={validationState.attentionResult.heatmap_url}

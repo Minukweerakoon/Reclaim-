@@ -10,7 +10,23 @@ from ultralytics import YOLO
 from PIL import Image as PILImage
 import imagehash
 
-from src.image.vit_validator import get_vit_validator
+from src.image.vit_validator import get_vit_validator, CATEGORY_ALIASES
+
+# CLIP validator for fallback (lazy loaded)
+_clip_validator = None
+
+def get_clip_validator_for_fallback():
+    """Lazy load CLIP validator for fallback validation."""
+    global _clip_validator
+    if _clip_validator is None:
+        try:
+            from src.cross_modal.clip_validator import CLIPValidator
+            _clip_validator = CLIPValidator(enable_logging=False)
+            logger.info("✓ CLIP validator loaded for fallback")
+        except Exception as e:
+            logger.warning(f"CLIP fallback unavailable: {e}")
+            _clip_validator = False
+    return _clip_validator if _clip_validator else None
 
 logger = logging.getLogger("ImageValidator")
 logger.setLevel(logging.INFO)
@@ -274,16 +290,119 @@ class ImageValidator:
                 logger.info("[DETECTION] YOLO found nothing, falling back to ViT")
                 vit_result = self.vit_validator.validate_image(image_path)
                 
+                vit_confidence = float(vit_result['confidence'])
+                vit_item = str(vit_result['detected_item'])
+                
+                # ════════════════════════════════════════════════════════════
+                # CLIP FALLBACK: If ViT is uncertain (<70%) and text provided,
+                # use CLIP to validate text against image. Trust text if CLIP agrees.
+                # ════════════════════════════════════════════════════════════
+                final_item = vit_item
+                final_confidence = vit_confidence
+                used_clip_fallback = False
+                clip_similarity = None
+                
+                if vit_confidence < 0.70 and text_hint:
+                    logger.info(f"[CLIP FALLBACK] ViT uncertain ({vit_confidence:.1%}), validating with CLIP...")
+                    clip_validator = get_clip_validator_for_fallback()
+                    
+                    if clip_validator:
+                        try:
+                            # Validate text description against image
+                            clip_result = clip_validator.validate_image_text_alignment(image_path, text_hint)
+                            clip_similarity = clip_result.get('similarity', 0)
+                            
+                            logger.info(f"[CLIP FALLBACK] Text-image similarity: {clip_similarity:.1%}")
+                            
+                            # If CLIP agrees with text description (>50% similarity), trust the text
+                            if clip_similarity >= 0.50:
+                                # Extract item from text hint using aliases
+                                text_lower = text_hint.lower()
+                                detected_from_text = None
+                                
+                                # Check aliases first
+                                for category, aliases in CATEGORY_ALIASES.items():
+                                    if any(alias in text_lower for alias in aliases):
+                                        detected_from_text = category
+                                        break
+                                    if category in text_lower:
+                                        detected_from_text = category
+                                        break
+                                
+                                # Common item keywords
+                                common_items = ['headphones', 'headset', 'phone', 'wallet', 'laptop', 
+                                               'backpack', 'bag', 'keys', 'watch', 'glasses', 'card']
+                                if not detected_from_text:
+                                    for item in common_items:
+                                        if item in text_lower:
+                                            detected_from_text = item
+                                            break
+                                
+                                if detected_from_text:
+                                    logger.info(f"[CLIP FALLBACK] ✓ Trusting text description: '{detected_from_text}' (CLIP: {clip_similarity:.1%})")
+                                    final_item = detected_from_text
+                                    final_confidence = clip_similarity  # Use CLIP similarity as confidence
+                                    used_clip_fallback = True
+                                else:
+                                    logger.info(f"[CLIP FALLBACK] Could not extract item from text, keeping ViT result")
+                            else:
+                                logger.info(f"[CLIP FALLBACK] CLIP similarity too low ({clip_similarity:.1%}), keeping ViT result")
+                                
+                        except Exception as clip_error:
+                            logger.warning(f"[CLIP FALLBACK] CLIP validation failed: {clip_error}")
+                
+                # Format detections
+                detailed_detections = []
+                if used_clip_fallback:
+                    # Primary detection from CLIP-validated text
+                    detailed_detections.append({
+                        "class": final_item,
+                        "confidence": float(final_confidence),
+                        "source": "text_description"
+                    })
+                    # Add ViT predictions as secondary
+                    if 'all_predictions' in vit_result:
+                        for item, conf in vit_result['all_predictions']:
+                            detailed_detections.append({
+                                "class": str(item),
+                                "confidence": float(conf),
+                                "source": "vit_secondary"
+                            })
+                else:
+                    if 'all_predictions' in vit_result:
+                        for item, conf in vit_result['all_predictions']:
+                            detailed_detections.append({
+                                "class": str(item),
+                                "confidence": float(conf)
+                            })
+                    else:
+                        detailed_detections.append({
+                            "class": vit_item,
+                            "confidence": vit_confidence
+                        })
+
+                # Generate feedback
+                if used_clip_fallback:
+                    feedback = f"✓ Detected {final_item} (validated against your description, {final_confidence:.0%} match)"
+                elif vit_confidence >= 0.70:
+                    feedback = f"✓ Detected {final_item} ({vit_confidence:.0%} confidence)"
+                else:
+                    feedback = f"⚠️ Uncertain: {final_item} ({vit_confidence:.0%}). "
+                    if 'all_predictions' in vit_result and len(vit_result['all_predictions']) > 1:
+                        alternatives = [f"{item} ({conf:.0%})" for item, conf in vit_result['all_predictions'][1:3]]
+                        feedback += f"Could also be: {', '.join(alternatives)}"
+
                 return {
-                    "valid": bool(vit_result['valid']),
-                    "confidence": float(vit_result['confidence']),
-                    "detections": [{
-                        "class": str(vit_result['detected_item']),
-                        "confidence": float(vit_result['confidence'])
-                    }],
-                    "detection_score": float(min(100, vit_result['confidence'] * 100)),
-                    "feedback": str(vit_result['feedback']),
-                    "model": "ViT-Fallback"
+                    "valid": bool(final_confidence >= 0.50 or used_clip_fallback),
+                    "confidence": float(final_confidence),
+                    "detections": detailed_detections,
+                    "detection_score": float(min(100, final_confidence * 100)),
+                    "feedback": feedback,
+                    "model": "CLIP-Validated" if used_clip_fallback else vit_result.get('model', "ViT-Fallback"),
+                    "model_loaded": vit_result.get('model_loaded', False),
+                    "clip_fallback_used": used_clip_fallback,
+                    "clip_similarity": clip_similarity,
+                    "all_predictions": vit_result.get('all_predictions', [])
                 }
             except Exception as e:
                 logger.warning(f"ViT fallback also failed: {e}")

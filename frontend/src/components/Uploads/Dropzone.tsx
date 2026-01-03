@@ -58,7 +58,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
         }}
       />
       <div
-        className={['dropzone', dragActive ? 'dropzone--active' : ''].join(' ')}
+        className={['dropzone', 'dropzone--compact', dragActive ? 'dropzone--active' : ''].join(' ')}
         onDragEnter={(event) => {
           event.preventDefault()
           setDragActive(true)
@@ -71,23 +71,25 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
         onDrop={handleDrop}
       >
         {preview ? (
-          <img
-            src={preview}
-            alt="Uploaded item preview"
-            className="dropzone-preview"
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <img
+              src={preview}
+              alt="Preview"
+              className="dropzone-preview dropzone-preview--thumbnail"
+            />
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              ✓ Image uploaded
+            </span>
+          </div>
         ) : (
-          <>
-            <p style={{ marginBottom: '0.5rem', fontWeight: 600 }}>
-              Drag and drop a supporting photo
-            </p>
-            <p style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>
-              JPEG, PNG or WEBP files up to {Math.round(maxSize / (1024 * 1024))}MB
-            </p>
-            <label htmlFor={inputId} className="button">
-              Choose an image
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <label htmlFor={inputId} className="button" style={{ fontSize: '0.85rem', padding: '0.6rem 1rem' }}>
+              📷 Upload image
             </label>
-          </>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              or drag and drop (max {Math.round(maxSize / (1024 * 1024))}MB)
+            </span>
+          </div>
         )}
       </div>
     </div>

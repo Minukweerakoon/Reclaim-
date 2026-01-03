@@ -207,7 +207,8 @@ class SpatialTemporalValidator:
         "iphone": "phone", "samsung": "phone", "smartphone": "phone", 
         "mobile": "phone", "cellphone": "phone", "android": "phone",
         "macbook": "laptop", "notebook": "laptop", "chromebook": "laptop",
-        "ipad": "tablet", "airpods": "headphones", "earbuds": "headphones",
+        "ipad": "tablet", "headset": "headphones", "airpods": "headphones", "earbuds": "headphones",
+        "wireless headphones": "headphones", "bluetooth headset": "headphones",
         "earphones": "headphones", "smartwatch": "watch", "apple watch": "watch",
         # Bags
         "purse": "bag", "handbag": "bag", "suitcase": "bag", "luggage": "bag",
@@ -231,6 +232,7 @@ class SpatialTemporalValidator:
         "computer lab": "lab", "research lab": "lab",
         "locker room": "gym", "fitness center": "gym", "sports hall": "gym",
         "parking lot": "parking", "garage": "parking",
+        "car park": "parking", "parking area": "parking", "parking space": "parking",
         "main entrance": "entrance", "gate": "entrance", "lobby": "entrance",
         "bathroom": "restroom", "toilet": "restroom", "washroom": "restroom",
         "corridor": "hallway", "passage": "hallway",

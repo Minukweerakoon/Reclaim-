@@ -3,12 +3,14 @@ import React, { useState, useRef, useEffect } from 'react'
 interface VoiceRecorderProps {
   onRecordingComplete: (blob: Blob) => void
   maxDuration: number
+  compact?: boolean  // NEW: Enable compact mode
 }
 
 
 export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   onRecordingComplete,
-  maxDuration
+  maxDuration,
+  compact = true  // Default to compact mode
 }) => {
   const [isRecording, setIsRecording] = useState(false)
   const [duration, setDuration] = useState(0)
@@ -82,8 +84,25 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   }, [audioUrl])
 
+  // COMPACT MODE: Show only button when idle
+  if (compact && !isRecording && !audioUrl) {
+    return (
+      <div className="voice-recorder voice-recorder--compact">
+        <button
+          type="button"
+          className="button"
+          onClick={startRecording}
+          title="Record voice note"
+        >
+          🎤 Record voice note
+        </button>
+      </div>
+    )
+  }
+
+  // EXPANDED MODE: Full interface
   return (
-    <div className="voice-recorder">
+    <div className={`voice-recorder ${isRecording ? 'voice-recorder--expanded' : ''}`}>
       {!audioUrl ? (
         <>
           <div>
@@ -121,7 +140,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
           <audio
             src={audioUrl}
             controls
-            style={{ width: '100%' }}
+            style={{ width: '100%', maxWidth: '320px' }}
             aria-label="Recorded audio preview"
           />
           <button
