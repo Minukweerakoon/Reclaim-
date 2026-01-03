@@ -23,7 +23,7 @@ from pymongo import MongoClient
 from bson import ObjectId
 import requests
 
-# Optional: helps avoid OpenMP crash on macOS (safe for dev; remove if you want)
+
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 
@@ -76,7 +76,7 @@ _items = _mongo[MONGO_COL]
 db_index: Optional[faiss.Index] = None
 db_ids: list[str] = []
 db_cats: list[str] = []
-db_types: list[str] = []  # e.g., "found" / "lost" (we store only "found" in this demo)
+db_types: list[str] = []  
 
 
 # -----------------------------
