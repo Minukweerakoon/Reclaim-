@@ -5,6 +5,7 @@ import './App.css';
 // Voshan: Suspicious Behavior Detection Pages
 import DetectionDashboard from './pages/voshan/DetectionDashboard';
 import AlertHistory from './pages/voshan/AlertHistory';
+import VideoUpload from './pages/voshan/VideoUpload';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           </div>
           <div className="nav-links">
             <Link to="/voshan/detection">Detection Dashboard</Link>
+            <Link to="/voshan/upload">Upload Video</Link>
             <Link to="/voshan/alerts">Alert History</Link>
           </div>
         </nav>
@@ -30,6 +32,9 @@ function App() {
                   <Link to="/voshan/detection" className="quick-link">
                     🛡️ Go to Detection Dashboard
                   </Link>
+                  <Link to="/voshan/upload" className="quick-link">
+                    📹 Upload Video for Detection
+                  </Link>
                   <Link to="/voshan/alerts" className="quick-link">
                     📋 View Alert History
                   </Link>
@@ -37,6 +42,7 @@ function App() {
               </div>
             } />
             <Route path="/voshan/detection" element={<DetectionDashboard />} />
+            <Route path="/voshan/upload" element={<VideoUpload />} />
             <Route path="/voshan/alerts" element={<AlertHistory />} />
           </Routes>
         </main>

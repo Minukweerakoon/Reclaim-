@@ -80,7 +80,7 @@ class YOLODetector:
     
     def detect_batch(self, frames: List[np.ndarray]) -> List[List[Dict]]:
         """
-        Run detection on multiple frames
+        Run detection on multiple frames (optimized batch processing)
         
         Args:
             frames: List of frames as numpy arrays
@@ -88,10 +88,39 @@ class YOLODetector:
         Returns:
             List of detection lists (one per frame)
         """
+        # Use YOLO's batch prediction for better performance
+        if len(frames) == 0:
+            return []
+        
+        # Run batch prediction (much faster than individual predictions)
+        results = self.model.predict(
+            frames,  # Pass list of frames directly
+            imgsz=self.image_size,
+            conf=self.confidence,
+            device=self.device,
+            verbose=False
+        )
+        
         all_detections = []
-        for frame in frames:
-            detections = self.detect(frame)
+        for result in results:
+            detections = []
+            if result.boxes is not None:
+                boxes = result.boxes
+                for i in range(len(boxes)):
+                    # Get box coordinates
+                    box = boxes.xyxy[i].cpu().numpy()
+                    conf = float(boxes.conf[i].cpu().numpy())
+                    cls_id = int(boxes.cls[i].cpu().numpy())
+                    cls_name = self.model.names[cls_id]
+                    
+                    detections.append({
+                        "bbox": box.tolist(),  # [x1, y1, x2, y2]
+                        "confidence": conf,
+                        "class_id": cls_id,
+                        "class_name": cls_name
+                    })
             all_detections.append(detections)
+        
         return all_detections
     
     def get_model_info(self) -> Dict:

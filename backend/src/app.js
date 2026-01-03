@@ -9,8 +9,15 @@ const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Increase body size limits for large video uploads
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ extended: true, limit: '500mb' }));
+
+// Add keep-alive headers for long-running requests
+app.use((req, res, next) => {
+  res.setHeader('Connection', 'keep-alive');
+  next();
+});
 
 // Routes
 // TODO: Add your routes here
@@ -27,10 +34,22 @@ app.get('/api/health', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ 
+  console.error('Unhandled error:', err);
+  console.error('Error stack:', err.stack);
+  
+  // Don't send response if headers already sent
+  if (res.headersSent) {
+    return next(err);
+  }
+  
+  res.status(err.status || 500).json({ 
+    success: false,
     message: 'Something went wrong!', 
-    error: process.env.NODE_ENV === 'development' ? err.message : {}
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
+    details: process.env.NODE_ENV === 'development' ? {
+      stack: err.stack,
+      name: err.name
+    } : undefined
   });
 });
 

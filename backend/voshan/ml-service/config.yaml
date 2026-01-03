@@ -2,7 +2,7 @@ model:
   path: "models/best.pt"
   image_size: 800
   confidence: 0.25
-  device: "cuda:0"  # Use "cpu" if GPU not available
+  device: "cpu"  # Use "cuda:0" if GPU available, "cpu" otherwise
 
 behavior:
   owner_max_dist: 120      # pixels - max distance for bag to be considered "attended"

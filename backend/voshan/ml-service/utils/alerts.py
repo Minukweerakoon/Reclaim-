@@ -27,7 +27,7 @@ class AlertManager:
             "alert_id": f"{alert.get('type', 'UNKNOWN')}_{alert.get('frame', 0)}_{alert.get('timestamp', 0)}",
             "type": alert.get("type", "UNKNOWN"),
             "timestamp": alert.get("timestamp", datetime.now().timestamp()),
-            "frame": alert.get("frame", 0),
+            "frame": alert.get("frame", 0) or alert.get("frame_number", 0),
             "severity": AlertManager._get_severity(alert.get("type", "")),
             "details": {}
         }

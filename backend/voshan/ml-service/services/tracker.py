@@ -39,13 +39,37 @@ class ObjectTracker:
             - class_id: int
             - class_name: str
         """
-        # Run tracking
-        results = self.model.track(
-            frame,
-            persist=persist,
-            tracker=self.tracker_config,
-            verbose=False
-        )
+        # Validate frame format
+        if frame is None or frame.size == 0:
+            return []
+        
+        # Ensure frame is in correct format
+        if len(frame.shape) != 3 or frame.shape[2] != 3:
+            return []
+        
+        # Run tracking with error handling
+        try:
+            results = self.model.track(
+                frame,
+                persist=persist,
+                tracker=self.tracker_config,
+                verbose=False,
+                imgsz=min(frame.shape[0], frame.shape[1])  # Use frame size for tracking
+            )
+        except Exception as e:
+            # If tracking fails, fall back to detection only
+            error_msg = str(e)
+            if "optical flow" in error_msg.lower() or "lkpyramid" in error_msg.lower():
+                # Fall back to detection without tracking
+                results = self.model.predict(
+                    frame,
+                    verbose=False
+                )
+                # Convert to tracking format (no track IDs)
+                if len(results) > 0:
+                    results[0].boxes.id = None
+            else:
+                raise
         
         tracked_objects = []
         if len(results) > 0 and results[0].boxes is not None:

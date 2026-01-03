@@ -42,6 +42,10 @@ const alertSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     required: true
   },
+  snapshot: {
+    type: String, // Base64 encoded image data URL
+    default: null
+  },
   videoInfo: {
     outputVideo: String,
     logJson: String,

@@ -12,7 +12,27 @@ const detectionApi = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Disable automatic retries to prevent duplicate requests
+  validateStatus: function (status) {
+    return status >= 200 && status < 500; // Don't throw for 4xx errors
+  },
 });
+
+// Request deduplication: Track active requests to prevent duplicates
+const activeRequests = new Map();
+
+/**
+ * Generate a unique key for a request based on file and options
+ */
+function getRequestKey(videoFile, options) {
+  // Use file name, size, and last modified time to create unique key
+  const fileKey = `${videoFile.name}_${videoFile.size}_${videoFile.lastModified}`;
+  const optionsKey = JSON.stringify({
+    cameraId: options.cameraId,
+    saveOutput: options.saveOutput
+  });
+  return `process-video_${fileKey}_${optionsKey}`;
+}
 
 /**
  * Check ML service health
@@ -29,6 +49,26 @@ export const checkMLServiceHealth = async () => {
  * @param {Function} onUploadProgress - Upload progress callback
  */
 export const processVideo = async (videoFile, options = {}, onUploadProgress) => {
+  // Check if request was already aborted
+  if (options.signal?.aborted) {
+    throw new Error('Request was aborted');
+  }
+
+  // Check for duplicate request - if same file is already being processed, return existing promise
+  const requestKey = getRequestKey(videoFile, options);
+  if (activeRequests.has(requestKey)) {
+    const existingRequest = activeRequests.get(requestKey);
+    console.warn(`[detectionApi] Duplicate request detected for ${requestKey}, reusing existing request`);
+    
+    // If there's a progress callback, we can't reuse the request easily
+    // Instead, return the existing promise but log a warning
+    if (onUploadProgress) {
+      console.warn('[detectionApi] Progress callback provided but request already exists - progress may not update correctly');
+    }
+    
+    return existingRequest;
+  }
+
   const formData = new FormData();
   formData.append('video', videoFile);
   if (options.cameraId) {
@@ -37,23 +77,116 @@ export const processVideo = async (videoFile, options = {}, onUploadProgress) =>
   if (options.saveOutput !== undefined) {
     formData.append('saveOutput', options.saveOutput.toString());
   }
+  // Add batch size for optimized processing
+  if (options.batchSize) {
+    formData.append('batch_size', options.batchSize.toString());
+  }
 
-  const response = await detectionApi.post('/process-video', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-    onUploadProgress: (progressEvent) => {
-      if (onUploadProgress && progressEvent.total) {
-        const percentCompleted = Math.round(
-          (progressEvent.loaded * 100) / progressEvent.total
-        );
-        onUploadProgress(percentCompleted);
+  // Create the request promise
+  const requestPromise = (async () => {
+    try {
+      const response = await detectionApi.post('/process-video', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          // Check if aborted before updating progress
+          if (options.signal?.aborted) {
+            return;
+          }
+          if (onUploadProgress && progressEvent.total) {
+            const percentCompleted = Math.round(
+              (progressEvent.loaded * 100) / progressEvent.total
+            );
+            onUploadProgress(percentCompleted);
+          }
+        },
+        timeout: 900000, // 15 minutes - matches backend timeout for large video processing
+        // Prevent automatic retries
+        maxRedirects: 0,
+        // Add abort signal to cancel request if needed
+        signal: options.signal || undefined,
+      });
+      
+      return response;
+    } catch (error) {
+      // If aborted, clean up immediately
+      if (error.name === 'AbortError' || error.name === 'CanceledError' || options.signal?.aborted) {
+        activeRequests.delete(requestKey);
       }
-    },
-    timeout: 300000, // 5 minutes
-  });
+      throw error;
+    } finally {
+      // Remove from active requests when done (success or error)
+      activeRequests.delete(requestKey);
+    }
+  })();
+  
+  // Handle abort signal if provided
+  if (options.signal) {
+    options.signal.addEventListener('abort', () => {
+      activeRequests.delete(requestKey);
+    });
+  }
 
-  return response.data;
+  // Store the active request
+  activeRequests.set(requestKey, requestPromise);
+
+  try {
+    const response = await requestPromise;
+
+    // Check if response indicates an error
+    if (response.status >= 400) {
+      const errorData = response.data || {};
+      return {
+        success: false,
+        message: errorData.message || 'Error processing video',
+        error: errorData.error || `Request failed with status code ${response.status}`,
+        details: errorData.details || errorData
+      };
+    }
+
+    return response.data;
+  } catch (error) {
+    // Remove from active requests on error (already done in finally, but ensure it's removed)
+    activeRequests.delete(requestKey);
+    
+    // Handle axios errors
+    if (error.response) {
+      // Server responded with error status
+      const errorData = error.response.data || {};
+      return {
+        success: false,
+        message: errorData.message || 'Error processing video',
+        error: errorData.error || error.message || `Request failed with status code ${error.response.status}`,
+        details: errorData.details || {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: errorData
+        }
+      };
+    } else if (error.request) {
+      // Request was made but no response received
+      return {
+        success: false,
+        message: 'No response from server',
+        error: error.message || 'Network error',
+        details: {
+          code: error.code,
+          message: 'The server did not respond. Please check if the backend is running.'
+        }
+      };
+    } else {
+      // Error setting up request
+      return {
+        success: false,
+        message: 'Request setup error',
+        error: error.message || 'Unknown error',
+        details: {
+          code: error.code
+        }
+      };
+    }
+  }
 };
 
 /**
