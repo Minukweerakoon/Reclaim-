@@ -318,6 +318,10 @@ def process_video():
         # Track previous frame dimensions for consistency check
         prev_frame_shape = (frame_height, frame_width)
         
+        # Track consecutive optical flow errors to detect persistent issues
+        consecutive_tracking_failures = 0
+        use_detection_only = False  # Switch to detection-only mode if tracking fails repeatedly
+        
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -346,29 +350,59 @@ def process_video():
             current_time = frame_count / video_info['fps']
             
             # Track objects (must be sequential for tracking to work correctly)
-            # Wrap in try-except to handle optical flow errors gracefully
+            # Use detection-only mode if tracking has failed repeatedly
             try:
-                tracked_objects = tracker.track(frame, persist=config['tracking']['persist'])
-            except Exception as track_error:
-                # If tracking fails due to optical flow error, reset and continue
-                error_msg = str(track_error)
-                if "optical flow" in error_msg.lower() or "lkpyramid" in error_msg.lower() or "prevPyr" in error_msg:
-                    logger.error(f"Optical flow error at frame {frame_count}: {error_msg}")
-                    logger.warning("Resetting tracker to recover from optical flow error")
-                    # Create new tracker instance to reset internal state
-                    tracker = ObjectTracker(
-                        model=detector.model,
-                        tracker_config=config['tracking']['tracker']
-                    )
-                    # Retry tracking with fresh tracker
+                if use_detection_only:
+                    # Fallback to detection-only mode (no tracking IDs)
+                    detections = detector.detect(frame)
+                    tracked_objects = [
+                        {
+                            "track_id": None,  # No tracking ID in detection-only mode
+                            "bbox": det["bbox"],
+                            "confidence": det["confidence"],
+                            "class_id": det["class_id"],
+                            "class_name": det["class_name"]
+                        }
+                        for det in detections
+                    ]
+                else:
+                    # Try tracking with error handling
                     try:
                         tracked_objects = tracker.track(frame, persist=config['tracking']['persist'])
-                    except Exception as retry_error:
-                        logger.error(f"Tracking failed after reset: {retry_error}")
-                        tracked_objects = []  # Continue with empty detections
-                else:
-                    # Re-raise if it's a different error
-                    raise
+                        consecutive_tracking_failures = 0  # Reset counter on success
+                    except Exception as track_error:
+                        # If tracking fails due to optical flow error, fall back to detection-only
+                        error_msg = str(track_error)
+                        if "optical flow" in error_msg.lower() or "lkpyramid" in error_msg.lower() or "prevPyr" in error_msg:
+                            consecutive_tracking_failures += 1
+                            logger.warning(f"Optical flow error at frame {frame_count}: {error_msg[:100]}")
+                            
+                            # If too many consecutive failures, switch to detection-only mode permanently
+                            if consecutive_tracking_failures >= 5:
+                                logger.warning(f"{consecutive_tracking_failures} consecutive tracking failures detected. Switching to detection-only mode for remaining frames.")
+                                use_detection_only = True
+                            
+                            # Fall back to detection-only for this frame (and future frames if threshold reached)
+                            detections = detector.detect(frame)
+                            tracked_objects = [
+                                {
+                                    "track_id": None,  # No tracking ID in detection-only mode
+                                    "bbox": det["bbox"],
+                                    "confidence": det["confidence"],
+                                    "class_id": det["class_id"],
+                                    "class_name": det["class_name"]
+                                }
+                                for det in detections
+                            ]
+                            logger.info(f"Using detection-only mode for frame {frame_count} ({len(tracked_objects)} objects detected)")
+                        else:
+                            # Re-raise if it's a different error
+                            raise
+            except Exception as detect_error:
+                # If even detection fails, log and continue with empty detections
+                error_msg = str(detect_error)
+                logger.error(f"Both tracking and detection failed at frame {frame_count}: {error_msg[:200]}")
+                tracked_objects = []  # Continue with empty detections rather than crashing
             
             # Detect behaviors
             frame_alerts = behavior_detector.process_frame(tracked_objects, current_time=current_time)
@@ -491,14 +525,8 @@ def process_video():
         logger.error(f"Error processing video: {error_msg}")
         logger.error(f"Traceback: {error_trace}")
         
-        # Provide more helpful error messages for common issues
-        if "optical flow" in error_msg.lower() or "lkpyramid" in error_msg.lower() or "prevPyr" in error_msg:
-            return jsonify({
-                "status": "error",
-                "message": "Video frame size inconsistency detected. This video may have variable frame dimensions which causes tracking errors.",
-                "error": error_msg,
-                "suggestion": "The system will attempt to resize frames automatically. If the error persists, try using a video with consistent frame dimensions."
-            }), 500
+        # Note: Optical flow errors should now be handled gracefully within the processing loop
+        # by falling back to detection-only mode. If we reach here, it's a different error.
         
         # Clean up uploaded file on error
         try:
