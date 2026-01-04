@@ -3,9 +3,10 @@
  * Allows users to upload videos for suspicious behavior detection
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { processVideo } from '../../services/voshan/detectionApi';
 import AlertCard from '../../components/voshan/AlertCard';
+import { extractVideoFrames } from '../../utils/videoFrameExtractor';
 import './VideoUpload.css';
 
 const VideoUpload = () => {
@@ -17,6 +18,9 @@ const VideoUpload = () => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [dragActive, setDragActive] = useState(false);
+  const [frameMap, setFrameMap] = useState(new Map());
+  const [extractingFrames, setExtractingFrames] = useState(false);
+  const [frameExtractionProgress, setFrameExtractionProgress] = useState(0);
   
   // Use ref to prevent duplicate submissions (more reliable than state)
   const isProcessingRef = useRef(false);
@@ -25,11 +29,39 @@ const VideoUpload = () => {
   const uploadAbortControllerRef = useRef(null);
   const activeRequestRef = useRef(null); // Track active request promise
 
-  const handleFileSelect = (file) => {
+  const handleFileSelect = async (file) => {
     if (file && file.type.startsWith('video/')) {
       setSelectedFile(file);
       setError(null);
       setResult(null);
+      setFrameMap(new Map()); // Clear previous frames
+      setFrameExtractionProgress(0);
+      
+      // Extract frames from the selected video
+      try {
+        setExtractingFrames(true);
+        const frames = await extractVideoFrames(file, {
+          onProgress: (currentFrame, totalFrames) => {
+            const progress = Math.round((currentFrame / totalFrames) * 100);
+            setFrameExtractionProgress(progress);
+          },
+          quality: 0.8 // Good balance between quality and file size
+        });
+        console.log('[Frame Extraction] Successfully extracted frames:', {
+          totalFrames: frames.size,
+          frameNumbers: Array.from(frames.keys()).slice(0, 10), // First 10 frame numbers
+          sampleFrameKey: frames.keys().next().value
+        });
+        setFrameMap(frames);
+        setExtractingFrames(false);
+        setFrameExtractionProgress(0);
+      } catch (err) {
+        console.warn('Frame extraction failed:', err);
+        // Don't block the user if frame extraction fails
+        setExtractingFrames(false);
+        setFrameExtractionProgress(0);
+        // Continue without frames - alerts will still work, just without snapshots
+      }
     } else {
       setError('Please select a valid video file');
     }
@@ -180,8 +212,39 @@ const VideoUpload = () => {
         }
         
         setResult(response.data);
-        // Reset form after successful upload
-        setSelectedFile(null);
+        
+        // Re-extract frames with backend frame count for accurate matching
+        // Do this AFTER setting result so we can use the file
+        if (selectedFile && response.data?.totalFrames) {
+          console.log(`[${requestId}] Re-extracting frames with backend frame count: ${response.data.totalFrames}`);
+          try {
+            setExtractingFrames(true);
+            // Calculate FPS from backend data if available
+            const backendFps = response.data.videoInfo?.fps || 30;
+            const frames = await extractVideoFrames(selectedFile, {
+              onProgress: (currentFrame, totalFrames) => {
+                const progress = Math.round((currentFrame / totalFrames) * 100);
+                setFrameExtractionProgress(progress);
+              },
+              quality: 0.8,
+              totalFrames: response.data.totalFrames,
+              fps: backendFps
+            });
+            console.log(`[${requestId}] Re-extraction complete: ${frames.size} frames`);
+            setFrameMap(frames);
+            setExtractingFrames(false);
+            setFrameExtractionProgress(0);
+          } catch (err) {
+            console.warn(`[${requestId}] Frame re-extraction failed:`, err);
+            setExtractingFrames(false);
+            setFrameExtractionProgress(0);
+          }
+        }
+        
+        // Reset form after successful upload (but keep file for re-extraction if needed)
+        // Actually, we need to keep the file reference for frame matching
+        // Don't clear selectedFile here - user can clear it manually if needed
+        // setSelectedFile(null);
         setCameraId('');
       } else {
         // Unexpected response format
@@ -279,6 +342,9 @@ const VideoUpload = () => {
     setError(null);
     setUploadProgress(0);
     setProcessing(false);
+    setFrameMap(new Map());
+    setExtractingFrames(false);
+    setFrameExtractionProgress(0);
   };
 
   const formatFileSize = (bytes) => {
@@ -454,12 +520,32 @@ const VideoUpload = () => {
               <div className="alerts-section">
                 <h3>🚨 Detected Alerts ({result.alerts.length})</h3>
                 <div className="alerts-list">
-                  {result.alerts.map((alert, index) => (
-                    <AlertCard
-                      key={alert._id || alert.alertId || index}
-                      alert={alert}
-                    />
-                  ))}
+                  {result.alerts.map((alert, index) => {
+                    // Get frame snapshot for this alert if available
+                    const frameSnapshot = alert.frame !== undefined && alert.frame !== null
+                      ? frameMap.get(alert.frame)
+                      : null;
+                    
+                    // Debug logging
+                    if (index === 0) {
+                      console.log('[Alert Frame Matching] Debug info:', {
+                        frameMapSize: frameMap.size,
+                        alertFrame: alert.frame,
+                        alertFrameType: typeof alert.frame,
+                        frameSnapshotExists: !!frameSnapshot,
+                        availableFrameNumbers: Array.from(frameMap.keys()).slice(0, 20), // First 20 frame numbers
+                        allAlertFrames: result.alerts.map(a => a.frame).slice(0, 10) // First 10 alert frames
+                      });
+                    }
+                    
+                    return (
+                      <AlertCard
+                        key={alert._id || alert.alertId || index}
+                        alert={alert}
+                        frameSnapshot={frameSnapshot}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             ) : (

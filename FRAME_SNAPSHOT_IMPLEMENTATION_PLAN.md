@@ -1,285 +1,324 @@
 # Frame Snapshot Implementation Plan
 
-## Overview
-Add frame snapshots to alerts so users can see the actual frame where suspicious behavior was detected. This applies to both:
-- **Recent Alerts** (from video upload processing)
-- **Real-time Alerts** (from live streaming/WebSocket)
+## 📋 Overview
 
-## Current State
+This plan outlines how to add frame snapshot display to alert cards by extracting frames from uploaded videos in the UI and matching them with alert frame numbers, without affecting existing processes.
 
-### ✅ Already in Place
-- Alert model has `snapshot` field (base64 string) - **ready to use**
-- Frame processing happens in ML service (`app.py`)
-- Alerts are stored in MongoDB
-- WebSocket broadcasts alerts in real-time
-- Frontend displays alerts via `AlertCard` component
+## 🎯 Goal
 
-### ❌ Missing
-- Frame snapshot capture when alert is detected
-- Base64 encoding of frame snapshots
-- Including snapshot in alert data structure
-- Displaying snapshot in AlertCard component
-- Displaying snapshot in real-time alerts
+- Extract frames from uploaded videos client-side (in the browser)
+- Store frames with their frame numbers
+- Display the matching frame snapshot in alert cards when available
+- Ensure frame extraction matches the backend's frame numbering system
+- Maintain backward compatibility with existing functionality
 
-## Implementation Plan
+---
 
-### Phase 1: ML Service - Capture Frame Snapshots
+## 📊 Current State Analysis
 
-#### 1.1 Modify Video Processing (`backend/voshan/ml-service/app.py`)
+### Existing Data Flow:
+1. **Backend Processing:**
+   - Python ML service processes video frame-by-frame
+   - Each alert includes a `frame` field (frame number, 0-indexed)
+   - Video FPS is extracted and used for time calculations
 
-**Location**: In the video processing loop where alerts are detected
+2. **Frontend:**
+   - `AlertCard` component displays frame number but not the actual frame
+   - `VideoUpload` component handles video file selection
+   - Alerts are received with `frame` property (number)
 
-**Changes**:
-- When an alert is detected, capture the current frame
-- Annotate the frame with detections/boxes (optional - for better visualization)
-- Encode frame as base64 JPEG
-- Add `snapshot` field to alert object
+3. **Database:**
+   - Alert model already has `frame: Number` field
+   - Alerts stored with frame numbers
 
-**Code Location**: Around line 373-378 where `frame_alerts` are generated
+### Key Technical Details:
+- Backend uses OpenCV to read frames sequentially
+- Frame numbers are 0-indexed (first frame = 0)
+- Video FPS is extracted from video metadata
+- Frames are processed at the video's native frame rate
 
-**Implementation**:
-```python
-# When alert is detected
-if frame_alerts:
-    # Capture annotated frame (with detections drawn)
-    annotated_frame = video_processor.draw_detections(frame, tracked_objects)
-    annotated_frame = video_processor.draw_alerts(annotated_frame, frame_alerts)
-    
-    # Encode as base64 JPEG
-    import base64
-    import cv2
-    _, buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-    frame_base64 = base64.b64encode(buffer).decode('utf-8')
-    snapshot_data_url = f"data:image/jpeg;base64,{frame_base64}"
-    
-    # Add snapshot to each alert
-    for alert in frame_alerts:
-        alert['snapshot'] = snapshot_data_url
-```
+---
 
-#### 1.2 Add Snapshot Capture Utility (`backend/voshan/ml-service/utils/video.py`)
+## 🏗️ Implementation Plan
 
-**New Method**: `capture_frame_snapshot(frame, detections=None, alerts=None)`
+### Phase 1: Create Frame Extraction Utility
 
-**Purpose**: Centralized function to capture and encode frame snapshots
+**File:** `frontend/src/utils/videoFrameExtractor.js`
 
-**Features**:
-- Option to include annotations (detections/alerts)
-- Configurable image quality
-- Returns base64 data URL
+**Purpose:** Extract frames from video files in the browser and store them with frame numbers.
 
-### Phase 2: Backend - Store and Broadcast Snapshots
+**Key Functions:**
+- `extractVideoFrames(videoFile, options)` - Main extraction function
+- `getFrameAt(videoFile, frameNumber)` - Get specific frame by number
+- Store frames as data URLs (base64 encoded images)
 
-#### 2.1 Update Alert Controller (`backend/src/controllers/voshan/detectionController.js`)
+**Considerations:**
+- Use HTMLVideoElement and Canvas API for frame extraction
+- Extract frames at the video's native frame rate
+- Frame numbering should match backend (0-indexed)
+- Store frames efficiently (consider memory usage for long videos)
 
-**Location**: Where alerts are saved to database (around line 215-228)
+---
 
-**Changes**:
-- Include `snapshot` field from ML service response
-- Store snapshot in MongoDB alert document
+### Phase 2: Integrate Frame Extraction into Video Upload
 
-**Code**:
+**File:** `frontend/src/pages/voshan/VideoUpload.jsx`
+
+**Changes:**
+1. Extract frames when video file is selected (before upload)
+2. Store frames in component state or context
+3. Pass frame map/array to AlertCard components
+4. Handle cleanup of frames when video changes
+
+**Implementation Strategy:**
+- Extract frames asynchronously when file is selected
+- Show loading indicator during frame extraction
+- Store frames in a Map: `Map<frameNumber, dataURL>`
+- Make frames available to AlertCard components
+
+---
+
+### Phase 3: Update AlertCard Component
+
+**File:** `frontend/src/components/voshan/AlertCard.jsx`
+
+**Changes:**
+1. Accept `frameSnapshot` prop (optional data URL)
+2. Display frame image if available
+3. Add loading/error states for frame display
+4. Style frame snapshot appropriately
+
+**UI Updates:**
+- Add frame snapshot section above alert details
+- Show frame number on snapshot
+- Add click-to-expand functionality (optional)
+- Handle cases where frame is not available
+
+---
+
+### Phase 4: Connect Frame Extraction to Alert Display
+
+**Integration Points:**
+
+1. **VideoUpload Page:**
+   - Extract frames when file selected
+   - Store frames in state/context
+   - Pass frame map to AlertCard in results section
+
+2. **AlertHistory Page:**
+   - For alerts from uploaded videos, need to associate with source video
+   - Consider storing video reference in alert or session storage
+   - Extract frames if video is still available
+
+3. **Real-time Alerts:**
+   - Real-time alerts won't have source video available
+   - Skip frame snapshot for real-time alerts (only show for uploaded video alerts)
+
+---
+
+## 🔧 Technical Implementation Details
+
+### Frame Extraction Algorithm
+
 ```javascript
-const alertDoc = new Alert({
-  // ... existing fields ...
-  snapshot: alert.snapshot || null, // Add snapshot field
-});
+// Pseudo-code for frame extraction
+async function extractVideoFrames(videoFile) {
+  const video = document.createElement('video');
+  video.src = URL.createObjectURL(videoFile);
+  
+  await video.load();
+  
+  const frames = new Map();
+  const fps = video.videoMetadata?.frameRate || 30;
+  const totalFrames = Math.floor(video.duration * fps);
+  
+  // Extract frames at video's native rate
+  for (let frameNumber = 0; frameNumber < totalFrames; frameNumber++) {
+    const time = frameNumber / fps;
+    video.currentTime = time;
+    
+    await new Promise(resolve => {
+      video.onseeked = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        
+        frames.set(frameNumber, canvas.toDataURL('image/jpeg', 0.8));
+        resolve();
+      };
+    });
+  }
+  
+  return frames;
+}
 ```
 
-#### 2.2 Update WebSocket Broadcast (`backend/src/controllers/voshan/detectionController.js`)
+### Frame Matching Strategy
 
-**Location**: Where alerts are broadcast via WebSocket (around line 235-242)
+- Backend frame numbers are 0-indexed
+- Frontend extraction should also be 0-indexed
+- Match exact frame numbers from alerts
+- Handle edge cases (frame number out of range, video not available)
 
-**Changes**:
-- Include `snapshot` in broadcast payload
+### Memory Management
 
-**Code**:
-```javascript
-websocketService.broadcastAlert({
-  // ... existing fields ...
-  snapshot: alert.snapshot || null, // Add snapshot
-});
-```
+- Store frames as data URLs (base64 JPEG)
+- Consider compressing frames (quality 0.7-0.8)
+- Limit frame storage for very long videos (optional: only store frames with alerts)
+- Clean up object URLs when done
 
-#### 2.3 Update Real-time Frame Processing (`backend/src/controllers/voshan/detectionController.js`)
+---
 
-**Location**: `processFrame` function (around line 333-415)
+## 📝 Step-by-Step Implementation
 
-**Changes**:
-- Capture snapshot for real-time alerts
-- Include in alert document and WebSocket broadcast
+### Step 1: Create Frame Extraction Utility
 
-### Phase 3: Frontend - Display Snapshots
+1. Create `frontend/src/utils/videoFrameExtractor.js`
+2. Implement frame extraction using HTMLVideoElement + Canvas
+3. Return Map of frameNumber -> dataURL
+4. Add error handling and progress callbacks
 
-#### 3.1 Update AlertCard Component (`frontend/src/components/voshan/AlertCard.jsx`)
+### Step 2: Update VideoUpload Component
 
-**Changes**:
-- Add image display section
-- Show snapshot if available
-- Add thumbnail with expand option
-- Handle loading states
+1. Add state for frame map: `const [frameMap, setFrameMap] = useState(new Map())`
+2. Extract frames when file is selected (useEffect or handler)
+3. Show loading indicator during extraction
+4. Pass frame map to AlertCard components in results section
 
-**UI Design**:
-```jsx
-{alert.snapshot && (
-  <div className="alert-snapshot">
-    <img 
-      src={alert.snapshot} 
-      alt={`Alert snapshot - ${alert.type}`}
-      className="snapshot-image"
-    />
-  </div>
-)}
-```
+### Step 3: Update AlertCard Component
 
-#### 3.2 Update Real-time Alert Display
+1. Add `frameSnapshot` prop (optional string - data URL)
+2. Add frame snapshot display section in JSX
+3. Update CSS for snapshot display
+4. Handle missing frames gracefully
 
-**Files to Check**:
-- `frontend/src/pages/voshan/DetectionDashboard.jsx` (if exists)
-- Any component that displays real-time WebSocket alerts
+### Step 4: Update AlertHistory (Optional)
 
-**Changes**:
-- Display snapshot in real-time alert notifications
-- Update alert list when new alerts arrive with snapshots
+1. For alerts from video uploads, check if source video is available
+2. Extract frames if video file reference is stored
+3. This is optional - can be added later
 
-#### 3.3 Add Snapshot Styling (`frontend/src/components/voshan/AlertCard.css`)
+### Step 5: Testing
 
-**Features**:
-- Responsive image sizing
-- Thumbnail with hover effects
-- Modal/lightbox for full-size view
-- Loading placeholder
+1. Test with short videos first
+2. Verify frame numbers match between backend and frontend
+3. Test with videos of different frame rates
+4. Test memory usage with longer videos
+5. Verify no impact on existing functionality
 
-### Phase 4: Optimization & Performance
+---
 
-#### 4.1 Snapshot Size Management
+## ⚠️ Considerations & Limitations
 
-**Considerations**:
-- Limit snapshot resolution (e.g., max 800x600)
-- Compress JPEG quality (85% is good balance)
-- Consider storing snapshots in file system instead of base64 (future optimization)
+### Performance Considerations:
+- Frame extraction can be slow for long videos
+- Memory usage increases with number of frames stored
+- Consider extracting only frames that have alerts (future optimization)
 
-#### 4.2 Database Storage
+### Browser Compatibility:
+- HTMLVideoElement and Canvas API are well-supported
+- Video codec support varies by browser
+- Consider fallback for unsupported formats
 
-**Current**: Base64 string in MongoDB document
-**Pros**: Simple, no file management
-**Cons**: Larger documents, slower queries
+### Frame Rate Matching:
+- Backend processes all frames sequentially
+- Frontend should extract frames at the same rate
+- Frame numbers should align (0-indexed, sequential)
 
-**Future Optimization**:
-- Store snapshots as files (local or S3)
-- Store file path in database
-- Serve via static file endpoint
+### Real-time Alerts:
+- Real-time alerts won't have source video in UI
+- Skip frame snapshots for real-time alerts
+- Only show snapshots for uploaded video alerts
 
-#### 4.3 WebSocket Payload Size
+### Memory Management:
+- Store frames as compressed JPEG data URLs
+- Consider cleanup strategies for long videos
+- Optional: Only extract frames that have alerts (requires knowing alerts first)
 
-**Consideration**: Base64 images can be large (50-200KB)
-- May need to limit snapshot size for real-time alerts
-- Consider sending thumbnail for real-time, full image on demand
+---
 
-## File Changes Summary
+## 🎨 UI/UX Enhancements
 
-### Backend (Python/ML Service)
-1. `backend/voshan/ml-service/app.py`
-   - Add snapshot capture in video processing loop
-   - Add snapshot to alert objects
+1. **Loading State:**
+   - Show "Extracting frames..." indicator during extraction
+   - Progress indicator for long videos
 
-2. `backend/voshan/ml-service/utils/video.py`
-   - Add `capture_frame_snapshot()` method
+2. **Frame Display:**
+   - Show frame snapshot in alert card
+   - Display frame number on snapshot
+   - Click to view full-size (optional modal)
 
-### Backend (Node.js)
-3. `backend/src/controllers/voshan/detectionController.js`
-   - Include snapshot when saving alerts
-   - Include snapshot in WebSocket broadcasts
+3. **Error Handling:**
+   - Show placeholder if frame extraction fails
+   - Gracefully handle missing frames
+   - Show message if video format not supported
 
-### Frontend
-4. `frontend/src/components/voshan/AlertCard.jsx`
-   - Add snapshot display
-   - Add image viewer/lightbox
+4. **Performance Indicators:**
+   - Show frame extraction progress
+   - Warn about memory usage for very long videos
 
-5. `frontend/src/components/voshan/AlertCard.css`
-   - Add snapshot styling
+---
 
-6. Real-time alert components (if any)
-   - Update to display snapshots
+## 🔄 Alternative Approach (Future Optimization)
 
-## Implementation Steps
+Instead of extracting all frames upfront, we could:
+1. Extract frames on-demand when alert is displayed
+2. Cache extracted frames in memory
+3. Extract only frames that have alerts
+4. Use IndexedDB for persistent frame storage
 
-### Step 1: ML Service Snapshot Capture
-1. Modify `app.py` to capture frames when alerts detected
-2. Encode frames as base64
-3. Add to alert objects
-4. Test with video upload
+This would reduce initial processing time and memory usage but requires more complex implementation.
 
-### Step 2: Backend Integration
-1. Update alert controller to store snapshots
-2. Update WebSocket broadcast to include snapshots
-3. Test database storage
-4. Test WebSocket broadcasting
+---
 
-### Step 3: Frontend Display
-1. Update AlertCard to show snapshots
-2. Add styling for snapshots
-3. Test with recent alerts
-4. Test with real-time alerts
+## ✅ Success Criteria
 
-### Step 4: Testing & Optimization
-1. Test with various video sizes
-2. Monitor snapshot sizes
-3. Optimize image quality/size
-4. Test WebSocket performance
+1. ✅ Frame extraction works for uploaded videos
+2. ✅ Frame numbers match between backend and frontend
+3. ✅ Alert cards display frame snapshots correctly
+4. ✅ No impact on existing functionality
+5. ✅ Handles errors gracefully
+6. ✅ Works with different video formats and frame rates
+7. ✅ Memory usage is reasonable for typical videos
 
-## Testing Checklist
+---
 
-- [ ] Video upload processing includes snapshots in alerts
-- [ ] Snapshots are stored in database
-- [ ] Snapshots appear in recent alerts list
-- [ ] Snapshots appear in real-time alerts
-- [ ] Snapshot images load correctly
-- [ ] Snapshot images are properly sized
-- [ ] WebSocket payload size is acceptable
-- [ ] Database document size is reasonable
-- [ ] Performance is acceptable with snapshots
+## 📦 Files to Create/Modify
 
-## Performance Considerations
+### New Files:
+- `frontend/src/utils/videoFrameExtractor.js` - Frame extraction utility
 
-### Snapshot Size Limits
-- **Recommended**: Max 800x600 pixels, 85% JPEG quality
-- **Expected size**: 50-150KB per snapshot (base64)
-- **Database impact**: ~100KB per alert document
+### Modified Files:
+- `frontend/src/pages/voshan/VideoUpload.jsx` - Add frame extraction
+- `frontend/src/components/voshan/AlertCard.jsx` - Display frame snapshots
+- `frontend/src/components/voshan/AlertCard.css` - Style frame snapshots
 
-### Optimization Options
-1. **Thumbnail + Full Image**: Store thumbnail in alert, fetch full image on demand
-2. **File Storage**: Store images as files, reference in database
-3. **Lazy Loading**: Only load snapshots when alert is viewed
-4. **Compression**: Use WebP format for smaller file sizes
+### Optional (Future):
+- `frontend/src/pages/voshan/AlertHistory.jsx` - Frame support for historical alerts
+- `frontend/src/context/VideoFrameContext.jsx` - Global frame storage (if needed)
 
-## Future Enhancements
+---
 
-1. **Multiple Snapshots**: Store multiple frames for alert timeline
-2. **Video Clips**: Store short video clips instead of single frames
-3. **Annotation Options**: Toggle annotations on/off
-4. **Export**: Download snapshots as images
-5. **Comparison**: Side-by-side comparison of alerts
+## 🚀 Implementation Order
 
-## Estimated Implementation Time
+1. **Create utility** (videoFrameExtractor.js) - Test independently
+2. **Integrate into VideoUpload** - Extract frames when file selected
+3. **Update AlertCard** - Display frames
+4. **Test thoroughly** - Various video formats and lengths
+5. **Optimize if needed** - Memory usage, performance
 
-- **Phase 1 (ML Service)**: 2-3 hours
-- **Phase 2 (Backend)**: 1-2 hours
-- **Phase 3 (Frontend)**: 2-3 hours
-- **Phase 4 (Testing/Optimization)**: 2-3 hours
+---
 
-**Total**: ~8-11 hours
+## 📚 References
 
-## Dependencies
+- HTMLVideoElement API: https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement
+- Canvas API: https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API
+- Video frame extraction: Browser-based video frame extraction techniques
 
-- OpenCV (already installed) - for image encoding
-- Base64 encoding (Python standard library)
-- No new npm packages needed for frontend
+---
 
-## Notes
-
-- The `snapshot` field already exists in the alert model - just needs to be populated
-- Base64 encoding is simple but increases payload size
-- Consider file storage for production (future optimization)
-- WebSocket payload size may need monitoring for real-time alerts
-
+**Status:** Ready for Implementation  
+**Priority:** Medium (Nice-to-have feature)  
+**Estimated Complexity:** Medium  
+**Dependencies:** None (uses browser APIs only)

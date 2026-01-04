@@ -193,6 +193,12 @@
   cursor: pointer;
 }
 
+/* Frame Extraction Status */
+.frame-extraction-status {
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+}
+
 /* Upload Progress */
 .upload-progress {
   margin-top: 1.5rem;

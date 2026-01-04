@@ -6,6 +6,7 @@ import './App.css';
 import DetectionDashboard from './pages/voshan/DetectionDashboard';
 import AlertHistory from './pages/voshan/AlertHistory';
 import VideoUpload from './pages/voshan/VideoUpload';
+import AlertNotification from './components/voshan/AlertNotification';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
             <Link to="/voshan/detection">Detection Dashboard</Link>
             <Link to="/voshan/upload">Upload Video</Link>
             <Link to="/voshan/alerts">Alert History</Link>
+            <AlertNotification />
           </div>
         </nav>
 

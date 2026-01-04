@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const compression = require('compression');
 
 // Load environment variables
 dotenv.config();
@@ -9,6 +10,25 @@ const app = express();
 
 // Middleware
 app.use(cors());
+
+// Enable response compression to reduce response size (helps with large JSON responses)
+// Exclude Socket.IO paths to avoid interfering with WebSocket connections
+app.use(compression({
+  filter: (req, res) => {
+    // Don't compress Socket.IO requests (WebSocket connections)
+    if (req.path && req.path.startsWith('/api/voshan/socket.io')) {
+      return false;
+    }
+    // Compress all responses except if explicitly disabled
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    // Use compression for all other responses
+    return compression.filter(req, res);
+  },
+  level: 6 // Compression level (0-9, 6 is a good balance)
+}));
+
 // Increase body size limits for large video uploads
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ extended: true, limit: '500mb' }));

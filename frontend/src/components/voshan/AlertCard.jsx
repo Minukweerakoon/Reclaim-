@@ -6,7 +6,7 @@
 import React from 'react';
 import './AlertCard.css';
 
-const AlertCard = ({ alert, onViewDetails, onDelete }) => {
+const AlertCard = ({ alert, onViewDetails, onDelete, frameSnapshot }) => {
   const getSeverityColor = (severity) => {
     switch (severity) {
       case 'HIGH':
@@ -73,6 +73,31 @@ const AlertCard = ({ alert, onViewDetails, onDelete }) => {
         </div>
       </div>
       <div className="alert-card-body">
+        {/* Frame Snapshot */}
+        {frameSnapshot ? (
+          <div className="alert-snapshot">
+            <img
+              src={frameSnapshot}
+              alt={`Frame ${alert.frame || 'N/A'} - ${getTypeLabel(alert.type)}`}
+              className="snapshot-image"
+              title={`Frame ${alert.frame || 'N/A'}`}
+              onError={(e) => {
+                console.error('[AlertCard] Frame image failed to load:', {
+                  frameNumber: alert.frame,
+                  frameSnapshotLength: frameSnapshot?.length,
+                  error: e
+                });
+              }}
+            />
+          </div>
+        ) : (
+          // Debug: Show when frame snapshot is not available
+          alert.frame !== undefined && alert.frame !== null && (
+            <div style={{ fontSize: '12px', color: '#999', fontStyle: 'italic', marginBottom: '8px' }}>
+              ⚠️ Frame snapshot not available for frame {alert.frame}
+            </div>
+          )
+        )}
         <div className="alert-info">
           <span className="alert-time">
             🕐 {formatTimestamp(alert.timestamp)}

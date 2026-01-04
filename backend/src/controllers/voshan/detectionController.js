@@ -165,10 +165,13 @@ exports.processVideo = async (req, res) => {
       let errorDetails = result.error || 'Unknown error';
       
       // Check for common connection errors
-      if (result.error?.includes('ECONNREFUSED') || result.error?.includes('connect')) {
+      if (result.error?.includes('ECONNREFUSED') || result.error?.includes('connect') || result.details?.code === 'ECONNREFUSED') {
         errorMessage = 'Cannot connect to ML service';
         errorDetails = 'The Python ML service is not running or not accessible. Please ensure it is running on port 5001.';
-      } else if (result.error?.includes('timeout')) {
+      } else if (result.error?.includes('ECONNRESET') || result.error?.includes('CONNECTION_RESET') || result.details?.code === 'ECONNRESET') {
+        errorMessage = 'Connection was reset by ML service';
+        errorDetails = result.details?.suggestion || 'The ML service connection was reset during processing. This usually happens when using Flask development server for long videos. Please use Gunicorn (production server) instead. Run: cd backend/voshan/ml-service && python run_production.py';
+      } else if (result.error?.includes('timeout') || result.details?.code === 'ETIMEDOUT') {
         errorMessage = 'Request timed out';
         errorDetails = 'The ML service took too long to respond. The video may be too large or the service is overloaded.';
       } else if (result.details?.error) {
@@ -228,7 +231,8 @@ exports.processVideo = async (req, res) => {
         });
 
         await alertDoc.save();
-        savedAlerts.push(alertDoc);
+        // Convert Mongoose document to plain object for JSON response
+        savedAlerts.push(alertDoc.toObject());
 
         // Broadcast alert via WebSocket (non-blocking)
         try {
@@ -275,7 +279,12 @@ exports.processVideo = async (req, res) => {
     console.log(`[${requestId}] Sending success response with:`, {
       totalFrames: responseData.totalFrames,
       totalAlerts: responseData.totalAlerts,
-      savedAlertsCount: savedAlerts.length
+      savedAlertsCount: savedAlerts.length,
+      sampleAlert: savedAlerts.length > 0 ? {
+        frame: savedAlerts[0].frame,
+        type: savedAlerts[0].type,
+        hasFrame: savedAlerts[0].frame !== undefined && savedAlerts[0].frame !== null
+      } : null
     });
 
     // Move from active to completed requests
@@ -286,12 +295,35 @@ exports.processVideo = async (req, res) => {
       resultData: responseData
     });
 
-    res.json({
-      success: true,
-      message: 'Video processed successfully',
-      data: responseData,
-      requestId: requestId // Include request ID so frontend can track it
-    });
+    // Send response with error handling for large responses
+    try {
+      // Check if response headers were already sent (shouldn't happen, but safety check)
+      if (res.headersSent) {
+        console.warn(`[${requestId}] Response headers already sent, cannot send response`);
+        return;
+      }
+
+      // Send response
+      res.json({
+        success: true,
+        message: 'Video processed successfully',
+        data: responseData,
+        requestId: requestId // Include request ID so frontend can track it
+      });
+      
+      console.log(`[${requestId}] Response sent successfully`);
+    } catch (sendError) {
+      console.error(`[${requestId}] Error sending response:`, sendError);
+      // If headers not sent yet, try to send error response
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          message: 'Error sending response',
+          error: sendError.message,
+          requestId: requestId
+        });
+      }
+    }
   } catch (error) {
     console.error(`[${requestId || 'unknown'}] Error in processVideo:`, error);
     console.error('Error stack:', error.stack);
@@ -309,6 +341,13 @@ exports.processVideo = async (req, res) => {
     if (error.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED')) {
       errorMessage = 'Cannot connect to ML service';
       errorDetails = 'The Python ML service is not running or not accessible. Please ensure it is running on port 5001.';
+    } else if (error.code === 'ECONNRESET' || error.message?.includes('ECONNRESET') || error.message?.includes('CONNECTION_RESET')) {
+      errorMessage = 'Connection was reset by ML service';
+      errorDetails = 'The ML service connection was reset. This usually happens when using Flask development server for long videos. Please use Gunicorn (production server) instead. Run: cd backend/voshan/ml-service && python run_production.py';
+    } else if (result?.error?.includes('ECONNRESET') || result?.details?.code === 'ECONNRESET') {
+      // Error from ML service client (mlService.processUploadedVideo)
+      errorMessage = 'Connection was reset by ML service';
+      errorDetails = result.details?.suggestion || 'The ML service connection was reset during processing. Please use Gunicorn (production server) instead of Flask dev server. Run: cd backend/voshan/ml-service && python run_production.py';
     } else if (error.response) {
       // Error from ML service
       errorMessage = error.response.data?.message || errorMessage;
@@ -371,7 +410,8 @@ exports.processFrame = async (req, res) => {
         });
 
         await alertDoc.save();
-        savedAlerts.push(alertDoc);
+        // Convert Mongoose document to plain object for JSON response
+        savedAlerts.push(alertDoc.toObject());
 
         // Broadcast alert via WebSocket
         websocketService.broadcastAlert({

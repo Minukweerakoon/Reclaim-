@@ -88,14 +88,20 @@ class WebSocketService {
       return;
     }
 
+    // Get room sizes for debugging
+    const alertsRoom = this.io.sockets.adapter.rooms.get('alerts');
+    const alertsRoomSize = alertsRoom ? alertsRoom.size : 0;
+
     // Broadcast to all clients subscribed to alerts
     this.io.to('alerts').emit('new-alert', alert);
-    console.log(`📢 Broadcasted alert: ${alert.type} (ID: ${alert.alertId})`);
+    console.log(`📢 Broadcasted alert: ${alert.type} (ID: ${alert.alertId}) to ${alertsRoomSize} client(s) in alerts room`);
 
     // Also broadcast to specific camera room if cameraId exists
     if (alert.cameraId) {
+      const cameraRoom = this.io.sockets.adapter.rooms.get(`camera-${alert.cameraId}`);
+      const cameraRoomSize = cameraRoom ? cameraRoom.size : 0;
       this.io.to(`camera-${alert.cameraId}`).emit('new-alert', alert);
-      console.log(`📹 Broadcasted alert to camera room: ${alert.cameraId}`);
+      console.log(`📹 Broadcasted alert to camera room: ${alert.cameraId} (${cameraRoomSize} client(s))`);
     }
   }
 
