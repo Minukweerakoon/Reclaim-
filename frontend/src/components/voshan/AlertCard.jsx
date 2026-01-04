@@ -3,10 +3,47 @@
  * Displays a single alert in a card format
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import './AlertCard.css';
 
+// List of available placeholder images
+const PLACEHOLDER_IMAGES = [
+  '/assets/placeholder-frame-1.png',
+  '/assets/placeholder-frame-2.png',
+  '/assets/placeholder-frame-3.png',
+  '/assets/placeholder-frame-4.png',
+];
+
+/**
+ * Get a random placeholder image based on alert ID or frame number
+ * This ensures the same alert always gets the same placeholder (deterministic)
+ */
+const getRandomPlaceholder = (alertId, frameNumber) => {
+  // Use alert ID or frame number as seed for consistent selection
+  let seed;
+  if (alertId) {
+    // Convert string ID to number by summing character codes
+    if (typeof alertId === 'string') {
+      seed = alertId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    } else {
+      seed = alertId;
+    }
+  } else if (frameNumber !== undefined && frameNumber !== null) {
+    seed = frameNumber;
+  } else {
+    // Fallback to random if no ID or frame number
+    seed = Math.floor(Math.random() * 1000000);
+  }
+  const index = Math.abs(seed) % PLACEHOLDER_IMAGES.length;
+  return PLACEHOLDER_IMAGES[index];
+};
+
 const AlertCard = ({ alert, onViewDetails, onDelete, frameSnapshot }) => {
+  // Get a consistent random placeholder for this alert
+  const placeholderImage = useMemo(() => {
+    return getRandomPlaceholder(alert._id || alert.alertId, alert.frame);
+  }, [alert._id, alert.alertId, alert.frame]);
+
   const getSeverityColor = (severity) => {
     switch (severity) {
       case 'HIGH':
@@ -87,16 +124,33 @@ const AlertCard = ({ alert, onViewDetails, onDelete, frameSnapshot }) => {
                   frameSnapshotLength: frameSnapshot?.length,
                   error: e
                 });
+                // Fallback to random placeholder on error
+                e.target.src = placeholderImage;
+                e.target.className = 'snapshot-image placeholder-image';
               }}
             />
           </div>
         ) : (
-          // Debug: Show when frame snapshot is not available
-          alert.frame !== undefined && alert.frame !== null && (
-            <div style={{ fontSize: '12px', color: '#999', fontStyle: 'italic', marginBottom: '8px' }}>
-              ⚠️ Frame snapshot not available for frame {alert.frame}
-            </div>
-          )
+          // Show random placeholder image when frame snapshot is not available
+          <div className="alert-snapshot">
+            <img
+              src={placeholderImage}
+              alt={`Placeholder - Frame ${alert.frame || 'N/A'} - ${getTypeLabel(alert.type)}`}
+              className="snapshot-image placeholder-image"
+              title={`Frame snapshot not available for frame ${alert.frame || 'N/A'}`}
+              onError={(e) => {
+                console.error('[AlertCard] Placeholder image failed to load:', {
+                  frameNumber: alert.frame,
+                  placeholderPath: placeholderImage,
+                  error: e
+                });
+                // Try to fallback to first placeholder if current one fails
+                if (e.target.src !== PLACEHOLDER_IMAGES[0]) {
+                  e.target.src = PLACEHOLDER_IMAGES[0];
+                }
+              }}
+            />
+          </div>
         )}
         <div className="alert-info">
           <span className="alert-time">
