@@ -39,7 +39,7 @@ Reclaim addresses these issues through **four novel AI modules**, working togeth
 
 4. **Device Behavior Anomaly Detection, Predictive Risk Analytics & Multilingual IVR Assistance**  
    *Owner: Prevention & User Assistance Module*  
-   Detects abnormal device movement or usage patterns, predicts high-risk zones and time windows, and provides multilingual IVR/SMS reminders to reduce item loss after storage.
+   Detects abnormal device movement or usage patterns, predicts high-risk zones and time windows, and provides multilingual IVR/SMS to remind to collect Items .
 
 Together, these modules form a **holistic, intelligent lost-and-found ecosystem** that focuses on **recovery, prevention, trust, and safety**.
 
