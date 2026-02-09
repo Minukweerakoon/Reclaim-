@@ -674,9 +674,9 @@ class ImageValidator:
             "tv": "electronics",
             
             # Personal Items - Bags & Accessories  
-            "handbag": "wallet",  # Closest match - wallets often detected as handbag
+            "handbag": "wallet",  # Handbags, purses, clutches
             "backpack": "backpack",
-            "suitcase": "luggage",
+            "suitcase": "bag",  # YOLO often detects purses/clutches as suitcase
             "umbrella": "umbrella",
             "tie": "clothing",
             

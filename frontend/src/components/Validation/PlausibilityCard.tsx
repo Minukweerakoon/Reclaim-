@@ -22,6 +22,24 @@ interface PlausibilityCardProps {
 }
 
 export const PlausibilityCard: React.FC<PlausibilityCardProps> = ({ result, loading }) => {
+    const [loadingMessage, setLoadingMessage] = React.useState('Analyzing plausibility...');
+
+    React.useEffect(() => {
+        if (!loading) return;
+        const messages = [
+            'Analyzing spatial patterns...',
+            'Verifying location probability...',
+            'Checking time consistency...',
+            'Comparing with learned habits...'
+        ];
+        let i = 0;
+        const interval = setInterval(() => {
+            setLoadingMessage(messages[i]);
+            i = (i + 1) % messages.length;
+        }, 1200);
+        return () => clearInterval(interval);
+    }, [loading]);
+
     if (loading) {
         return (
             <div className="plausibility-card plausibility-loading">
@@ -29,7 +47,10 @@ export const PlausibilityCard: React.FC<PlausibilityCardProps> = ({ result, load
                     <span className="plausibility-icon">🧠</span>
                     <span className="plausibility-title">Spatial-Temporal Analysis</span>
                 </div>
-                <div className="plausibility-loading-text">Analyzing plausibility...</div>
+                <div className="plausibility-loading-text">
+                    <span className="loading-spinner"></span>
+                    {loadingMessage}
+                </div>
             </div>
         );
     }

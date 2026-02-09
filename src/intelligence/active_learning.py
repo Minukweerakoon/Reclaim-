@@ -42,13 +42,13 @@ class ActiveLearningSystem:
         # Feedback storage path
         self.feedback_file = Path("data/active_learning_feedback.json")
         self.feedback_file.parent.mkdir(exist_ok=True)
-        
-        # Load existing feedback
-        self._load_feedback()
-        
+
         # Statistics
         self.total_corrections = 0
         self.accepted_corrections = 0
+        
+        # Load existing feedback
+        self._load_feedback()
     
     def _load_feedback(self):
         """Load previously stored feedback."""
@@ -180,23 +180,32 @@ class ActiveLearningSystem:
         """
         Update knowledge graph probabilities based on user corrections.
         
-        This is a simple approach - in production, you'd use more sophisticated methods.
+        This is a simple approach: treat corrections as validated observations and
+        record them via the knowledge-graph interface when available.
         """
         corrections_applied = 0
         
         for entry in self.feedback_buffer:
             if entry.get('type') == 'correction':
                 correction = entry.get('correction', {})
-                item = correction.get('item')
+                item = correction.get('item') or correction.get('item_type')
                 location = correction.get('location')
+                time_of_day = correction.get('time')
                 
                 if item and location:
-                    # Boost probability for corrected item-location pair
-                    current_prob = knowledge_graph.p_item_location[item][location]
-                    boosted_prob = min(1.0, current_prob + 0.1)  # Increase by 10%
-                    knowledge_graph.p_item_location[item][location] = boosted_prob
-                    
-                    corrections_applied += 1
+                    try:
+                        if hasattr(knowledge_graph, "record_item_context"):
+                            knowledge_graph.record_item_context(
+                                item_type=item,
+                                location=location,
+                                time_of_day=time_of_day,
+                                validated=True,
+                            )
+                        elif hasattr(knowledge_graph, "add_item_event"):
+                            knowledge_graph.add_item_event(item, location)
+                        corrections_applied += 1
+                    except Exception as e:
+                        logger.warning(f"Failed to apply correction to knowledge graph: {e}")
         
         logger.info(f"Applied {corrections_applied} corrections to knowledge graph")
         return corrections_applied

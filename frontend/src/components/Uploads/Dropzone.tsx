@@ -71,14 +71,23 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
         onDrop={handleDrop}
       >
         {preview ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            background: 'var(--surface-color)',
+            padding: '0.5rem 0.75rem',
+            borderRadius: '8px',
+            border: '1px solid var(--border-color)',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+          }}>
             <img
               src={preview}
               alt="Preview"
               className="dropzone-preview dropzone-preview--thumbnail"
             />
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              ✓ Image uploaded
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 500 }}>
+              ✓ Photo attached
             </span>
           </div>
         ) : (

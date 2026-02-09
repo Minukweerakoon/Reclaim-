@@ -18,6 +18,7 @@ import json
 from pathlib import Path
 from tqdm import tqdm
 import numpy as np
+import random
 from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -54,9 +55,11 @@ class LostFoundDataset(Dataset):
                 continue
             
             # Get all images
-            image_files = list(category_dir.glob("*.jpg")) + \
-                         list(category_dir.glob("*.jpeg")) + \
-                         list(category_dir.glob("*.png"))
+            image_files = sorted(
+                list(category_dir.glob("*.jpg")) +
+                list(category_dir.glob("*.jpeg")) +
+                list(category_dir.glob("*.png"))
+            )
             
             # Create train/val/test split (70/15/15)
             n_images = len(image_files)
@@ -102,7 +105,13 @@ class LostFoundDataset(Dataset):
         
         return image, sample['label'], sample['path']
 
-def create_data_loaders(data_dir='Balanced_Dataset', batch_size=32):
+def _seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
+def create_data_loaders(data_dir='Balanced_Dataset', batch_size=32, seed: int = 42):
     """Create train/val/test data loaders with augmentation."""
     
     # Image processor for ViT
@@ -131,9 +140,32 @@ def create_data_loaders(data_dir='Balanced_Dataset', batch_size=32):
     test_dataset = LostFoundDataset(data_dir, split='test', transform=eval_transform)
     
     # Create dataloaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+    generator = torch.Generator()
+    generator.manual_seed(seed)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=4,
+        worker_init_fn=_seed_worker,
+        generator=generator
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=4,
+        worker_init_fn=_seed_worker,
+        generator=generator
+    )
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=4,
+        worker_init_fn=_seed_worker,
+        generator=generator
+    )
     
     print(f"Train samples: {len(train_dataset):,}")
     print(f"Validation samples: {len(val_dataset):,}")
@@ -141,7 +173,18 @@ def create_data_loaders(data_dir='Balanced_Dataset', batch_size=32):
     
     return train_loader, val_loader, test_loader
 
-def train_model(num_epochs=10, learning_rate=2e-5):
+def set_seed(seed: int = 42):
+    """Set random seeds for reproducible training runs."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
+def train_model(num_epochs=10, learning_rate=2e-5, seed: int = 42):
     """Train Vision Transformer on 44K images."""
     
     print("="*80)
@@ -149,18 +192,18 @@ def train_model(num_epochs=10, learning_rate=2e-5):
     print("="*80)
     print()
     
-    # Setup device
+    # Setup device and seeds
+    set_seed(seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
+    print(f"Using seed: {seed}")
     
     if device.type == 'cuda':
         print(f"✓ GPU detected: {torch.cuda.get_device_name(0)}")
         print(f"  GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
         print(f"  CUDA Version: {torch.version.cuda}")
         
-        # Enable GPU optimizations
-        torch.backends.cudnn.benchmark = True
-        print("✓ GPU optimizations enabled")
+        print("✓ Deterministic mode enabled for reproducibility")
     else:
         print("⚠️  WARNING: No GPU detected! Training will be VERY SLOW.")
         print("   Make sure CUDA is installed and GPU drivers are up to date.")
@@ -184,7 +227,7 @@ def train_model(num_epochs=10, learning_rate=2e-5):
     
     # Create data loaders
     print("\nPreparing datasets...")
-    train_loader, val_loader, test_loader = create_data_loaders(batch_size=32)
+    train_loader, val_loader, test_loader = create_data_loaders(batch_size=32, seed=seed)
     
     # Optimizer and loss
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
@@ -340,7 +383,7 @@ if __name__ == "__main__":
     model, history = train_model(num_epochs=10, learning_rate=2e-5)
     
     # Evaluate
-    _, _, test_loader = create_data_loaders()
+    _, _, test_loader = create_data_loaders(seed=42)
     test_accuracy = evaluate_model(model, test_loader)
     
     print("\n" + "="*80)

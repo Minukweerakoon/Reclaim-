@@ -70,7 +70,6 @@ class LLMClient:
             
         # DEBUG LOGGING
         masked_key = f"{self.api_key[:4]}...{self.api_key[-4:]}" if self.api_key else "None"
-        print(f"DEBUG: LLMClient Initialized. Provider: {self.provider}, Key: {masked_key}")
         logger.info(f"LLMClient Initialized. Provider: {self.provider}, Key: {masked_key}")
 
     def guide_conversation(self, user_message: str, conversation_history: List[Dict] = None) -> Dict:

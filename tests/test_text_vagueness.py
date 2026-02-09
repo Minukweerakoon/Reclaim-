@@ -1,4 +1,4 @@
-from text_validator import TextValidator
+from src.text.validator import TextValidator
 
 
 def test_vagueness_specific():

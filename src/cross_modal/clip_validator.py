@@ -41,14 +41,14 @@ class CLIPValidator:
 
     
     def __init__(self, 
-                 similarity_threshold: float = 0.85,
+                 similarity_threshold: float = 0.60,  # Lowered to 60% for real-world casual photos
                  model_name: str = 'ViT-B/32',
                  enable_gpu: bool = True,
                  enable_logging: bool = True):
         """Initialize the CLIPValidator with configurable parameters.
         
         Args:
-            similarity_threshold: Threshold for cosine similarity (default: 0.85)
+            similarity_threshold: Threshold for cosine similarity (default: 0.70, lowered for Lost & Found)
             model_name: CLIP model variant to use (default: 'ViT-B/32')
             enable_gpu: Whether to use GPU acceleration if available (default: True)
             cache_size: Size of the embedding cache (default: 100)

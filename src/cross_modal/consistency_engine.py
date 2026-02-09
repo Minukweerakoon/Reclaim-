@@ -21,6 +21,13 @@ except ImportError as e:
     logging.warning(f"Failed to import XAIExplainer: {e}")
     XAIExplainer = None
 
+# Import Confidence Calibrator (Research Enhancement)
+try:
+    from src.intelligence.confidence_calibration import ConfidenceCalibrator
+except ImportError as e:
+    logging.warning(f"Failed to import ConfidenceCalibrator: {e}")
+    ConfidenceCalibrator = None
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -37,39 +44,83 @@ class ConsistencyEngine:
         self.clip_validator = CLIPValidator()
         self.sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
         self.text_similarity_threshold = 0.75
-        
+
         # Initialize Cross-Attention Fusion (Heuristic Mode)
         self.fusion_model = None
         if CrossAttentionFusion:
             try:
                 self.fusion_model = CrossAttentionFusion()
-                self.fusion_model.eval() # Inference mode
+                self.fusion_model.eval()
                 logger.info("Cross-Attention Fusion model initialized")
             except Exception as e:
                 logger.warning(f"Failed to initialize Fusion model: {e}")
                 self.fusion_model = None
         else:
             logger.warning("CrossAttentionFusion not available (import failed)")
-            
-        # Initialize XAI Explainer (always set attribute)
-        self.xai_explainer = None  # Default to None
-        print(f"DEBUG: Initializing ConsistencyEngine. XAIExplainer class is: {XAIExplainer}")
+
+        # Initialize XAI Explainer
+        self.xai_explainer = None
         if XAIExplainer:
             try:
                 self.xai_explainer = XAIExplainer()
-                print(f"DEBUG: XAI Explainer initialized successfully: {self.xai_explainer}")
                 logger.info("XAI Explainer initialized successfully")
             except Exception as e:
-                print(f"DEBUG: Failed to initialize XAI Explainer: {e}")
                 logger.warning(f"Failed to initialize XAI Explainer: {e}")
                 self.xai_explainer = None
         else:
-            print("DEBUG: XAI Explainer not available (class is None)")
             logger.warning("XAI Explainer not available (import failed)")
-            
+
+        # Initialize Confidence Calibrator (Research Enhancement)
+        self.confidence_calibrator = None
+        self._calibrator_fitted = False
+        if ConfidenceCalibrator:
+            try:
+                self.confidence_calibrator = ConfidenceCalibrator(method="isotonic")
+                logger.info("Confidence Calibrator initialized (unfitted)")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Confidence Calibrator: {e}")
+                self.confidence_calibrator = None
+        else:
+            logger.warning("Confidence Calibrator not available (import failed)")
+
+
         self.location_keywords = [
-            "library", "cafeteria", "classroom", "lab", "gym", "parking", 
-            "auditorium", "office", "hallway", "restroom", "entrance", "exit"
+            "library",
+            "cafeteria",
+            "classroom",
+            "lab",
+            "gym",
+            "parking",
+            "auditorium",
+            "office",
+            "hallway",
+            "restroom",
+            "entrance",
+            "exit",
+            "bus stop",
+            "hostel",
+        ]
+        self.temporal_keywords = [
+            "morning",
+            "afternoon",
+            "evening",
+            "night",
+            "noon",
+            "midnight",
+            "today",
+            "yesterday",
+            "last night",
+            "last week",
+            "weekend",
+            "8 am",
+            "9 am",
+            "10 am",
+            "11 am",
+            "12 pm",
+            "1 pm",
+            "2 pm",
+            "3 pm",
+            "4 pm",
         ]
     
     # ------------------------------------------------------------------ #
@@ -150,49 +201,6 @@ class ConsistencyEngine:
             "description": "Standard thresholds for unspecified items"
         }
     }
-    
-    def __init__(self, enable_logging: bool = True):
-        """Initialize the ConsistencyEngine."""
-        self.enable_logging = enable_logging
-        self.clip_validator = CLIPValidator()
-        self.sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
-        self.text_similarity_threshold = 0.75
-        self.location_keywords = [
-            "library",
-            "cafeteria",
-            "classroom",
-            "parking",
-            "gym",
-            "auditorium",
-            "lab",
-            "office",
-            "hallway",
-            "entrance",
-            "bus stop",
-            "hostel",
-        ]
-        self.temporal_keywords = [
-            "morning",
-            "afternoon",
-            "evening",
-            "night",
-            "noon",
-            "midnight",
-            "today",
-            "yesterday",
-            "last night",
-            "last week",
-            "weekend",
-            "8 am",
-            "9 am",
-            "10 am",
-            "11 am",
-            "12 pm",
-            "1 pm",
-            "2 pm",
-            "3 pm",
-            "4 pm",
-        ]
         
     def validate_voice_text_consistency(self, 
                                        voice_transcription: str, 
@@ -419,19 +427,24 @@ class ConsistencyEngine:
         individual_scores = {}
         cross_modal_scores = {}
         
+        def _normalize_score(value: float) -> float:
+            if value is None:
+                return 0.0
+            return value / 100.0 if value > 1.0 else value
+
         # Collect individual scores
         if image_result and image_result.get("valid"):
-            individual_scores["image"] = image_result.get("overall_score", 0.0)
+            individual_scores["image"] = _normalize_score(image_result.get("overall_score", 0.0))
         else:
             individual_scores["image"] = 0.0
 
         if text_result and text_result.get("valid"):
-            individual_scores["text"] = text_result.get("overall_score", 0.0)
+            individual_scores["text"] = _normalize_score(text_result.get("overall_score", 0.0))
         else:
             individual_scores["text"] = 0.0
 
         if voice_result and voice_result.get("valid"):
-            individual_scores["voice"] = voice_result.get("overall_score", 0.0)
+            individual_scores["voice"] = _normalize_score(voice_result.get("overall_score", 0.0))
         else:
             individual_scores["voice"] = 0.0
 
@@ -497,22 +510,36 @@ class ConsistencyEngine:
             
         overall_confidence += voice_text_component * active_weights["voice_text"]
 
-        # Determine routing and action
+        overall_confidence = max(0.0, min(1.0, overall_confidence))
+
+        # Apply calibration if available (Research Enhancement)
+        calibrated_confidence = overall_confidence
+        calibration_applied = False
+        if self.confidence_calibrator and self._calibrator_fitted:
+            try:
+                calibrated_confidence = self.confidence_calibrator.calibrate(overall_confidence)
+                calibration_applied = True
+            except Exception as e:
+                logger.warning(f"Calibration failed, using raw confidence: {e}")
+
+        # Determine routing and action based on CALIBRATED confidence
         routing = "low_quality"
         action = "return_for_improvement"
-        if overall_confidence >= 0.85:
+        if calibrated_confidence >= 0.85:
             routing = "high_quality"
             action = "forward_to_matching"
-        elif overall_confidence >= 0.70:
+        elif calibrated_confidence >= 0.70:
             routing = "medium_quality"
             action = "manual_review"
 
         return {
-            "overall_confidence": round(overall_confidence, 2),
+            "overall_confidence": round(calibrated_confidence, 2),
+            "raw_confidence": round(overall_confidence, 2),
+            "calibration_applied": calibration_applied,
             "routing": routing,
             "action": action,
-            "individual_scores": individual_scores,
-            "cross_modal_scores": cross_modal_scores,
+            "individual_scores": {k: round(v, 3) for k, v in individual_scores.items()},
+            "cross_modal_scores": {k: round(v, 3) for k, v in cross_modal_scores.items()},
             "active_weights": active_weights # Return weights for transparency
         }
     
@@ -766,3 +793,113 @@ class ConsistencyEngine:
                 )
         
         return suggestions
+
+    # ------------------------------------------------------------------ #
+    # Calibration Methods (Research Enhancement)
+    # ------------------------------------------------------------------ #
+    def train_calibrator(self, confidences: list, outcomes: list, method: str = "isotonic") -> bool:
+        """
+        Train the confidence calibrator on collected data.
+        
+        Args:
+            confidences: List of predicted confidence scores
+            outcomes: List of binary outcomes (1=correct, 0=incorrect)
+            method: Calibration method ('temperature', 'isotonic', 'platt')
+        
+        Returns:
+            True if training succeeded
+        
+        Example:
+            # Collect from validation history
+            confidences = [0.85, 0.92, 0.67, 0.78, ...]
+            outcomes = [1, 1, 0, 1, ...]  # 1=correct prediction, 0=wrong
+            engine.train_calibrator(confidences, outcomes)
+        """
+        if not ConfidenceCalibrator:
+            logger.error("ConfidenceCalibrator not available")
+            return False
+        
+        try:
+            import numpy as np
+            conf_array = np.array(confidences)
+            out_array = np.array(outcomes)
+            
+            if len(conf_array) < 30:
+                logger.warning(f"Only {len(conf_array)} samples, need 30+ for reliable calibration")
+            
+            self.confidence_calibrator = ConfidenceCalibrator(method=method)
+            self.confidence_calibrator.fit(conf_array, out_array)
+            self._calibrator_fitted = True
+            
+            # Log calibration improvement
+            metrics = self.confidence_calibrator.evaluate(conf_array, out_array)
+            logger.info(f"Calibrator trained: ECE = {metrics.ece:.4f}")
+            
+            return True
+        except Exception as e:
+            logger.error(f"Failed to train calibrator: {e}")
+            return False
+    
+    def load_calibrator(self, path: str = "models/calibrator_isotonic.pkl") -> bool:
+        """
+        Load a pre-trained calibrator from disk.
+        
+        Args:
+            path: Path to saved calibrator file
+        
+        Returns:
+            True if loading succeeded
+        """
+        if not ConfidenceCalibrator:
+            logger.error("ConfidenceCalibrator not available")
+            return False
+        
+        try:
+            self.confidence_calibrator = ConfidenceCalibrator.load(path)
+            self._calibrator_fitted = self.confidence_calibrator.is_fitted
+            logger.info(f"Calibrator loaded from {path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load calibrator: {e}")
+            return False
+    
+    def save_calibrator(self, path: str = "models/calibrator_isotonic.pkl") -> bool:
+        """
+        Save the trained calibrator to disk.
+        
+        Args:
+            path: Path to save calibrator
+        
+        Returns:
+            True if saving succeeded
+        """
+        if not self.confidence_calibrator or not self._calibrator_fitted:
+            logger.error("No fitted calibrator to save")
+            return False
+        
+        try:
+            self.confidence_calibrator.save(path)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save calibrator: {e}")
+            return False
+    
+    def get_calibration_stats(self) -> Dict[str, Any]:
+        """
+        Get calibration statistics.
+        
+        Returns:
+            Dict with calibration info or empty if not calibrated
+        """
+        if not self.confidence_calibrator or not self._calibrator_fitted:
+            return {
+                "calibrated": False,
+                "message": "Calibrator not trained"
+            }
+        
+        return {
+            "calibrated": True,
+            "method": self.confidence_calibrator.method,
+            "history": self.confidence_calibrator.calibration_history,
+        }
+

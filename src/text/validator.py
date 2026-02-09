@@ -124,6 +124,9 @@ class TextValidator:
             self.brands['si'] = self.brands.get('en', [])
             self.brands['ta'] = self.brands.get('en', [])
 
+            # Also update the class-level keyword maps if they are used as fallbacks
+            # (Though in this implementation, the class attributes are separate from instance attributes)
+
         # Initialize LLM Client
         self.llm_client = get_llm_client()
         
@@ -434,12 +437,17 @@ class TextValidator:
 
     ITEM_KEYWORDS = {
         'phone': ['phone', 'mobile', 'iphone', 'samsung', 'smartphone', 'cell'],
-        'bag': ['bag', 'backpack', 'purse', 'wallet', 'handbag'],
-        'electronics': ['laptop', 'tablet', 'ipad', 'watch', 'airpods', 'headphones'],
-        'accessories': ['keys', 'glasses', 'sunglasses', 'umbrella']
+        'bag': ['bag', 'backpack', 'purse', 'wallet', 'handbag', 'briefcase', 'suitcase'],
+        'electronics': ['laptop', 'tablet', 'ipad', 'watch', 'airpods', 'headphones', 'earbuds', 'camera', 'kindle'],
+        'accessories': ['keys', 'key', 'car key', 'fob', 'glasses', 'sunglasses', 'umbrella', 'hat', 'scarf', 'glove', 'gloves', 'ring', 'necklace'],
+        'documents': ['id', 'passport', 'license', 'card', 'folder', 'notebook']
     }
-    COLOR_KEYWORDS = ['red', 'blue', 'black', 'white', 'green', 'yellow', 'brown', 'gray', 'pink', 'purple', 'orange']
-    BRAND_KEYWORDS = ['iphone', 'samsung', 'apple', 'google', 'huawei', 'xiaomi', 'nike', 'adidas', 'gucci', 'louis vuitton', 'prada']
+    COLOR_KEYWORDS = ['red', 'blue', 'black', 'white', 'green', 'yellow', 'brown', 'gray', 'pink', 'purple', 'orange', 'silver', 'gold', 'beige', 'maroon', 'navy']
+    BRAND_KEYWORDS = [
+        'iphone', 'samsung', 'apple', 'google', 'huawei', 'xiaomi', 'nike', 'adidas', 'gucci', 'louis vuitton', 'prada',
+        'sony', 'dell', 'hp', 'lenovo', 'asus', 'acer', 'microsoft', 'nintendo', 'canon', 'nikon',
+        'toyota', 'honda', 'nissan', 'suzuki', 'mazda', 'bmw', 'mercedes', 'benz', 'audi', 'ford', 'tesla'
+    ]
     LOCATION_KEYWORDS = [
         'library',
         'cafeteria',
@@ -452,8 +460,19 @@ class TextValidator:
         'gate',
         'station',
         'building',
+        'lab',
+        'laboratory',
+        'auditorium',
+        'corridor',
+        'lobby',
+        'entrance',
+        'exit',
+        'restroom',
+        'bathroom',
+        'toilet',
+        'reception'
     ]
-    TIME_KEYWORDS = ['yesterday', 'today', 'morning', 'afternoon', 'evening', 'night', 'ago', 'last', 'monday', 'tuesday']
+    TIME_KEYWORDS = ['yesterday', 'today', 'morning', 'afternoon', 'evening', 'night', 'ago', 'last', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'am', 'pm', 'o\'clock']
 
     def check_completeness(
         self,

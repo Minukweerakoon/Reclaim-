@@ -121,7 +121,7 @@ def test_summary_message(explainer):
     
     message = explainer.get_summary_message(explanation)
     
-    assert "❌" in message
+    assert "ERROR" in message
     assert "Object mismatch" in message
 
 if __name__ == "__main__":

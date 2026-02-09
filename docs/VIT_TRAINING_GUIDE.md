@@ -16,8 +16,12 @@ pip install torch torchvision transformers scikit-learn seaborn tqdm
 
 ### 2. Train Model
 ```bash
-python train_vit_classifier.py
+python training/train_vit_classifier.py
 ```
+
+Reproducibility:
+- The training script sets deterministic seeds and sorts files for stable splits.
+- Keep the seed, dependency versions, and GPU type consistent for comparable results.
 
 **What happens:**
 - Loads 30,800 training images
@@ -29,7 +33,7 @@ python train_vit_classifier.py
 - GPU: ~4-6 hours
 - CPU: ~24-36 hours (NOT recommended)
 
-**Expected accuracy:** 98%+ (beating LostNet's 96.8%)
+**Expected accuracy:** depends on data quality and training setup; report your measured results.
 
 ### 3. Use Trained Model
 ```python
@@ -109,7 +113,7 @@ else:
 
 ---
 
-## 💡 Research Benefits
+## Research Benefits
 
 ### Novel Contribution #3:
 - **Largest lost-and-found image classifier**
@@ -123,7 +127,7 @@ else:
 
 ---
 
-## ⚠️ Important Notes
+## Important Notes
 
 ### If No GPU:
 Use Google Colab (free GPU):
@@ -139,11 +143,11 @@ Use Google Colab (free GPU):
 
 ---
 
-## ✅ Success Criteria
+## Success Criteria
 
 After training, you should see:
-- ✅ Test accuracy > 96.8% (beats LostNet)
-- ✅ Low confusion between categories
-- ✅ Model file saved successfully
+- Report test accuracy, confusion matrix, and per-class metrics.
+- Keep the same seed and dependency versions for reproducibility.
+- Ensure model file saved successfully.
 
 Then your YOLOv8 problem is **SOLVED**! 🎉

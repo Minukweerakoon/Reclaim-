@@ -210,6 +210,8 @@ class SpatialTemporalValidator:
         "ipad": "tablet", "headset": "headphones", "airpods": "headphones", "earbuds": "headphones",
         "wireless headphones": "headphones", "bluetooth headset": "headphones",
         "earphones": "headphones", "smartwatch": "watch", "apple watch": "watch",
+        # Accesssories
+        "key": "keys", "car key": "keys", "house key": "keys", "fob": "keys",
         # Bags
         "purse": "bag", "handbag": "bag", "suitcase": "bag", "luggage": "bag",
         "tote": "bag", "messenger bag": "bag", "duffel": "bag",
@@ -348,15 +350,18 @@ class SpatialTemporalValidator:
         # Try to parse time (e.g., "9am", "14:30", "2pm")
         try:
             import re
-            # Match patterns like "9am", "2pm", "14:30"
-            hour_match = re.search(r'(\d{1,2})\s*(am|pm|:\d{2})?', time_lower)
+            # Match patterns like "9am", "2pm", "4 p.m.", "14:30"
+            hour_match = re.search(r'(\d{1,2})\s*([ap]\.?m\.?|:\d{2})?', time_lower)
             if hour_match:
                 hour = int(hour_match.group(1))
-                ampm = hour_match.group(2)
+                raw_ampm = hour_match.group(2)
                 
-                if ampm and 'pm' in ampm.lower() and hour < 12:
+                # Normalize am/pm (remove dots)
+                ampm = raw_ampm.replace('.', '').lower() if raw_ampm else None
+                
+                if ampm and 'pm' in ampm and hour < 12:
                     hour += 12
-                elif ampm and 'am' in ampm.lower() and hour == 12:
+                elif ampm and 'am' in ampm and hour == 12:
                     hour = 0
                 
                 # Map hour to period
@@ -520,26 +525,42 @@ class SpatialTemporalValidator:
     ) -> str:
         """Generate human-readable explanation for the plausibility score."""
         
+        if item == "unknown":
+            return "⚠️ Could not identify the item type to verify plausibility."
+            
+        if location == "unknown":
+            return "⚠️ Could not identify the location to verify plausibility."
+
         item_display = item.replace("_", " ").title()
         location_display = location.replace("_", " ").title()
         time_display = time.replace("_", " ").title()
         
+        # Proper pluralization helper
+        def pluralize(word: str) -> str:
+            word = word.replace("_", " ").title()
+            if word.lower().endswith("y") and word.lower() not in ["key", "boy", "day", "guy", "toy"]:
+                return word[:-1] + "ies"
+            return word + "s"
+
+        item_plural = pluralize(item)
+        location_plural = pluralize(location)
+
         time_part = f"during {time_display} hours" if time != "unspecified" else "at an unspecified time"
         if time == "unspecified":
             time_part = "(time not specified)"
         
         if score >= 0.80:
             return (
-                f"✅ Very plausible! {item_display}s are commonly found in {location_display}s."
+                f"✅ Very plausible! {item_plural} are commonly found in {location_plural}."
                 + (f" The {time_display} timing matches patterns." if time != "unspecified" else "")
             )
         elif score >= 0.60:
             return (
-                f"✅ Plausible. {item_display}s are sometimes found in {location_display}s."
+                f"✅ Plausible. {item_plural} are sometimes found in {location_plural}."
             )
         elif score >= 0.40:
             return (
-                f"⚠️ Somewhat unusual. {item_display}s are not commonly found in {location_display}s, "
+                f"⚠️ Somewhat unusual. {item_plural} are not commonly found in {location_plural}, "
                 f"but it's still possible."
             )
         elif score >= 0.20:

@@ -342,9 +342,8 @@ class XAIExplainer:
         Generate a user-friendly summary message.
         """
         if not explanation_result.get("has_discrepancy"):
-            return "✓ All inputs are consistent."
+            return "OK: All inputs are consistent."
             
         severity = explanation_result.get("severity", "low")
-        emoji = "⚠️" if severity == "medium" else "❌" if severity == "high" else "ℹ️"
-        
-        return f"{emoji} {explanation_result.get('explanation', 'Discrepancy detected.')}"
+        level = "WARN" if severity == "medium" else "ERROR" if severity == "high" else "INFO"
+        return f"{level}: {explanation_result.get('explanation', 'Discrepancy detected.')}"

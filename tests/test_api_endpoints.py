@@ -18,7 +18,7 @@ def client():
 @pytest.fixture
 def api_key():
     """API key for authentication."""
-    return "test_api_key_12345"
+    return "test-api-key"
 
 
 @pytest.fixture

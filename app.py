@@ -127,9 +127,8 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# API Key security scheme
-API_KEY_NAME = "X-API-Key"
-api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+# API key dependency shared across routers/endpoints
+from src.api.auth import API_KEY_NAME, api_key_header, get_api_key
 
 # Rate limiting settings
 RATE_LIMIT_WINDOW = 60  # seconds
@@ -286,21 +285,6 @@ async def startup_event():
 
 # Background tasks in progress
 background_tasks_progress = {}
-
-# API Key validation
-def get_api_key(api_key_header: str = Depends(api_key_header)):
-    """
-    Validate API key from header. In a production environment, this would
-    check against a database of valid API keys.
-    """
-    # For demo purposes, we're using a hardcoded API key
-    # In production, use a secure database or service for API key validation
-    if api_key_header == "test-api-key":
-        return api_key_header
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid API Key",
-    )
 
 # Rate limiting middleware
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -1145,7 +1129,6 @@ async def generate_attention_heatmap(
     """
     try:
         from src.cross_modal.attention_visualizer import get_attention_visualizer
-        from src.image.clip_validator import get_clip_validator
         
         # Validate and save image
         if not validate_file_type(image_file, ALLOWED_IMAGE_TYPES):
@@ -1167,17 +1150,20 @@ async def generate_attention_heatmap(
         
         # Generate attention map
         visualizer = get_attention_visualizer()
-        result = visualizer.generate_attention_map(
-            image_path=image_path,
-            text=text,
-            clip_model=clip_validator.model
+        result = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: visualizer.generate_attention_map(
+                image_path=image_path,
+                text=text,
+                clip_model=clip_validator
+            )
         )
-        
-        # Convert file path to URL if heatmap generated
-        if result.get("heatmap_path"):
-            heatmap_filename = os.path.basename(result["heatmap_path"])
-            result["heatmap_url"] = f"/uploads/heatmaps/{heatmap_filename}"
-            background_tasks.add_task(cleanup_file, result["heatmap_path"])
+
+        if "error" in result:
+            return AttentionMapResponse(
+                explanation=f"Attention analysis failed: {result['error']}",
+                error=result["error"]
+            )
         
         logger.info(f"Attention heatmap generated for: '{text[:50]}...'")
         
@@ -1470,10 +1456,10 @@ async def validate_image(
             "voice": None, # Not directly validated in this endpoint
             "cross_modal": {"image_text": clip_image_text_result} if clip_image_text_result else {},
             "confidence": {
-                "overall_confidence": image_result["overall_score"],
+                "overall_confidence": round(image_result["overall_score"] / 100.0, 3),
                 "routing": "high_quality" if image_result["valid"] else "low_quality",
                 "action": "forward_to_matching" if image_result["valid"] else "return_for_improvement",
-                "individual_scores": {"image": image_result["overall_score"]},
+                "individual_scores": {"image": round(image_result["overall_score"] / 100.0, 3)},
                 "cross_modal_scores": {"clip_similarity": clip_image_text_result["similarity"]} if clip_image_text_result else {}
             },
             "feedback": {
@@ -1485,7 +1471,11 @@ async def validate_image(
         
         # Update metrics
         if image_result["valid"]:
-            metrics_collector.record_validation_result("image", image_result["overall_score"], "high_quality")
+            metrics_collector.record_validation_result(
+                "image",
+                round(image_result["overall_score"] / 100.0, 3),
+                "high_quality"
+            )
         else:
             metrics_collector.record_validation_failure("image", "invalid")
         
@@ -1504,6 +1494,7 @@ async def validate_image(
 @app.post("/validate/complete", response_model=ValidationResponse)
 async def validate_complete(
     text: Optional[str] = Form(None),
+    visualText: Optional[str] = Form(None),  # Visual-only text for CLIP (item+color+brand)
     image_file: Optional[UploadFile] = File(None),
     audio_file: Optional[UploadFile] = File(None),
     language: str = Form("en"),
@@ -1612,7 +1603,10 @@ async def validate_complete(
         if image_path and text:
             cv = get_clip_validator()
             if cv is not None:
-                clip_image_text_result = cached()(cv.validate_image_text_alignment)(image_path, text)
+                # Use visualText for CLIP if available (visual attributes only), else use full text
+                clip_text = visualText if visualText else text
+                logger.info(f"[CLIP] Using text for validation: '{clip_text}' (visual_only={bool(visualText)})")
+                clip_image_text_result = cached()(cv.validate_image_text_alignment)(image_path, clip_text)
             cross_modal_results["image_text"] = clip_image_text_result
         
         if voice_result and text_result:
@@ -1642,10 +1636,11 @@ async def validate_complete(
                 logger.info(f"[XAI DEBUG] Image OCR: {image_result.get('ocr_text', 'N/A')[:100] if image_result else 'No image'}")
                 logger.info(f"[XAI DEBUG] Text entities: {text_result.get('entities', {}) if text_result else {}}")
                 
-                brand_check = check_brand_mismatch(image_result, text_result) if image_result and text_result else {"has_mismatch": False}
+                brand_check = check_brand_mismatch(image_result, text_result, image_path) if image_result and text_result else {"has_mismatch": False}
                 logger.info(f"[XAI DEBUG] Brand check: {brand_check}")
                 
-                color_check = check_color_mismatch(image_result, text_result) if image_result and text_result else {"has_mismatch": False}
+                # Pass cross_modal data to color check (contains CLIP mismatch detection)
+                color_check = check_color_mismatch(image_result, text_result, cross_modal_results) if image_result and text_result else {"has_mismatch": False}
                 logger.info(f"[XAI DEBUG] Color check: {color_check}")
                 
                 cond_check = check_condition_mismatch(image_result, text_result) if image_result and text_result else {"has_mismatch": False}
@@ -2159,191 +2154,6 @@ try:
         app.mount("/static", StaticFiles(directory="static"), name="static")
 except Exception as _e:
     logger.warning(f"Static mount skipped: {_e}")
-
-# ------------------------------------------------------------------ #
-# Active Learning Feedback Endpoint
-# ------------------------------------------------------------------ #
-
-# ------------------------------------------------------------------ #
-# Active Learning Feedback Endpoint
-# ------------------------------------------------------------------ #
-class FeedbackRequest(BaseModel):
-    request_id: str
-    modality: str
-    predicted_label: Optional[str] = None
-    user_correction: Optional[str] = None
-    is_correct: bool
-    comments: Optional[str] = None
-
-@app.post("/feedback")
-async def submit_feedback(feedback: FeedbackRequest, x_api_key: str = Header(None)):
-    """
-    Submit user feedback for Active Learning.
-    Stores corrections for low-confidence predictions to improve future models.
-    """
-    # Verify API Key
-    if x_api_key != API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API Key"
-        )
-        
-    try:
-        # Store in database
-        query = db_manager.feedback_logs.insert().values(
-            request_id=feedback.request_id,
-            modality=feedback.modality,
-            predicted_label=feedback.predicted_label,
-            user_correction=feedback.user_correction,
-            is_correct=feedback.is_correct,
-            comments=feedback.comments,
-            timestamp=datetime.now()
-        )
-        
-        with db_manager.engine.connect() as conn:
-            conn.execute(query)
-            conn.commit()
-            
-        logger.info(f"Feedback received for request {feedback.request_id}: Correct={feedback.is_correct}")
-        
-        return {
-            "status": "success", 
-            "message": "Feedback stored for active learning",
-            "active_learning_triggered": not feedback.is_correct # Retraining candidate if wrong
-        }
-        
-    except Exception as e:
-        logger.error(f"Error storing feedback: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to store feedback: {str(e)}"
-        )
-
-
-# Phase 2: XAI Endpoints
-# ------------------------------------------------------------------ #
-
-try:
-    from src.cross_modal.attention_visualizer import get_attention_visualizer
-    logger.info("[DEBUG] Successfully imported get_attention_visualizer")
-except Exception as e:
-    import traceback
-    logger.error(f"[DEBUG] Failed to import attention_visualizer: {e}")
-    logger.error(f"[DEBUG] Full import traceback:\n{traceback.format_exc()}")
-    # Create dummy function so endpoint doesn't crash at startup
-    def get_attention_visualizer():
-        return None
-
-@app.post("/api/xai/attention", response_model=AttentionMapResponse)
-async def generate_attention_heatmap(
-    image_file: UploadFile = File(...),
-    text: str = Form(...),
-    x_api_key: str = Depends(get_api_key)
-):
-    """
-    Generate an explainable AI attention heatmap for an image-text pair.
-    Visualize where the model 'looks' to match the text.
-    """
-    if not validate_file_type(image_file, ALLOWED_IMAGE_TYPES):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid file type. Allowed: {ALLOWED_IMAGE_TYPES}"
-        )
-        
-    try:
-        # Save temp file
-        file_path = save_uploaded_file(image_file)
-        
-        # Get Visualizer
-        visualizer = get_attention_visualizer()
-        
-        # Get CLIP model (reuse from validator for efficiency)
-        clip_validator = get_clip_validator()
-        clip_model = clip_validator.model if clip_validator else None
-        
-        # Run Visualization
-        # Use run_in_executor to avoid blocking event loop with heavy ML ops
-        result = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: visualizer.generate_attention_map(
-                file_path, text, clip_model=clip_model
-            )
-        )
-        
-        # Cleanup
-        asyncio.create_task(cleanup_file(file_path))
-        
-        if "error" in result:
-             raise HTTPException(status_code=500, detail=result["error"])
-             
-        return AttentionMapResponse(**result)
-        
-    except Exception as e:
-        import traceback
-        logger.error(f"Attention heatmap failed: {e}")
-        logger.error(f"Full traceback: {traceback.format_exc()}")
-        return AttentionMapResponse(
-            heatmap_url="",
-            attention_scores=[],
-            explanation=f"Error: {str(e)}",
-            top_regions=[],
-            baseline_similarity=0.0
-        )
-
-
-@app.post("/api/xai/explain-enhanced")
-async def explain_enhanced(
-    request: dict,
-    x_api_key: str = Depends(get_api_key)
-):
-    """
-    Comprehensive XAI explanation including brand, location, and condition discrepancies.
-    """
-    from src.cross_modal.enhanced_discrepancies import (
-        check_brand_mismatch,
-        check_location_consistency,
-        check_condition_mismatch
-    )
-    
-    image_result = request.get("image_result", {})
-    text_result = request.get("text_result", {})
-    voice_result = request.get("voice_result", {})
-    
-    # Run Checks
-    brand_check = check_brand_mismatch(image_result, text_result)
-    loc_check = check_location_consistency(text_result, voice_result)
-    cond_check = check_condition_mismatch(image_result, text_result)
-    
-    # Compile response
-    has_discrepancy = (
-        brand_check.get("has_mismatch", False) or 
-        loc_check.get("has_mismatch", False) or 
-        cond_check.get("has_mismatch", False)
-    )
-    
-    details = {
-        "brand": brand_check,
-        "location": loc_check,
-        "condition": cond_check
-    }
-    
-    # Generate unified explanation
-    explanations = []
-    if brand_check.get("has_mismatch"):
-        explanations.append(brand_check["explanation"])
-    if loc_check.get("has_mismatch"):
-        explanations.append(loc_check["explanation"])
-    if cond_check.get("has_mismatch"):
-        explanations.append(cond_check["explanation"])
-        
-    explanation_text = " ".join(explanations) if explanations else "No significant discrepancies detected."
-    
-    return {
-        "has_discrepancy": has_discrepancy,
-        "explanation": explanation_text,
-        "details": details
-    }
-
 
 # Main entry point
 if __name__ == "__main__":

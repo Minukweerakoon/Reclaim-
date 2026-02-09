@@ -29,9 +29,10 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const stopRecording = () => {
     if (mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop()
-      setIsRecording(false)
-      clearTimer()
     }
+    // Always reset state to ensure UI doesn't get stuck
+    setIsRecording(false)
+    clearTimer()
   }
 
   const startRecording = async () => {

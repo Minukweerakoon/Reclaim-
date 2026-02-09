@@ -3,6 +3,7 @@ import axios from 'axios';
 
 interface ValidationRequest {
   text?: string;
+  visualText?: string;  // Visual-only description for CLIP (item, color, brand)
   image?: File;
   voice?: Blob;
 }
@@ -86,6 +87,9 @@ export const useValidation = () => {
     const formData = new FormData();
     if (request.text) {
       formData.append('text', request.text);
+    }
+    if (request.visualText) {
+      formData.append('visualText', request.visualText);  // Add visual-only text for CLIP
     }
     if (request.image) {
       formData.append('image_file', request.image);

@@ -9,6 +9,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger('EnhancedDiscrepancies')
 
+def _convert_to_py_type(obj):
+    """Convert numpy types to native Python types for JSON serialization."""
+    import numpy as np
+    if isinstance(obj, (np.bool_, np.bool)):
+        return bool(obj)
+    elif isinstance(obj, (np.integer, np.int64, np.int32)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+        return float(obj)
+    elif isinstance(obj, dict):
+        return {k: _convert_to_py_type(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_convert_to_py_type(i) for i in obj]
+    return obj
+
+
 def _extract_brands(text: str) -> List[str]:
     """
     Extract potential brand names from text using basic heuristics.
@@ -39,13 +55,10 @@ def _extract_condition(text: str) -> Optional[str]:
         return "good"
     return None
 
-def check_brand_mismatch(image_result: Dict, text_result: Dict) -> Dict[str, Any]:
+def check_brand_mismatch(image_result: Dict, text_result: Dict, image_path: str = None) -> Dict[str, Any]:
     """
-    Check if brands mentioned in text match brands visible in image (via OCR/Labels).
-    
-    NOTE: Currently limited - OCR is not always available, so we can only verify
-    brands if OCR text is provided. We should NOT claim "brand not visible" 
-    unless we've actually looked for it.
+    Check if brands mentioned in text match brands visible in image.
+    Uses OCR first, then falls back to CLIP zero-shot brand detection.
     """
     text = text_result.get("text", "")
     ocr_text = image_result.get("ocr_text", "").lower()
@@ -59,34 +72,51 @@ def check_brand_mismatch(image_result: Dict, text_result: Dict) -> Dict[str, Any
     # 2. Check if we have OCR data to verify brands
     has_ocr = bool(ocr_text.strip())
     
-    if not has_ocr:
-        # No OCR available - we cannot verify brand visibility
-        # Don't make false claims about visibility
-        logger.debug(f"Brand mentioned ({claimed_brands}) but no OCR available to verify")
-        return {
-            "has_mismatch": False,
-            "note": f"Brand(s) mentioned: {', '.join(claimed_brands)} (visibility not verified - no OCR)"
-        }
-    
-    # 3. Check if claimed brand is in OCR or Object Labels
     mismatches = []
-    for brand in claimed_brands:
-        # Check OCR
-        brand_in_ocr = brand in ocr_text
-        
-        # Check Object Labels (e.g. if object detection returns 'apple_logo')
-        objs_str = " ".join([f"{obj.get('class', '')} {obj.get('label', '')}".lower() for obj in image_objects])
-        brand_in_objects = brand in objs_str
-
-        if not brand_in_ocr and not brand_in_objects:
-            mismatches.append(f"Text mentions '{brand}' but OCR didn't detect it in the image.")
+    detected_brand = None
+    
+    if has_ocr:
+        # 3a. Check if claimed brand is in OCR or Object Labels
+        for brand in claimed_brands:
+            brand_in_ocr = brand in ocr_text
+            objs_str = " ".join([f"{obj.get('class', '')} {obj.get('label', '')}".lower() for obj in image_objects])
+            brand_in_objects = brand in objs_str
             
+            if not brand_in_ocr and not brand_in_objects:
+                mismatches.append(f"Text mentions '{brand}' but OCR didn't detect it in the image.")
+    else:
+        # 3b. No OCR - use CLIP zero-shot brand detection
+        if image_path:
+            try:
+                from src.cross_modal.advanced_entity_detector import detect_brand_logo
+                brand_result = detect_brand_logo(image_path)
+                detected_brand = brand_result.get("top_brand")
+                detected_confidence = brand_result.get("top_confidence", 0)
+                
+                if detected_brand and detected_confidence >= 0.25:
+                    # Check if detected brand conflicts with claimed brand
+                    for claimed in claimed_brands:
+                        if claimed.lower() != detected_brand.lower():
+                            mismatches.append(
+                                f"Brand mismatch: Text says '{claimed}' but image shows '{detected_brand}' logo (confidence: {detected_confidence:.0%})."
+                            )
+                            break
+            except Exception as e:
+                logger.warning(f"CLIP brand detection failed: {e}")
+                # Fall through - no mismatch detected if we can't verify
+    
     if mismatches:
-        return {
+        result = {
             "has_mismatch": True,
-            "explanation": "Brand visibility check: " + " ".join(mismatches),
-            "severity": "low"  # Changed from medium to low since OCR isn't perfect
+            "explanation": " ".join(mismatches),
+            "severity": "high" if detected_brand else "low",
+            "details": {
+                "claimed_brands": claimed_brands,
+                "detected_brand": detected_brand,
+                "source": "CLIP-ZeroShot" if detected_brand else "OCR"
+            }
         }
+        return _convert_to_py_type(result)
         
     return {"has_mismatch": False}
 
@@ -131,7 +161,7 @@ def check_location_consistency(text_result: Dict, voice_result: Dict) -> Dict[st
     
     return {"has_mismatch": False}
 
-def check_color_mismatch(image_result: Dict, text_result: Dict) -> Dict[str, Any]:
+def check_color_mismatch(image_result: Dict, text_result: Dict, cross_modal_result: Dict = None) -> Dict[str, Any]:
     """
     Check if colors mentioned in text match colors detected in the image.
     Uses CLIP mismatch detection and dominant color analysis.
@@ -151,13 +181,50 @@ def check_color_mismatch(image_result: Dict, text_result: Dict) -> Dict[str, Any
     if not mentioned_colors:
         return {"has_mismatch": False}
     
-    # Get CLIP mismatch detection results if available
+    # FIRST: Check CLIP cross-modal feedback (most reliable)
+    if cross_modal_result:
+        clip_result = cross_modal_result.get("image_text", {})
+        clip_feedback = clip_result.get("feedback", "")
+        clip_mismatch_detection = clip_result.get("mismatch_detection", {})
+        
+        # Check if CLIP feedback mentions color mismatch (relaxed condition)
+        if "appears" in clip_feedback or "mismatch" in clip_feedback:
+            # Extract what CLIP detected
+            import re
+            # Pattern: "Text mentions 'X' but image appears 'Y'"
+            match = re.search(r"mentions ['\"]?(\w+)['\"]? but.*appears ['\"]?(\w+)['\"]?", clip_feedback, re.IGNORECASE)
+            if match:
+                mentioned_color = match.group(1).lower()
+                detected_color = match.group(2).lower()
+                
+                # Verify at least one of them is a color to be safe
+                if mentioned_color in color_keywords or detected_color in color_keywords:
+                    result = {
+                        "has_mismatch": True,
+                        "explanation": f"Color mismatch: Text says '{mentioned_color}' but image shows '{detected_color}'.",
+                        "severity": "high",
+                        "details": {
+                            "mentioned_colors": [mentioned_color],
+                            "detected_color": detected_color,
+                            "source": "CLIP cross-modal analysis"
+                        }
+                    }
+                    return _convert_to_py_type(result)
+        
+        # Check mismatch_detection structure
+        clip_mismatches = clip_mismatch_detection.get("mismatches", [])
+        for mm in clip_mismatches:
+            if mm.get("type") == "color":
+                return {
+                    "has_mismatch": True,
+                    "explanation": f"Color mismatch detected: {mm.get('description', 'Colors do not match')}",
+                    "severity": "medium"
+                }
+    
+    # SECOND: Fallback to image_result mismatch detection
     mismatch_detection = image_result.get("mismatch_detection", {})
     attribute_scores = mismatch_detection.get("attribute_scores", {})
     predicted_colors = attribute_scores.get("predicted_colors", [])
-    
-    # Get mentioned colors from CLIP analysis
-    clip_mentioned_colors = attribute_scores.get("mentioned_colors", [])
     
     # Check for color conflicts
     mismatches = []
@@ -177,13 +244,6 @@ def check_color_mismatch(image_result: Dict, text_result: Dict) -> Dict[str, Any
                     mismatches.append(
                         f"Text mentions '{', '.join(mentioned_colors)}' but image appears to be '{top_color}'."
                     )
-    
-    # Also check using CLIP's mentioned_colors detection
-    clip_mismatches = mismatch_detection.get("mismatches", [])
-    for mm in clip_mismatches:
-        if mm.get("type") == "color":
-            mismatches.append("Color mentioned in text not prominent in image.")
-            break
     
     if mismatches:
         return {

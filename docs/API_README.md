@@ -62,7 +62,8 @@ All API endpoints (except health and metrics) require API key authentication. In
 X-API-Key: test-api-key
 ```
 
-Note: In a production environment, you should implement a proper API key management system.
+Note: The API key is configured via `API_KEY` in the environment. In a production
+environment, you should implement a proper API key management system.
 
 ## API Endpoints
 
@@ -146,6 +147,8 @@ Provides real-time progress updates during validation processing.
 ## Response Format
 
 All validation endpoints return a standardized response format:
+
+All confidence scores are normalized to a 0.0-1.0 scale.
 
 ```json
 {

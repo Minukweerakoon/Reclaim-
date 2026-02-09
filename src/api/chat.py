@@ -3,11 +3,12 @@ Chat API Endpoint for Conversational Lost & Found Reporting
 Integrates Gemini-guided conversation into the chatbot
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 from src.intelligence.llm_client import get_llm_client
 from src.intelligence.active_learning import get_active_learning_system
+from src.api.auth import get_api_key
 import logging
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ class ChatResponse(BaseModel):
     feedback_recorded: bool = False  # Indicates if active learning captured this
 
 @router.post("/message", response_model=ChatResponse)
-async def chat_message(request: ChatRequest):
+async def chat_message(request: ChatRequest, api_key: str = Depends(get_api_key)):
     """
     Gemini-powered conversational guidance for lost & found reporting.
     
