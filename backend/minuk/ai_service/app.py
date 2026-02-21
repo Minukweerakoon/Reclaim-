@@ -78,6 +78,22 @@ db_ids: list[str] = []
 db_cats: list[str] = []
 db_types: list[str] = []  
 
+# Helper to incrementally add a single vector to the in-memory DB FAISS index
+def _db_add_vector(vec: np.ndarray, doc_id: str, category: str, item_type: str = "found"):
+    """Incrementally add a single vector to the in-memory DB FAISS index."""
+    global db_index, db_ids, db_cats, db_types
+
+    vec = np.asarray(vec, dtype=np.float32).reshape(1, -1)
+
+    if db_index is None:
+        d = vec.shape[1]
+        db_index = faiss.IndexFlatIP(d)
+
+    db_index.add(vec)
+    db_ids.append(doc_id)
+    db_cats.append(category)
+    db_types.append(item_type)
+
 
 # -----------------------------
 # Load metadata
@@ -679,6 +695,114 @@ async def demo_found_upload_by_url(payload: UploadByUrlRequest):
         "entropy": float(entropy),
         "alpha": float(alpha),
         "public_url": public_url,
+    }
+# -----------------------------
+# Production endpoint: /items/process
+# -----------------------------
+from typing import Literal
+
+class ProcessItemRequest(BaseModel):
+    status: Literal["lost", "found"]
+    image_url: str
+    k: int = 5
+    mc_T: int = 20
+    debug: bool = False
+
+@app.post("/items/process")
+async def process_item(payload: ProcessItemRequest):
+    """
+    Production endpoint:
+    - If status = 'found' → index item
+    - If status = 'lost'  → search against found items
+    """
+
+    try:
+        r = requests.get(payload.image_url, timeout=25)
+        r.raise_for_status()
+        query_img = Image.open(io.BytesIO(r.content)).convert("RGB")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to download/open image_url: {e}")
+
+    x = common_tf(query_img).unsqueeze(0).to(DEVICE)
+
+    # 1) Classification + uncertainty
+    p, entropy = mc_predict(x, T=payload.mc_T)
+    pred_idx = int(np.argmax(p))
+    pred_cat = idx_to_cat[pred_idx]
+    alpha = alpha_from_entropy(entropy)
+
+    # 2) Embedding
+    z = metric_embed(query_img)
+
+    if payload.status == "found":
+        doc = {
+            "type": "found",
+            "category": pred_cat,
+            "created_at": datetime.utcnow(),
+            "metric_vec": z[0].tolist(),
+            "entropy": float(entropy),
+            "alpha": float(alpha),
+            "source": "production",
+            "image_url": payload.image_url,
+        }
+
+        ins = _items.insert_one(doc)
+        _db_add_vector(z[0], str(ins.inserted_id), pred_cat, "found")
+
+        return {
+            "status": "indexed",
+            "id": str(ins.inserted_id),
+            "category": pred_cat,
+            "entropy": float(entropy),
+            "alpha": float(alpha),
+        }
+
+    # LOST → retrieval
+    global db_index
+    if db_index is None or db_index.ntotal == 0:
+        return {"error": "No found items indexed yet.", "results": []}
+
+    chosen_idx, cov, target_cov = pick_categories(p, entropy)
+    chosen_cats = [idx_to_cat[i] for i in chosen_idx]
+
+    if alpha >= 0.35:
+        hits = db_search_global(z, k=payload.k)
+        retrieval_mode = "global"
+    else:
+        hits = db_search_filtered(z, chosen_cats, k=payload.k)
+        retrieval_mode = "filtered"
+
+    if len(hits) == 0:
+        return {
+            "predicted_category": pred_cat,
+            "results": [],
+            "entropy": float(entropy),
+            "alpha": float(alpha),
+        }
+
+    docs = _docs_for_ids([doc_id for doc_id, _ in hits])
+    metric = np.array([sim for _, sim in hits], dtype=np.float32)
+    metric_n = minmax_norm(metric)
+
+    order = np.argsort(metric_n)[::-1]
+    results = []
+
+    for rank, j in enumerate(order[: payload.k], start=1):
+        d = docs[int(j)]
+        results.append({
+            "rank": rank,
+            "id": str(d.get("_id")),
+            "category": d.get("category"),
+            "image_url": d.get("image_url"),
+            "score": float(metric_n[int(j)]),
+        })
+
+    return {
+        "predicted_category": pred_cat,
+        "entropy": float(entropy),
+        "alpha": float(alpha),
+        "retrieval_mode": retrieval_mode,
+        "results": results,
     }
 
 
