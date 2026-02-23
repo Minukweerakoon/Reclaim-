@@ -12,3 +12,5 @@ timm
 requests
 pymongo
 numpy<2
+supabase
+python-dotenv
