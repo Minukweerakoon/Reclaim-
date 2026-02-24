@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { ChatBubble } from './ChatBubble';
 import { MatchResultCard } from './MatchResultCard';
-import { processItem } from '../App';
+import { processItem } from '../supabaseClient';
 
 const STEP_ORDER = [
   'GREETING',
@@ -66,7 +66,7 @@ export function ChatInterface({ onResultsReady, user }) {
     setMessages((prev) => [
       ...prev,
       {
-        id: Date.now().toString(),
+        id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36),
         sender,
         text,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -83,81 +83,169 @@ export function ChatInterface({ onResultsReady, user }) {
     setPreviewUrl(URL.createObjectURL(file));
   };
 
-  const triggerSearch = async () => {
+  const triggerSearch = async (finalFormData) => {
     try {
       setCurrentStep('LOADING');
       setIsTyping(true);
-      addMessage('Scanning database with AI…', 'ai');
+
+      // Only show scanning for lost items
+      if (finalFormData.status === 'lost') {
+        addMessage('Scanning database with AI…', 'ai');
+      } else {
+        addMessage('Registering found item…', 'ai');
+      }
 
       const response = await processItem({
-        status: formData.status,
+        status: finalFormData.status,
         file: selectedFile,
-        userCategory: formData.category,
+        userCategory: finalFormData.category,
+        location: finalFormData.location,
+        time: finalFormData.time,
+        description: finalFormData.description,
         userId: user?.id || 'guest',
         userEmail: user?.email || 'guest@test.com',
       });
+      console.log("REAL RESPONSE:", response);
 
       setIsTyping(false);
 
-      if (response.results && response.results.length > 0) {
-        addMessage('I found potential matches! Here they are:', 'ai');
-        addMessage('', 'ai', 'results', {
-          results: response.results.slice(0, 4).map((r, index) => ({
-            id: r.id,
-            image: r.image_url,
-            title: r.category,
-            confidence: Math.round(r.score * 100),
-            category: r.category,
-            location: 'Reported location',
-            date: 'Recently',
-            isBestMatch: index === 0,
-          })),
-        });
-      } else {
-        addMessage('No matches found at the moment.', 'ai');
+      // Clear image only AFTER backend processing
+      setSelectedFile(null);
+      setPreviewUrl(null);
+
+      // If LOST → show matches
+      if (finalFormData.status === 'lost') {
+        if (response?.results && response.results.length > 0) {
+          addMessage('I found potential matches! Here they are:', 'ai');
+          addMessage('', 'ai', 'results', {
+            results: response.results.slice(0, 4).map((r, index) => ({
+              id: r.id,
+              image_url: r.image_url,
+              final_category: r.category,
+              score: r.score,
+              location: r.location || 'Reported location',
+              reported_time: null,
+              isBestMatch: index === 0,
+            })),
+          });
+        } else {
+          addMessage('No matches found at the moment.', 'ai');
+        }
+      } 
+      // If FOUND → just confirm success
+      else {
+        addMessage('Item successfully registered and indexed. We will notify the owner if a match is found.', 'ai');
       }
 
       setCurrentStep('RESULTS');
       onResultsReady?.(response);
     } catch (err) {
-      console.error(err);
-      addMessage('Something went wrong while processing.', 'ai');
+      console.error('PROCESS ERROR:', err);
+      addMessage(`Processing failed: ${err.message || 'Unknown error'}`, 'ai');
     }
   };
 
+  const resetChat = () => {
+    setMessages([
+      {
+        id: Date.now().toString(),
+        sender: 'ai',
+        text: "Hi! I'm Reclaim AI. Are you reporting a lost item, or did you find something?",
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      },
+    ]);
+    setCurrentStep('GREETING');
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setFormData({
+      status: null,
+      location: '',
+      time: '',
+      description: '',
+      category: '',
+    });
+  };
+
   const handleSend = () => {
-    if (!inputValue.trim() && !selectedFile) return;
+    // Allow image-only send during IMAGE step
+    if (currentStep !== 'IMAGE' && !inputValue.trim()) return;
+    if (currentStep === 'IMAGE' && !selectedFile) return;
+
+    // Show user message
+    if (currentStep === 'IMAGE' && selectedFile) {
+      // Only attach image during IMAGE step
+      addMessage('Photo attached', 'user', 'image', {
+        imageUrl: previewUrl,
+      });
+    } else {
+      addMessage(inputValue, 'user', 'text');
+    }
+
+    const value = inputValue.trim();
+    setInputValue('');
 
     switch (currentStep) {
-      case 'GREETING':
-        setFormData((prev) => ({ ...prev, status: inputValue.includes('found') ? 'found' : 'lost' }));
+      case 'GREETING': {
+        const status = value.toLowerCase().includes('found') ? 'found' : 'lost';
+        setFormData((prev) => ({ ...prev, status }));
         setCurrentStep('IMAGE');
+        addMessage(
+          `Got it — you're reporting a ${status} item. Please upload a photo of the item.`,
+          'ai'
+        );
         break;
-      case 'LOCATION':
-        setFormData((prev) => ({ ...prev, location: inputValue }));
+      }
+
+      case 'IMAGE': {
+        if (!selectedFile) {
+          addMessage('Please upload an image before continuing.', 'ai');
+          return;
+        }
+        setCurrentStep('LOCATION');
+        addMessage('Where did this happen? Please enter the location.', 'ai');
+        break;
+      }
+
+      case 'LOCATION': {
+        setFormData((prev) => ({ ...prev, location: value }));
         setCurrentStep('TIME');
+        addMessage('When did this happen? (Approximate time is fine)', 'ai');
         break;
-      case 'TIME':
-        setFormData((prev) => ({ ...prev, time: inputValue }));
+      }
+
+      case 'TIME': {
+        setFormData((prev) => ({ ...prev, time: value }));
         setCurrentStep('DESCRIPTION');
+        addMessage(
+          'Please describe the item in detail (color, brand, unique marks).',
+          'ai'
+        );
         break;
-      case 'DESCRIPTION':
-        setFormData((prev) => ({ ...prev, description: inputValue }));
+      }
+
+      case 'DESCRIPTION': {
+        setFormData((prev) => ({ ...prev, description: value }));
         setCurrentStep('CATEGORY');
+        addMessage(
+          'What category best fits this item? (e.g. wallet, phone, keys)',
+          'ai'
+        );
         break;
-      case 'CATEGORY':
-        setFormData((prev) => ({ ...prev, category: inputValue }));
-        triggerSearch();
+      }
+
+      case 'CATEGORY': {
+        const updatedData = { ...formData, category: value };
+        setFormData(updatedData);
+        triggerSearch(updatedData);
         break;
+      }
+
       default:
         break;
     }
-
-    addMessage(inputValue || 'Photo attached', 'user', selectedFile ? 'image' : 'text', {
-      imageUrl: previewUrl,
-    });
-
-    setInputValue('');
   };
 
   return (

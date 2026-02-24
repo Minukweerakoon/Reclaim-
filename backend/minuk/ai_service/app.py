@@ -309,7 +309,7 @@ async def process_item(payload: ProcessItemRequest):
 
             db_ids.append(payload.item_id)
             db_urls.append(payload.image_url)
-            db_cats.append(pred_cat)
+            db_cats.append(final_category)
 
         return {
             "status": "indexed",
@@ -331,13 +331,26 @@ async def process_item(payload: ProcessItemRequest):
     sims = D[0]
     idxs = I[0]
 
-    metric_n = minmax(sims)
+    # Filter out invalid FAISS indices (-1)
+    valid = [(sim, idx) for sim, idx in zip(sims, idxs) if idx >= 0]
+
+    if not valid:
+        return {"results": []}
+
+    sims = np.array([v[0] for v in valid], dtype=np.float32)
+    idxs = np.array([v[1] for v in valid], dtype=np.int32)
+
+    # Convert cosine similarity (-1 to 1) into 0-1 range
+    metric_scores = (sims + 1.0) / 2.0
 
     candidate_urls = [db_urls[i] for i in idxs]
     clip_sims = clip_sim(query_img, candidate_urls)
-    clip_n = minmax(clip_sims)
 
-    final = (1 - alpha) * metric_n + alpha * clip_n
+    # Normalize CLIP scores safely
+    clip_scores = minmax(clip_sims)
+
+    final = (1 - alpha) * metric_scores + alpha * clip_scores
+
     order = np.argsort(final)[::-1]
 
     results = []
