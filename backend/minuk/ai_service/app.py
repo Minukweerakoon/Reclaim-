@@ -257,6 +257,7 @@ class ProcessItemRequest(BaseModel):
     item_id: str
     item_type: Literal["lost", "found"]
     image_url: str
+    user_category: Optional[str] = None
     k: int = 5
     mc_T: int = 20
 
@@ -279,8 +280,13 @@ async def process_item(payload: ProcessItemRequest):
 
     table = "items"
 
-    # Compute final_category (AI overrides user_category)
-    final_category = pred_cat
+    # Compute final_category using uncertainty logic
+    UNCERTAINTY_THRESHOLD = 1.2  # tune if needed
+
+    if payload.user_category and entropy > UNCERTAINTY_THRESHOLD:
+        final_category = payload.user_category
+    else:
+        final_category = pred_cat
 
     supabase.table(table).update({
         "model_category": pred_cat,
@@ -307,7 +313,8 @@ async def process_item(payload: ProcessItemRequest):
 
         return {
             "status": "indexed",
-            "category": pred_cat,
+            "final_category": final_category,
+            "predicted_category": pred_cat,
             "entropy": entropy,
             "alpha": alpha,
         }
@@ -346,6 +353,7 @@ async def process_item(payload: ProcessItemRequest):
 
     return {
         "predicted_category": pred_cat,
+        "final_category": final_category,
         "entropy": entropy,
         "alpha": alpha,
         "results": results,
