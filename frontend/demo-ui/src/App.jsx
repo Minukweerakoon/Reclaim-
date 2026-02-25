@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
@@ -15,6 +15,24 @@ function App() {
   const [user, setUser] = useState(null);
   const [currentPage, setCurrentPage] = useState("home");
 
+  useEffect(() => {
+    // Get existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    // Listen for auth changes
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
   const handleNavigate = (page) => {
     if (page === "chat" && !user) {
       setCurrentPage("login");
@@ -24,15 +42,7 @@ function App() {
   };
 
   if (currentPage === "login") {
-    return (
-      <LoginPage
-        onLogin={(u) => {
-          setUser(u);
-          setCurrentPage("chat");
-        }}
-        onBack={() => setCurrentPage("home")}
-      />
-    );
+    return <LoginPage onBack={() => setCurrentPage("home")} />;
   }
 
   return (
@@ -41,7 +51,8 @@ function App() {
         <HomePage
           onNavigate={handleNavigate}
           user={user}
-          onSignOut={() => {
+          onSignOut={async () => {
+            await supabase.auth.signOut();
             setUser(null);
             setCurrentPage("home");
           }}
@@ -50,7 +61,8 @@ function App() {
         <ReclaimPage
           onNavigate={handleNavigate}
           user={user}
-          onSignOut={() => {
+          onSignOut={async () => {
+            await supabase.auth.signOut();
             setUser(null);
             setCurrentPage("home");
           }}

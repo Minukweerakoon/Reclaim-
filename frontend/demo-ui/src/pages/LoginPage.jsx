@@ -1,24 +1,16 @@
 import React, { useState } from 'react';
 import { Sparkles, Shield, ArrowRight } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 
-// Mock user data for the simulation
-const MOCK_USER = {
-  id: 'usr_8f3a2c',
-  name: 'Alex Morgan',
-  email: 'alex.morgan@gmail.com',
-  avatar: 'https://i.pravatar.cc/150?img=47',
-};
-
-export function LoginPage({ onLogin, onBack }) {
+export function LoginPage({ onBack }) {
   const [loading, setLoading] = useState(false);
 
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignIn = async () => {
     setLoading(true);
-    // Simulate an API call delay
-    setTimeout(() => {
-      setLoading(false);
-      if (onLogin) onLogin(MOCK_USER);
-    }, 1200);
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+    });
+    setLoading(false);
   };
 
   return (
@@ -117,16 +109,6 @@ export function LoginPage({ onLogin, onBack }) {
             </span>
             <div className="flex-1 h-px bg-white/5" />
           </div>
-
-          {/* Guest Sign In Button */}
-          <button
-            onClick={handleGoogleSignIn}
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
-          >
-            Continue as Guest
-            <ArrowRight className="w-4 h-4" />
-          </button>
 
           {/* Security Footer */}
           <div className="flex items-center gap-1.5 mt-6 text-[10px] text-slate-600">

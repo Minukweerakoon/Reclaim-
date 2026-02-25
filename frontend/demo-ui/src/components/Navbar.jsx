@@ -5,6 +5,20 @@ import { ProfileDropdown } from './ProfileDropdown';
 export function Navbar({ currentPage = 'chat', onNavigate, user, onSignOut }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  // Safely derive display name and avatar from Supabase user
+  const displayName =
+    user?.user_metadata?.full_name ||
+    user?.email ||
+    "User";
+
+  const nameParts = displayName.split(" ");
+  const firstName = nameParts[0] || "User";
+  const lastInitial = nameParts[1]?.[0] ? `${nameParts[1][0]}.` : "";
+
+  const avatarUrl =
+    user?.user_metadata?.avatar_url ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}`;
+
   return (
     <nav className="fixed top-0 left-0 right-0 h-16 glass-nav z-50 flex items-center justify-between px-4 md:px-8">
       {/* Logo */}
@@ -56,7 +70,7 @@ export function Navbar({ currentPage = 'chat', onNavigate, user, onSignOut }) {
               <div className="text-right hidden sm:block">
                 <p className="text-xs text-slate-400">Signed in as</p>
                 <p className="text-sm font-medium text-white">
-                  {user.name.split(' ')[0]} {user.name.split(' ')[1]?.[0]}.
+                  {firstName} {lastInitial}
                 </p>
               </div>
               <button
@@ -64,8 +78,8 @@ export function Navbar({ currentPage = 'chat', onNavigate, user, onSignOut }) {
                 className="w-9 h-9 rounded-full overflow-hidden border-2 border-indigo-500/30 hover:border-indigo-500/60 transition-all hover:scale-105"
               >
                 <img
-                  src={user.avatar}
-                  alt={user.name}
+                  src={avatarUrl}
+                  alt={displayName}
                   className="w-full h-full object-cover"
                 />
               </button>
