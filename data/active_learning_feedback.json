@@ -1,0 +1,83 @@
+[
+  {
+    "timestamp": "2025-12-18T23:36:45.397370",
+    "input": "I lost my Gucci iPhone",
+    "original": {
+      "item": "phone",
+      "brand": "Gucci",
+      "confidence": 0.6
+    },
+    "correction": {
+      "item": "phone case",
+      "brand": "Gucci",
+      "note": "It's a Gucci CASE for iPhone, not the phone itself"
+    },
+    "type": "correction"
+  },
+  {
+    "timestamp": "2025-12-18T23:36:45.399371",
+    "input": "I lost my laptop in the server room",
+    "original": {
+      "item": "laptop",
+      "location": "server room",
+      "plausibility": 0.05
+    },
+    "correction": {
+      "item": "laptop",
+      "location": "server room",
+      "note": "Yes, I work in IT"
+    },
+    "type": "confirmation"
+  },
+  {
+    "timestamp": "2026-01-05T05:52:43.287145",
+    "input": "blue laptop",
+    "original": {
+      "item_type": "laptop",
+      "color": "red"
+    },
+    "correction": {
+      "item_type": "laptop",
+      "color": "blue"
+    },
+    "type": "correction"
+  },
+  {
+    "timestamp": "2026-01-05T05:52:45.352327",
+    "input": "Dell laptop",
+    "original": {
+      "item_type": "laptop",
+      "brand": "HP"
+    },
+    "correction": {
+      "item_type": "laptop",
+      "brand": "Dell"
+    },
+    "type": "correction"
+  },
+  {
+    "timestamp": "2026-01-05T06:09:13.520320",
+    "input": "silver HP laptop  at library around yesterday morning",
+    "original": {
+      "item_type": "laptop",
+      "color": "silver",
+      "brand": "HP"
+    },
+    "correction": {
+      "brand": "Dell"
+    },
+    "type": "correction"
+  },
+  {
+    "timestamp": "2026-02-21T15:12:11.074678",
+    "input": "lost black wallet at library",
+    "original": {
+      "item_type": "wallet",
+      "confidence": 0.9
+    },
+    "correction": {
+      "notes": "Should be a purse not wallet"
+    },
+    "type": "user_correction"
+  }
+]
