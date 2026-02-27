@@ -1,70 +1,46 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import Layout from './components/Layout';
+import ValidationHub from './pages/ValidationHub';
+import Chat from './pages/Chat';
+import ChatbotPage from './pages/ChatbotPage';
+import IntentSelectionPage from './pages/IntentSelectionPage';
+import Monitor from './pages/Monitor';
+import ErrorBoundary from './components/ErrorBoundary';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import ReclaimApp from './reclaim/ReclaimApp';
+import './index.css';
 
-// Pages
-import { LandingPage } from './pages/LandingPage';
-import { AuthPage } from './pages/AuthPage';
-import { ValidationPage } from './pages/ValidationPage';
-import { ResultsPage } from './pages/ResultsPage';
-
-// Styles
-import './styles.css';
-
-// Animated wrapper for page transitions
-const PageTransition: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+function App() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.3 }}
-      style={{ width: '100%', height: '100%' }}
-    >
-      {children}
-    </motion.div>
-  );
-};
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Navigate to="/reclaim" replace />} />
 
-const AnimatedRoutes: React.FC = () => {
-  const location = useLocation();
 
-  return (
-    <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
-        <Route path="/" element={
-          <PageTransition>
-            <LandingPage />
-          </PageTransition>
-        } />
-        <Route path="/auth" element={
-          <PageTransition>
-            <AuthPage />
-          </PageTransition>
-        } />
-        <Route path="/validate" element={
-          <PageTransition>
-            <ValidationPage />
-          </PageTransition>
-        } />
-        <Route path="/results" element={
-          <PageTransition>
-            <ResultsPage />
-          </PageTransition>
-        } />
-        {/* Fallback */}
-        <Route path="*" element={<LandingPage />} />
-      </Routes>
-    </AnimatePresence>
-  );
-};
+          {/* Group project Reclaim UI — manages its own auth flow internally */}
+          <Route path="/reclaim/*" element={<ReclaimApp />} />
 
-const App: React.FC = () => {
-  return (
-    <Router>
-      <AnimatedRoutes />
-    </Router>
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<IntentSelectionPage />} />
+            <Route path="chatbot" element={<ChatbotPage />} />
+            <Route path="validation" element={<ValidationHub />} />
+            <Route path="results" element={<ValidationHub />} />
+            <Route path="chat" element={<Chat />} />
+            <Route path="monitor" element={<Monitor />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
-};
+}
 
 export default App;

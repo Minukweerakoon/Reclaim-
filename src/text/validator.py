@@ -41,9 +41,9 @@ class TextValidator:
     
     # Default item types dictionary (can be extended)
     DEFAULT_ITEM_TYPES = {
-        'en': ['phone', 'wallet', 'keys', 'bag', 'backpack', 'laptop', 'umbrella', 'watch', 'glasses', 'headphones', 'camera', 'book', 'jacket', 'purse', 'card'],
-        'si': ['දුරකථනය', 'පසුම්බිය', 'යතුරු', 'බෑගය', 'පිටිපසුම්බිය', 'ලැප්ටොප්', 'කුඩය', 'ඔරලෝසුව', 'කණ්ණාඩි', 'හෙඩ්ෆෝන්', 'කැමරාව', 'පොත', 'ජැකට්', 'පර්ස්', 'කාඩ්පත'],
-        'ta': ['தொலைபேசி', 'பணப்பை', 'சாவிகள்', 'பை', 'பின்புறப்பை', 'மடிக்கணினி', 'குடை', 'கடிகாரம்', 'கண்ணாடி', 'தலைப்பொறி', 'புகைப்படக்கருவி', 'புத்தகம்', 'ஜாக்கெட்', 'பணப்பை', 'அட்டை']
+        'en': ['phone', 'wallet', 'keys', 'bag', 'backpack', 'laptop', 'umbrella', 'watch', 'glasses', 'headphones', 'camera', 'book', 'jacket', 'purse', 'card', 'shoes', 'shirt', 'clothing'],
+        'si': ['දුරකථනය', 'පසුම්බිය', 'යතුරු', 'බෑගය', 'පිටිපසුම්බිය', 'ලැප්ටොප්', 'කුඩය', 'ඔරලෝසුව', 'කණ්ණාඩි', 'හෙඩ්ෆෝන්', 'කැමරාව', 'පොත', 'ජැකට්', 'පර්ස්', 'කාඩ්පත', 'සපත්තු', 'කමිසය', 'ඇඳුම්'],
+        'ta': ['தொலைபேசி', 'பணப்பை', 'சாவிகள்', 'பை', 'பின்புறப்பை', 'மடிக்கணினி', 'குடை', 'கடிகாரம்', 'கண்ணாடி', 'தலைப்பொறி', 'புகைப்படக்கருவி', 'புத்தகம்', 'ஜாக்கெட்', 'பணப்பை', 'அட்டை', 'காலணிகள்', 'சட்டை', 'ஆடைகள்']
     }
     
     # Default colors dictionary (can be extended)
@@ -53,11 +53,23 @@ class TextValidator:
         'ta': ['கருப்பு', 'வெள்ளை', 'சிவப்பு', 'நீலம்', 'பச்சை', 'மஞ்சள்', 'பழுப்பு', 'சாம்பல்', 'ஊதா', 'ஆரஞ்சு', 'இளஞ்சிவப்பு', 'வெள்ளி', 'தங்கம்']
     }
     
-    # Default location terms (can be extended)
+    # Default location terms — actual place names, NOT prepositions
     DEFAULT_LOCATIONS = {
-        'en': ['in', 'at', 'near', 'on', 'inside', 'outside', 'behind', 'under', 'above', 'below', 'beside', 'between', 'around', 'across', 'through', 'throughout', 'within', 'along', 'by', 'next to'],
-        'si': ['තුළ', 'අසල', 'ළඟ', 'මත', 'ඇතුළත', 'පිටත', 'පිටුපස', 'යට', 'ඉහළ', 'පහළ', 'අසල', 'අතර', 'වටා', 'හරහා', 'තුළින්', 'පුරා', 'ඇතුළත', 'දිගේ', 'අසල', 'ළඟ'],
-        'ta': ['உள்ளே', 'அருகில்', 'அருகே', 'மேல்', 'உள்ளே', 'வெளியே', 'பின்னால்', 'கீழே', 'மேலே', 'கீழே', 'பக்கத்தில்', 'இடையில்', 'சுற்றி', 'குறுக்கே', 'வழியாக', 'முழுவதும்', 'உள்ளே', 'நெடுகிலும்', 'அருகில்', 'அடுத்து']
+        'en': [
+            'library', 'cafeteria', 'canteen', 'classroom', 'parking', 'gym',
+            'office', 'hallway', 'gate', 'station', 'building', 'lab',
+            'laboratory', 'auditorium', 'corridor', 'lobby', 'entrance',
+            'exit', 'restroom', 'bathroom', 'toilet', 'reception', 'park',
+            'playground', 'field', 'yard', 'movie theater', 'theater',
+            'cinema', 'mall', 'store', 'shop', 'restaurant', 'cafe',
+            'bus stop', 'train station', 'airport', 'hospital', 'hotel',
+            'church', 'museum', 'stadium', 'beach', 'market', 'supermarket',
+            'bank', 'bar', 'club', 'university', 'school', 'college',
+            'campus', 'dorm', 'dormitory', 'apartment', 'house', 'street',
+            'road', 'bus', 'train', 'taxi', 'subway', 'metro'
+        ],
+        'si': [],
+        'ta': []
     }
     
     DEFAULT_BRANDS = {
@@ -440,7 +452,8 @@ class TextValidator:
         'bag': ['bag', 'backpack', 'purse', 'wallet', 'handbag', 'briefcase', 'suitcase'],
         'electronics': ['laptop', 'tablet', 'ipad', 'watch', 'airpods', 'headphones', 'earbuds', 'camera', 'kindle'],
         'accessories': ['keys', 'key', 'car key', 'fob', 'glasses', 'sunglasses', 'umbrella', 'hat', 'scarf', 'glove', 'gloves', 'ring', 'necklace'],
-        'documents': ['id', 'passport', 'license', 'card', 'folder', 'notebook']
+        'documents': ['id', 'passport', 'license', 'card', 'folder', 'notebook'],
+        'clothing': ['shoes', 'shoe', 'sneaker', 'sneakers', 'boots', 'jacket', 'coat', 'shirt', 't-shirt', 'pants', 'jeans', 'sweater', 'hoodie', 'apparel', 'clothing']
     }
     COLOR_KEYWORDS = ['red', 'blue', 'black', 'white', 'green', 'yellow', 'brown', 'gray', 'pink', 'purple', 'orange', 'silver', 'gold', 'beige', 'maroon', 'navy']
     BRAND_KEYWORDS = [
@@ -449,28 +462,17 @@ class TextValidator:
         'toyota', 'honda', 'nissan', 'suzuki', 'mazda', 'bmw', 'mercedes', 'benz', 'audi', 'ford', 'tesla'
     ]
     LOCATION_KEYWORDS = [
-        'library',
-        'cafeteria',
-        'canteen',
-        'classroom',
-        'parking',
-        'gym',
-        'office',
-        'hallway',
-        'gate',
-        'station',
-        'building',
-        'lab',
-        'laboratory',
-        'auditorium',
-        'corridor',
-        'lobby',
-        'entrance',
-        'exit',
-        'restroom',
-        'bathroom',
-        'toilet',
-        'reception'
+        'library', 'cafeteria', 'canteen', 'classroom', 'parking', 'gym',
+        'office', 'hallway', 'gate', 'station', 'building', 'lab',
+        'laboratory', 'auditorium', 'corridor', 'lobby', 'entrance',
+        'exit', 'restroom', 'bathroom', 'toilet', 'reception', 'park',
+        'playground', 'field', 'yard', 'movie theater', 'theater',
+        'cinema', 'mall', 'store', 'shop', 'restaurant', 'cafe',
+        'bus stop', 'train station', 'airport', 'hospital', 'hotel',
+        'church', 'museum', 'stadium', 'beach', 'market', 'supermarket',
+        'bank', 'bar', 'club', 'university', 'school', 'college',
+        'campus', 'dorm', 'dormitory', 'apartment', 'house', 'street',
+        'road', 'bus', 'train', 'taxi', 'subway', 'metro'
     ]
     TIME_KEYWORDS = ['yesterday', 'today', 'morning', 'afternoon', 'evening', 'night', 'ago', 'last', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'am', 'pm', 'o\'clock']
 
@@ -489,7 +491,8 @@ class TextValidator:
 
         def find_match(options):
             for opt in options:
-                if opt in text_lower:
+                # Use exact word boundaries
+                if f" {opt} " in f" {text_lower} ":
                     return opt
             return None
 

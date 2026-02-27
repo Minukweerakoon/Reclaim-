@@ -432,19 +432,23 @@ class ConsistencyEngine:
                 return 0.0
             return value / 100.0 if value > 1.0 else value
 
-        # Collect individual scores
-        if image_result and image_result.get("valid"):
+        # Collect individual scores — always use the score value even if
+        # the modality didn't pass its own quality threshold ("valid" flag).
+        # Gating behind "valid" would zero-out a 65% image score just because
+        # it's below the 70% quality threshold, causing the Confidence Core
+        # to show "—" when there IS useful data.
+        if image_result:
             individual_scores["image"] = _normalize_score(image_result.get("overall_score", 0.0))
         else:
             individual_scores["image"] = 0.0
 
-        if text_result and text_result.get("valid"):
+        if text_result:
             individual_scores["text"] = _normalize_score(text_result.get("overall_score", 0.0))
         else:
             individual_scores["text"] = 0.0
 
-        if voice_result and voice_result.get("valid"):
-            individual_scores["voice"] = _normalize_score(voice_result.get("overall_score", 0.0))
+        if voice_result:
+            individual_scores["voice"] = _normalize_score(voice_result.get("overall_score", voice_result.get("confidence", 0.0)))
         else:
             individual_scores["voice"] = 0.0
 
@@ -474,28 +478,33 @@ class ConsistencyEngine:
             "voice_text": 0.10
         }
         
-        # Adjust based on missing inputs
-        if "voice" not in present_modalities:
-            # Distribute voice-related weights (0.20 + 0.10 = 0.30) to image and text/clip
-            # New split: Image (0.35), Text (0.35), CLIP (0.30)
-            active_weights = {
-                "image": 0.35,
-                "text": 0.35,
-                "voice": 0.0,
-                "clip": 0.30,
-                "voice_text": 0.0
-            }
-        
-        if "image" not in present_modalities:
-             # Distribute image-related weights (0.25 + 0.20 = 0.45)
-             # New split: Text (0.50), Voice (0.40), Voice-Text (0.10)
-             active_weights = {
-                "image": 0.0,
-                "text": 0.50,
-                "voice": 0.40,
-                "clip": 0.0,
-                "voice_text": 0.10
-             }
+        if len(present_modalities) == 1:
+            # If only one modality is present, assign it 100% weight
+            active_weights = {k: 0.0 for k in active_weights}
+            active_weights[present_modalities[0]] = 1.0
+        else:
+            # Adjust based on missing inputs
+            if "voice" not in present_modalities:
+                # Distribute voice-related weights (0.20 + 0.10 = 0.30) to image and text/clip
+                # New split: Image (0.35), Text (0.35), CLIP (0.30)
+                active_weights = {
+                    "image": 0.35,
+                    "text": 0.35,
+                    "voice": 0.0,
+                    "clip": 0.30,
+                    "voice_text": 0.0
+                }
+            
+            if "image" not in present_modalities:
+                 # Distribute image-related weights (0.25 + 0.20 = 0.45)
+                 # New split: Text (0.50), Voice (0.40), Voice-Text (0.10)
+                 active_weights = {
+                    "image": 0.0,
+                    "text": 0.50,
+                    "voice": 0.40,
+                    "clip": 0.0,
+                    "voice_text": 0.10
+                 }
 
         # Calculate overall confidence with adaptive weights
         overall_confidence += individual_scores["image"] * active_weights["image"]
@@ -522,18 +531,20 @@ class ConsistencyEngine:
             except Exception as e:
                 logger.warning(f"Calibration failed, using raw confidence: {e}")
 
-        # Determine routing and action based on CALIBRATED confidence
+        rounded_confidence = round(calibrated_confidence, 2)
+
+        # Determine routing and action based on calibrated confidence
         routing = "low_quality"
         action = "return_for_improvement"
-        if calibrated_confidence >= 0.85:
+        if rounded_confidence >= 0.85:
             routing = "high_quality"
             action = "forward_to_matching"
-        elif calibrated_confidence >= 0.70:
+        elif rounded_confidence >= 0.70:
             routing = "medium_quality"
             action = "manual_review"
 
         return {
-            "overall_confidence": round(calibrated_confidence, 2),
+            "overall_confidence": rounded_confidence,
             "raw_confidence": round(overall_confidence, 2),
             "calibration_applied": calibration_applied,
             "routing": routing,

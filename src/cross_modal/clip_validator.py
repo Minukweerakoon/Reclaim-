@@ -292,23 +292,27 @@ class CLIPValidator:
 
                 # Basic mismatch detection and suggestions
                 mismatches: List[Dict[str, Any]] = []
+                item_mismatch = False
+                color_mismatch = False
                 if mentioned_items:
                     ti = [t[0].split(" ")[-1] for t in top_items]
                     if all(mi not in ti for mi in mentioned_items):
                         mismatches.append({"type": "item", "message": "Item type in text not prominent in image"})
+                        item_mismatch = True
                 if mentioned_colors:
                     tc = [t[0].split(" ")[0] for t in top_colors]
                     if all(mc not in tc for mc in mentioned_colors):
                         mismatches.append({"type": "color", "message": "Color in text not prominent in image"})
+                        color_mismatch = True
                 result["mismatch_detection"]["mismatches"] = mismatches
 
                 # Suggestions
                 if not result["valid"]:
-                    if top_items:
+                    if top_items and (not mentioned_items or item_mismatch):
                         result["suggestions"].append(
                             f"Consider describing it as '{top_items[0][0].replace('a photo of a ','')}'."
                         )
-                    if top_colors:
+                    if top_colors and (not mentioned_colors or color_mismatch):
                         result["suggestions"].append(
                             f"If applicable, mention color like '{top_colors[0][0].split(' ')[0]}'."
                         )

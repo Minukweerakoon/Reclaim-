@@ -1,19 +1,45 @@
 import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import path from 'path'
 
-// Make React plugin optional to avoid install/time costs in constrained envs
-export default defineConfig(async () => {
-  let reactPlugin: any
-  try {
-    // dynamically import to avoid hard failure if not installed
-    const m = await import('@vitejs/plugin-react')
-    reactPlugin = m.default
-  } catch (e) {
-    reactPlugin = undefined
-  }
-  return {
-    plugins: reactPlugin ? [reactPlugin()] : [],
-    server: {
-      port: 5173
-    }
-  }
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/validate': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/health': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/results': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/metrics': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/ws': {
+        target: 'ws://127.0.0.1:8000',
+        ws: true,
+      },
+      '/items': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+    },
+  },
 })

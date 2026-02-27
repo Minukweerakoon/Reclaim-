@@ -22,6 +22,76 @@ class XAIExplainer:
             "red", "blue", "green", "yellow", "black", "white", "brown",
             "gray", "grey", "orange", "purple", "pink", "silver", "gold"
         ]
+
+    def _extract_described_items(self, text_result: Optional[Dict], description_lower: str) -> List[str]:
+        items: List[str] = []
+        if text_result:
+            entities = text_result.get("entities", {}) or {}
+            items.extend([item.lower() for item in entities.get("item_mentions", []) if item])
+
+            completeness_entities = text_result.get("completeness", {}).get("entities", {}) or {}
+            items.extend([item.lower() for item in completeness_entities.get("item_type", []) if item])
+
+        for item_type in [
+            "backpack", "bag", "phone", "wallet", "laptop", "umbrella",
+            "suitcase", "luggage", "watch", "glasses", "keys"
+        ]:
+            if item_type in description_lower:
+                items.append(item_type)
+
+        deduped = []
+        for item in items:
+            if item and item not in deduped:
+                deduped.append(item)
+        return deduped
+
+    def _extract_described_colors(self, text_result: Optional[Dict], description_lower: str) -> List[str]:
+        colors: List[str] = []
+        if text_result:
+            entities = text_result.get("entities", {}) or {}
+            colors.extend([color.lower() for color in entities.get("color_mentions", []) if color])
+
+        for color in self.color_keywords:
+            if color in description_lower and color not in colors:
+                colors.append(color)
+
+        return colors
+
+    def _get_detected_object(self, image_result: Optional[Dict]) -> Optional[str]:
+        if not image_result:
+            return None
+        objects = image_result.get("objects", {})
+        detections = objects.get("detections", [])
+        if detections and len(detections) > 0:
+            return detections[0].get("class") or detections[0].get("label")
+        return None
+
+    def _is_item_compatible(self, detected_object: str, described_items: List[str]) -> bool:
+        detected_lower = detected_object.lower()
+
+        item_aliases = {
+            "luggage": ["suitcase", "luggage", "bag", "travel bag"],
+            "backpack": ["backpack", "bag", "school bag", "rucksack"],
+            "handbag": ["handbag", "purse", "bag"],
+            "suitcase": ["suitcase", "luggage", "travel bag"],
+            "umbrella": ["umbrella"],
+            "cell phone": ["phone", "mobile", "smartphone", "cell phone"],
+            "laptop": ["laptop", "notebook", "computer"],
+            "wallet": ["wallet", "billfold"],
+            "watch": ["watch", "wristwatch"],
+            "glasses": ["glasses", "spectacles", "eyeglasses", "sunglasses"],
+            "keys": ["keys", "key"],
+        }
+
+        if any(item in detected_lower or detected_lower in item for item in described_items):
+            return True
+
+        for detected_type, aliases in item_aliases.items():
+            if detected_lower in detected_type or detected_type in detected_lower:
+                if any(alias in described_items for alias in aliases):
+                    return True
+
+        return False
         
     def generate_explanation(self,
                            image_result: Optional[Dict] = None,
@@ -59,54 +129,59 @@ class XAIExplainer:
             desc_text = image_text.get("text", "") or image_text.get("description", "")
         
         desc_lower = desc_text.lower()
-        
-        # Extract colors mentioned in description
-        mentioned_colors = [c for c in self.color_keywords if c in desc_lower]
-        
-        # Get detected object from image
-        detected_object = None
+
+        described_items = self._extract_described_items(text_result, desc_lower)
+        mentioned_colors = self._extract_described_colors(text_result, desc_lower)
+        detected_object = self._get_detected_object(image_result)
+
+        # Check for object type mismatch using detected object vs described entities
+        if detected_object and described_items:
+            if not self._is_item_compatible(detected_object, described_items):
+                described_item = described_items[0]
+                return {
+                    "has_discrepancy": True,
+                    "discrepancy_type": "object_mismatch",
+                    "severity": "high",
+                    "explanation": (
+                        f"Object mismatch: You described a '{described_item}' but the image "
+                        f"appears to show '{detected_object}'."
+                    ),
+                    "suggestions": [
+                        f"Update your description to match '{detected_object}'",
+                        f"Upload a photo of your {described_item}",
+                        "Double-check you're describing the correct item"
+                    ]
+                }
+
+        # Check for color mismatch using detected dominant color vs described colors
+        image_color = None
         if image_result:
-            objects = image_result.get("objects", {})
-            detections = objects.get("detections", [])
-            if detections and len(detections) > 0:
-                detected_object = detections[0].get("class", detections[0].get("label", ""))
-        
-        # Check for object type mismatch
-        object_mismatch = self._check_object_type_mismatch(detected_object, desc_lower)
-        if object_mismatch:
-            result.update(object_mismatch)
-            return result
-            
-        # Check for color mismatch - if user mentioned blue but image likely shows different color
-        if mentioned_colors:
-            # Get image dominant color (if available in results)
-            image_color = None
-            if image_result:
-                image_color = image_result.get("dominant_color")
-                if not image_color and "quality" in image_result:
-                    image_color = image_result["quality"].get("dominant_color")
-            
-            # If we have both image color and mentioned colors, check mismatch
-            if image_color:
-                image_color_lower = image_color.lower()
-                if image_color_lower not in [c.lower() for c in mentioned_colors]:
-                    return {
-                        "has_discrepancy": True,
-                        "discrepancy_type": "color_mismatch",
-                        "severity": "medium",
-                        "explanation": (
-                            f"Color mismatch: You described '{', '.join(mentioned_colors)}' "
-                            f"but the image appears to be {image_color}."
-                        ),
-                        "suggestions": [
-                            f"Update your description to match the actual color ({image_color})",
-                            "Upload a photo of the correct item",
-                            "Take a clearer photo with better lighting"
-                        ]
-                    }
-            
-            # Even without dominant_color, note the colors mentioned for context
-            result["mentioned_colors"] = mentioned_colors
+            image_color = image_result.get("dominant_color")
+            if not image_color and "quality" in image_result:
+                image_color = image_result["quality"].get("dominant_color")
+
+        if image_color and mentioned_colors:
+            image_color_lower = image_color.lower()
+            if image_color_lower not in [c.lower() for c in mentioned_colors]:
+                return {
+                    "has_discrepancy": True,
+                    "discrepancy_type": "color_mismatch",
+                    "severity": "medium",
+                    "explanation": (
+                        f"Color mismatch: You described '{', '.join(mentioned_colors)}' "
+                        f"but the image appears to be {image_color}."
+                    ),
+                    "suggestions": [
+                        f"Update your description to mention '{image_color}'",
+                        "Verify the photo shows the correct item",
+                        "Retake the photo in better lighting if the color looks off"
+                    ]
+                }
+
+        if image_color and not mentioned_colors:
+            result["suggestions"].append(
+                f"Consider adding the color '{image_color}' to your description."
+            )
             
         # Check for CLIP similarity issues (semantic mismatch)
         if cross_modal_results and "image_text" in cross_modal_results:
@@ -138,11 +213,14 @@ class XAIExplainer:
                     f"Low similarity ({similarity:.0%}): {'. '.join(explanation_parts)}. "
                     f"Please verify the photo matches your description."
                 )
-                result["suggestions"] = [
-                    "Ensure the photo clearly shows the item you described",
-                    "Update description to match what's in the photo",
-                    "Take a clearer, well-lit photo of the item"
-                ]
+                suggestions = []
+                if detected_object:
+                    suggestions.append(f"If this is a '{detected_object}', update your description accordingly.")
+                if image_color and not mentioned_colors:
+                    suggestions.append(f"Add the color '{image_color}' to help matching.")
+                suggestions.append("Ensure the photo clearly shows the item you described.")
+                suggestions.append("Take a clearer, well-lit photo of the item.")
+                result["suggestions"] = suggestions
                 return result
         
         # Check voice-text consistency

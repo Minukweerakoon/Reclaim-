@@ -23,6 +23,7 @@ class ChatRequest(BaseModel):
     message: str
     history: Optional[List[ChatMessage]] = []
     previous_prediction: Optional[Dict] = None  # For tracking corrections
+    extracted_info: Optional[Dict] = None  # Previously extracted information
 
 class ChatResponse(BaseModel):
     bot_response: str
@@ -53,7 +54,8 @@ async def chat_message(request: ChatRequest, api_key: str = Depends(get_api_key)
         # Get conversational response from Gemini
         response = llm_client.guide_conversation(
             user_message=request.message,
-            conversation_history=history
+            conversation_history=history,
+            previous_extracted_info=request.extracted_info or {}
         )
         
         feedback_recorded = False

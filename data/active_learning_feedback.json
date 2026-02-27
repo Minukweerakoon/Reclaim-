@@ -67,5 +67,17 @@
       "brand": "Dell"
     },
     "type": "correction"
+  },
+  {
+    "timestamp": "2026-02-21T15:12:11.074678",
+    "input": "lost black wallet at library",
+    "original": {
+      "item_type": "wallet",
+      "confidence": 0.9
+    },
+    "correction": {
+      "notes": "Should be a purse not wallet"
+    },
+    "type": "user_correction"
   }
 ]

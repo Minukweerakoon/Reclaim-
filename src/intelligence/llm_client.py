@@ -46,14 +46,30 @@ class LLMClient:
             logger.warning(f"No API key found for {self.provider}. Falling back to mock provider.")
             self.provider = "mock"
         
+        # Initialize OpenAI client if using OpenAI
+        if self.provider == "openai":
+            try:
+                import openai
+                self.openai_client = openai.OpenAI(api_key=self.api_key)
+                logger.info(f"✓ OpenAI client initialized with model: {self.model}")
+            except ImportError:
+                logger.warning("OpenAI package not installed. Install with: pip install openai")
+                self.provider = "mock"
+            except Exception as e:
+                logger.warning(f"Failed to initialize OpenAI: {e}")
+                self.provider = "mock"
+        
         if self.provider == "gemini":
             if not _GENAI_AVAILABLE:
                 logger.warning("Gemini provider requested but google.generativeai package not available. Falling back to mock.")
                 self.provider = "mock"
             else:
                 genai.configure(api_key=self.api_key)
-                # Using gemini-2.5-flash (confirmed available via list_models())
-                self.gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+                # Use model from env variable (expected: gemini-flash-latest)
+                gemini_model_name = os.getenv("LLM_MODEL", "gemini-flash-latest")
+                self.gemini_model = genai.GenerativeModel(gemini_model_name)
+                self.gemini_fallback_model = genai.GenerativeModel("gemini-flash-latest")
+                logger.info(f"✓ Loaded Gemini model: {gemini_model_name}")
             
             # Initialize Groq as fallback if API key available
             if self.groq_api_key:
@@ -72,7 +88,7 @@ class LLMClient:
         masked_key = f"{self.api_key[:4]}...{self.api_key[-4:]}" if self.api_key else "None"
         logger.info(f"LLMClient Initialized. Provider: {self.provider}, Key: {masked_key}")
 
-    def guide_conversation(self, user_message: str, conversation_history: List[Dict] = None) -> Dict:
+    def guide_conversation(self, user_message: str, conversation_history: List[Dict] = None, previous_extracted_info: Dict = None) -> Dict:
         """
         NEW: Guide user through item reporting with intelligent conversation.
         
@@ -102,9 +118,11 @@ class LLMClient:
             }
         """
         if self.provider == "gemini":
-            return self._gemini_guide_conversation(user_message, conversation_history)
+            return self._gemini_guide_conversation(user_message, conversation_history, previous_extracted_info)
+        elif self.provider == "openai":
+            return self._openai_guide_conversation(user_message, conversation_history, previous_extracted_info)
         else:
-            return self._mock_guide_conversation(user_message, conversation_history)
+            return self._mock_guide_conversation(user_message, conversation_history, previous_extracted_info)
     
     def _call_gemini_with_retry(self, prompt: str, use_fallback: bool = False) -> str:
         """
@@ -123,11 +141,12 @@ class LLMClient:
         import time
         
         model = self.gemini_fallback_model if use_fallback else self.gemini_model
-        model_name = "gemini-1.5-flash" if use_fallback else "gemini-2.5-flash"
         
         for attempt in range(self.retry_config["max_attempts"]):
             try:
-                logger.info(f"Calling {model_name} (attempt {attempt + 1}/{self.retry_config['max_attempts']})")
+                # The generative model name is accessible via `model.model_name` 
+                # but we can safely just log that we are calling Gemini
+                logger.info(f"Calling Gemini (attempt {attempt + 1}/{self.retry_config['max_attempts']})")
                 
                 # Add timeout to prevent indefinite hangs
                 response = model.generate_content(
@@ -165,6 +184,9 @@ class LLMClient:
                     if attempt < self.retry_config["max_attempts"] - 1:
                         time.sleep(1)  # Brief pause before retry
                         continue
+                    elif self.groq_client:
+                        logger.warning("Gemini persistent error. Switching to Groq fallback...")
+                        return self._call_groq_with_retry(prompt)
                     else:
                         raise
         
@@ -213,11 +235,17 @@ class LLMClient:
         
         raise Exception("All Groq retry attempts failed")
     
-    def _gemini_guide_conversation(self, user_message: str, conversation_history: List[Dict] = None) -> Dict:
+    def _gemini_guide_conversation(self, user_message: str, conversation_history: List[Dict] = None, previous_extracted_info: Dict = None) -> Dict:
         """Use Gemini to guide conversation intelligently."""
         history_text = "\n".join([
             f"{msg['role']}: {msg['content']}" 
             for msg in (conversation_history or [])
+        ])
+        
+        # Format previously extracted info
+        prev_info = previous_extracted_info or {}
+        prev_info_text = "\n".join([
+            f"  {k}: {v}" for k, v in prev_info.items() if v
         ])
         
         prompt = f"""You are a helpful assistant for a lost & found item reporting system.
@@ -227,23 +255,32 @@ Your tasks:
    - Keywords for lost: lost, missing, can't find, dropped, left behind
    - Keywords for found: found, discovered, picked up, came across
    
-2. Extract details:
-   - Item type (phone, laptop, keys, wallet, etc.)
-   - Color
-   - Location (library, cafeteria, parking lot, etc.)
-   - Time (yesterday, this morning, 2 hours ago, etc.)
-   - Brand (if mentioned)
+2. Extract and ACCUMULATE details from the ENTIRE conversation:
+   - Item type (phone, laptop, keys, wallet, bag, watch, shoes, jacket, etc.)
+   - Color (red, blue, black, white, grey, silver, etc.)
+   - Location (library, cafeteria, parking lot, gym, classroom, park, etc.)
+   - Time (yesterday, today, this morning, 2pm, etc.)
+   - Brand (Dell, Apple, Samsung, Nike, Adidas, Gucci, etc.)
+   
+   CRITICAL: Merge new information with previously extracted data. Keep all non-empty fields.
+   
+   EXAMPLES:
+   - "I lost my blue Dell laptop" → item_type: "laptop", color: "blue", brand: "Dell"
+   - "I lost my nike shoes yesterday at the park" → item_type: "shoes", color: "", brand: "Nike", location: "park", time: "yesterday"
+   - "yesterday near the cafeteria" (when laptop already known) → keep laptop info, add time: "yesterday", location: "cafeteria"
+   - "it was in the library" → location: "library"
    
 3. Be empathetic and constructive:
-   - If item has sentimental value, acknowledge it
-   - Ask for missing details naturally
-   - Suggest adding photo if user found an item
-   - Suggest adding voice description for details
+   - Acknowledge what you've learned
+   - Ask for missing details naturally (only ask for what's still missing)
+   - Suggest validation when enough details collected
    
 4. Guide next steps:
    - If all details collected → suggest validation
-   - If missing image → suggest taking photo
-   - If vague description → ask for more details
+   - If missing critical info → ask for it
+
+Previously extracted information:
+{prev_info_text or '  (none yet)'}
 
 Conversation history:
 {history_text}
@@ -271,32 +308,121 @@ Respond in JSON format:
             response_text = self._call_gemini_with_retry(prompt)
             
             # Parse the JSON response
-            logger.info(f"Gemini raw response: {response_text[:200]}...")  # Log first 200 chars
+            logger.info(f"Gemini raw response: {response_text[:200]}...")
             
             # Try to parse JSON
             result = json.loads(response_text)
+            logger.info(f"Gemini extraction successful: {result.get('extracted_info', {})}")
             return result
         except json.JSONDecodeError as e:
             logger.error(f"Gemini returned invalid JSON: {e}")
             logger.error(f"Response was: {response_text[:500]}")
-            return self._mock_guide_conversation(user_message, conversation_history)
+            logger.warning("Falling back to mock conversation handler")
+            return self._mock_guide_conversation(user_message, conversation_history, previous_extracted_info)
         except Exception as e:
             logger.error(f"Gemini conversation error: {e}")
-            return self._mock_guide_conversation(user_message, conversation_history)
+            logger.warning("Falling back to mock conversation handler")
+            return self._mock_guide_conversation(user_message, conversation_history, previous_extracted_info)
     
-    def _mock_guide_conversation(self, user_message: str, conversation_history: List[Dict] = None) -> Dict:
+    def _openai_guide_conversation(self, user_message: str, conversation_history: List[Dict] = None, previous_extracted_info: Dict = None) -> Dict:
+        """Use OpenAI GPT-4 to guide conversation intelligently."""
+        # Format previously extracted info
+        prev_info = previous_extracted_info or {}
+        prev_info_text = "\n".join([
+            f"  {k}: {v}" for k, v in prev_info.items() if v
+        ])
+        
+        # Build conversation messages for OpenAI
+        messages = [
+            {"role": "system", "content": """You are a helpful assistant for a lost & found item reporting system.
+
+Extract and ACCUMULATE details from the ENTIRE conversation:
+- Item type (phone, laptop, keys, wallet, bag, watch, etc.)
+- Color (red, blue, black, white, grey, silver, etc.)
+- Location (library, cafeteria, parking lot, gym, classroom, etc.)
+- Time (yesterday, today, this morning, 2pm, etc.)
+- Brand (Dell, Apple, Samsung, HP, etc.)
+
+CRITICAL: Merge new information with previously extracted data. Keep all non-empty fields.
+
+Detect if the user LOST or FOUND an item.
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "response": "Your friendly, conversational response",
+  "intention": "lost" or "found" or "unknown",
+  "extracted_info": {
+    "item_type": "extracted item or empty string",
+    "color": "extracted color or empty string",
+    "location": "extracted location or empty string",
+    "time": "extracted time or empty string",
+    "brand": "extracted brand or empty string"
+  },
+  "next_action": "ask_for_image" or "ask_for_details" or "validate" or "continue",
+  "sentiment": "sentimental" or "neutral" or "urgent"
+}"""}
+        ]
+        
+        # Add conversation history
+        for msg in (conversation_history or []):
+            messages.append({"role": "user" if msg["role"] == "user" else "assistant", "content": msg["content"]})
+        
+        # Add context about previously extracted info
+        context = f"Previously extracted: {prev_info_text or 'none yet'}\nUser's latest message: {user_message}"
+        messages.append({"role": "user", "content": context})
+        
+        try:
+            response = self.openai_client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                response_format={"type": "json_object"},
+                temperature=0.7
+            )
+            
+            response_text = response.choices[0].message.content
+            logger.info(f"OpenAI raw response: {response_text[:200]}...")
+            
+            result = json.loads(response_text)
+            logger.info(f"OpenAI extraction successful: {result.get('extracted_info', {})}")
+            return result
+        except json.JSONDecodeError as e:
+            logger.error(f"OpenAI returned invalid JSON: {e}")
+            logger.warning("Falling back to mock conversation handler")
+            return self._mock_guide_conversation(user_message, conversation_history, previous_extracted_info)
+        except Exception as e:
+            logger.error(f"OpenAI conversation error: {e}")
+            logger.warning("Falling back to mock conversation handler")
+            return self._mock_guide_conversation(user_message, conversation_history, previous_extracted_info)
+    
+    def _mock_guide_conversation(self, user_message: str, conversation_history: List[Dict] = None, previous_extracted_info: Dict = None) -> Dict:
         """Mock conversation guidance for testing."""
         msg_lower = user_message.lower()
         
-        # Detect intention
+        # Check conversation history for previous intent
+        previous_intent = "unknown"
+        if conversation_history:
+            for msg in reversed(conversation_history):
+                content = msg.get('content', '').lower()
+                if any(word in content for word in ['lost', 'missing', "can't find", 'dropped', 'lose']):
+                    previous_intent = "lost"
+                    break
+                elif any(word in content for word in ['found', 'discovered', 'picked up', 'find']):
+                    previous_intent = "found"
+                    break
+        
+        # Detect intention from current message
         intention = "unknown"
-        if any(word in msg_lower for word in ['lost', 'missing', "can't find", 'dropped']):
+        if any(word in msg_lower for word in ['lost', 'missing', "can't find", 'dropped', 'lose']):
             intention = "lost"
-        elif any(word in msg_lower for word in ['found', 'discovered', 'picked up']):
+        elif any(word in msg_lower for word in ['found', 'discovered', 'picked up', 'find']):
             intention = "found"
         
-        # Extract basic info
-        extracted = {
+        # Use previous intent if current message doesn't specify
+        if intention == "unknown" and previous_intent != "unknown":
+            intention = previous_intent
+        
+        # Start with previous extracted info or empty dict
+        extracted = previous_extracted_info.copy() if previous_extracted_info else {
             "item_type": "",
             "color": "",
             "location": "",
@@ -304,46 +430,112 @@ Respond in JSON format:
             "brand": ""
         }
         
+        # Extract basic info from current message and merge
         # Item types
-        items = ['phone', 'laptop', 'keys', 'wallet', 'watch', 'bag', 'backpack']
-        for item in items:
-            if item in msg_lower:
+        item_mapping = {
+            'phone': 'phone',
+            'iphone': 'phone',
+            'laptop': 'laptop',
+            'macbook': 'laptop',
+            'computer': 'laptop',
+            'keys': 'keys',
+            'wallet': 'wallet',
+            'watch': 'watch',
+            'bag': 'bag',
+            'backpack': 'bag',
+            'tablet': 'tablet',
+            'ipad': 'tablet',
+            'shoe': 'shoes',
+            'shoes': 'shoes',
+            'sneaker': 'shoes',
+            'sneakers': 'shoes',
+            'jacket': 'jacket',
+            'coat': 'coat'
+        }
+        for kw, item in item_mapping.items():
+            if kw in msg_lower:
                 extracted["item_type"] = item
                 break
         
         # Colors
-        colors = ['red', 'blue', 'black', 'white', 'silver', 'gold', 'green']
+        colors = ['red', 'blue', 'black', 'white', 'silver', 'gold', 'green', 'grey', 'gray']
         for color in colors:
             if color in msg_lower:
                 extracted["color"] = color
                 break
         
         # Locations
-        locations = ['library', 'cafeteria', 'parking', 'classroom', 'gym']
+        locations = ['library', 'cafeteria', 'parking', 'classroom', 'gym', 'cafe', 'park', 'bus', 'train']
         for loc in locations:
             if loc in msg_lower:
                 extracted["location"] = loc
                 break
         
+        # Time expressions
+        time_keywords = ['yesterday', 'today', 'morning', 'afternoon', 'evening', 'ago', 'a.m', 'p.m', 'am', 'pm']
+        if any(kw in msg_lower for kw in time_keywords):
+            # Extract time-related text (simplified)
+            time_words = [w for w in user_message.split() if any(kw in w.lower() for kw in time_keywords)]
+            if time_words:
+                extracted["time"] = " ".join(time_words)[:50]  # Limit length
+        
+        # Brands
+        brand_mapping = {
+            'dell': 'Dell',
+            'hp': 'HP',
+            'apple': 'Apple',
+            'macbook': 'Apple',
+            'iphone': 'Apple',
+            'ipad': 'Apple',
+            'samsung': 'Samsung',
+            'lenovo': 'Lenovo',
+            'asus': 'Asus',
+            'acer': 'Acer',
+            'nike': 'Nike',
+            'adidas': 'Adidas',
+            'puma': 'Puma',
+            'gucci': 'Gucci',
+            'louis vuitton': 'Louis Vuitton'
+        }
+        for kw, brand in brand_mapping.items():
+            if kw in msg_lower:
+                extracted["brand"] = brand
+                break
+        
         # Generate response
         if intention == "lost":
-            response = f"I understand you lost something. "
             if extracted["item_type"]:
-                response += f"A {extracted['color']} {extracted['item_type']}" if extracted["color"] else f"a {extracted['item_type']}"
-                response += f" in the {extracted['location']}" if extracted["location"] else ""
-                response += ". Could you provide more details like when you last saw it?"
+                response = f"I understand you lost your {extracted['item_type']}. "
+                
+                # Check what's missing
+                missing = []
+                if not extracted["location"]: missing.append("where you last saw it")
+                if not extracted["time"]: missing.append("when you lost it")
+                if not extracted["color"]: missing.append("its color")
+                
+                if not missing:
+                    response += "I've noted all the details. Would you like to proceed to validation to search for matches?"
+                else:
+                    response += f"Could you tell me {', '.join(missing)}?"
             else:
-                response += "What did you lose?"
+                response = "I'm sorry to hear that. What specifically did you lose?"
                 
         elif intention == "found":
-            response = f"Great! You found something. "
             if extracted["item_type"]:
-                response += f"A {extracted['color']} {extracted['item_type']}" if extracted["color"] else f"a {extracted['item_type']}"
-                response += ". Would you like to take a photo to help match it with the owner?"
+                response = f"Thank you for reporting this. I've noted the {extracted['item_type']}. "
+                if not extracted["location"]:
+                    response += "Where exactly did you find it?"
+                else:
+                    response += "Would you like to take a photo or provide more details to help the owner find it?"
             else:
-                response += "What did you find?"
+                response = "Thank you for reporting a found item. What specifically did you find?"
         else:
-            response = "Hi! I'm here to help. Did you lose something or find something?"
+            # Only show initial greeting if this is actually the start of conversation
+            if not conversation_history or len(conversation_history) <= 1:
+                response = "Hi! I'm here to help. Did you lose something or find something?"
+            else:
+                # Continue conversation even if intent is unclear
+                response = "I see. Can you tell me more about what happened? What item are we talking about?"
         
         # Determine next action
         next_action = "continue"

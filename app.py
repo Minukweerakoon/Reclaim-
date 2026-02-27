@@ -1,4 +1,9 @@
 import os
+import sys
+
+# Ensure the root directory is in the PYTHONPATH to resolve 'src' imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -10,15 +15,14 @@ import json
 import uuid
 from typing import Dict, List, Optional, Any, Union
 from functools import wraps
-from datetime import datetime
-from src.integration.external_service import ExternalIntegrationService
+from datetime import datetime, timedelta
 
 import uvicorn
 import asyncio
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends, BackgroundTasks, WebSocket, WebSocketDisconnect, status, Request, Response, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader, APIKey
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, FileResponse
 from prometheus_client import generate_latest
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.utils import get_openapi
@@ -136,7 +140,7 @@ RATE_LIMIT_MAX_REQUESTS = 100  # requests per window
 rate_limit_storage = {}  # IP -> {count: int, reset_time: float}
 
 # CORS configuration (explicit origins; wildcard + credentials is disallowed by browsers)
-_default_cors = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3001,http://127.0.0.1:3001"
+_default_cors = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:3001,http://127.0.0.1:3001,http://localhost:8000,http://127.0.0.1:8000"
 cors_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", _default_cors).split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
@@ -156,6 +160,14 @@ try:
     logger.info("✓ Research feature endpoints registered (Gemini chat + Active Learning)")
 except Exception as e:
     logger.warning(f"Could not load research feature routers: {e}")
+
+# Firebase-backed reports API
+try:
+    from src.api.reports import router as reports_router
+    app.include_router(reports_router)
+    logger.info("✓ Reports API registered (Firebase Firestore)")
+except Exception as e:
+    logger.warning(f"Could not load reports router: {e}")
 
 # File upload settings
 UPLOAD_DIR = "uploads"
@@ -405,6 +417,7 @@ class ValidationResponse(BaseModel):
     confidence: dict
     feedback: dict
     clarification_questions: List[str] = []
+    supabase_id: Optional[str] = None
 
 class TextValidationRequest(BaseModel):
     text: str
@@ -839,21 +852,33 @@ async def process_validation_background(client_id: str, task_id: str, text: Opti
         await update_progress(client_id, -1, f"Error: {str(e)}", {"task_id": task_id})
 
 # Routes
-@app.get("/")
-async def root():
-    return {"message": "Welcome to the Multimodal Validation API"}
+
 
 @app.get("/health")
 async def health_check():
     """
     Health check endpoint for load balancers and monitoring.
     """
+    # Check Redis status safely
+    redis_status = "down"
+    try:
+        if redis_client.ping():
+            redis_status = "up"
+    except Exception:
+        redis_status = "down"
+
+    # Build uptime safely
+    try:
+        uptime = time.time() - metrics_collector.start_time
+    except Exception:
+        uptime = 0
+
     health_status = {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "components": {
             "api": "up",
-            "redis": "up" if redis_client.ping() else "down",
+            "redis": redis_status,
             "validators": {
                 "image": "up" if importlib.util.find_spec('src.image.validator') else "down",
                 "text": "up" if importlib.util.find_spec('src.text.validator') else "down",
@@ -862,7 +887,7 @@ async def health_check():
                 "consistency_engine": "up" if importlib.util.find_spec('src.cross_modal.consistency_engine') else "down"
             }
         },
-        "uptime": time.time() - metrics_collector.start_time
+        "uptime": uptime
     }
     
     return health_status
@@ -885,6 +910,10 @@ async def get_result(request_id: str):
             return entry["result"]
         return {"status": "in_progress", **entry}
     raise HTTPException(status_code=404, detail="Result not found")
+
+# NOTE: GET /api/reports is handled by the Firebase-backed reports router
+# (src/api/reports.py). The Monitor dashboard uses GET /api/reports/all
+# which lists all reports without per-user Firebase auth.
 
 # ------------------------------------------------------------------ #
 # Novel Feature #1: Spatial-Temporal Context Validation
@@ -965,6 +994,48 @@ async def get_spatial_temporal_stats(api_key: APIKey = Depends(get_api_key)):
 # ================================================================
 # Phase 3: Advanced Entity Detection Endpoints
 # ================================================================
+
+@app.post("/api/entities/detect/text")
+async def detect_text_entities(
+    request: TextValidationRequest,
+    api_key: APIKey = Depends(get_api_key)
+):
+    """
+    Extract entities (item_type, color, location, brand, time) from text using the TextValidator.
+    Used by the frontend Spatial-Temporal Context analysis.
+    """
+    try:
+        tv = get_text_validator()
+        if tv is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Text validator unavailable on this instance"
+            )
+        entity_result = tv.extract_entities(request.text, request.language or 'en')
+
+        # extract_entities returns:
+        #   entities: list of {text, label, start, end}  (spaCy NER)
+        #   item_mentions, color_mentions, location_mentions, brand_mentions, style_mentions
+        raw_entities = entity_result.get("entities", [])
+        return {
+            "entities": {
+                "item_type": entity_result.get("item_mentions", []),
+                "color": entity_result.get("color_mentions", []),
+                "brand": entity_result.get("brand_mentions", []),
+                "location": entity_result.get("location_mentions", []),
+                "time": [e["text"] for e in raw_entities if e.get("label") in ("DATE", "TIME")],
+            },
+            "raw_entities": raw_entities,
+            "confidence": 0.8 if entity_result.get("item_mentions") else 0.4,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Text entity detection failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Text entity detection failed: {str(e)}"
+        )
 
 @app.post("/api/entities/detect")
 async def detect_advanced_entities(
@@ -1498,6 +1569,10 @@ async def validate_complete(
     image_file: Optional[UploadFile] = File(None),
     audio_file: Optional[UploadFile] = File(None),
     language: str = Form("en"),
+    # ---- Supabase routing fields (populated by authenticated frontend) ----
+    intent: Optional[str] = Form(None),      # "lost" or "found"
+    user_id: Optional[str] = Form(None),     # Firebase UID
+    user_email: Optional[str] = Form(None),  # User email
     background_tasks: BackgroundTasks = BackgroundTasks(),
     api_key: APIKey = Depends(get_api_key)
 ):
@@ -1707,65 +1782,47 @@ async def validate_complete(
                 from src.intelligence.spatial_temporal_validator import get_spatial_temporal_validator
                 
                 # Extract context from text analysis
-                entities = text_result.get("entities", {})
+                completeness_entities = text_result.get("completeness", {}).get("entities", {}) or {}
+                entities = text_result.get("entities", {}) or {}
                 item_mentions = entities.get("item_mentions", [])
                 location_mentions = entities.get("location_mentions", [])
                 
-                # Extract item type (use first mention or hint)
+                # Extract item type (prefer explicit entity extraction)
                 item_type = None
-                if item_mentions and len(item_mentions) > 0:
+                item_hints = completeness_entities.get("item_type", [])
+                if item_hints and len(item_hints) > 0:
+                    item_type = item_hints[0]
+                elif item_mentions and len(item_mentions) > 0:
                     item_type = item_mentions[0]
-                elif text_result.get("completeness", {}).get("entities", {}).get("item_type"):
-                    item_hints = text_result["completeness"]["entities"]["item_type"]
-                    if item_hints and len(item_hints) > 0:
-                        item_type = item_hints[0]
                 
-                # Extract location (prioritize explicit mentions)
+                # Extract location (prefer explicit entity extraction)
                 location = None
-                if location_mentions and len(location_mentions) > 0:
+                location_hints = completeness_entities.get("location", [])
+                if location_hints and len(location_hints) > 0:
+                    location = location_hints[0]
+                elif location_mentions and len(location_mentions) > 0:
                     location = location_mentions[0]
                 
-                # Extract time from text (keywords like "morning", "afternoon", "2pm")
-                time_mention = None
-                text_lower = text.lower() if text else ""
-                time_keywords = ["morning", "afternoon", "evening", "night", "noon", "am", "pm"]
-                for keyword in time_keywords:
-                    if keyword in text_lower:
-                        time_mention = keyword
-                        break
+                # Extract time context
+                time_val = None
+                time_hints = completeness_entities.get("time", [])
+                if time_hints and len(time_hints) > 0:
+                    time_val = time_hints[0]
                 
-                # Only run validation if we have at least item and location
                 if item_type and location:
-                    logger.info(f"Spatial-Temporal Validation: item={item_type}, location={location}, time={time_mention}")
-                    
-                    validator = get_spatial_temporal_validator()
-                    spatial_temporal_result = validator.calculate_plausibility(
+                    st_validator = get_spatial_temporal_validator()
+                    st_result = st_validator.calculate_plausibility(
                         item=item_type,
                         location=location,
-                        time=time_mention
+                        time=time_val or "unknown"
                     )
-                    
-                    # Add to cross_modal results for frontend consumption
+                    spatial_temporal_result = st_result
+                    logger.info(f"Spatial-Temporal: {item_type} @ {location} → {st_result.get('plausibility_score', 'N/A')}")
                     cross_modal_results["spatial_temporal"] = spatial_temporal_result
-                    
-                    # Record validated item for learning (if plausible)
-                    if spatial_temporal_result.get("valid", False):
-                        validator.record_validated_item(item_type, location, time_mention)
-                    
-                    logger.info(
-                        f"Spatial-Temporal Score: {spatial_temporal_result['plausibility_score']:.2f} "
-                        f"({spatial_temporal_result['confidence_level']})"
-                    )
-                else:
-                    logger.debug(f"Skipping spatial-temporal validation: item={item_type}, location={location}")
-                    
             except Exception as e:
-                logger.error(f"Spatial-temporal validation failed: {e}")
-                # Don't fail the entire request if spatial-temporal fails
-        # ============================================================
+                logger.warning(f"Spatial-temporal validation skipped: {e}")
         
-        
-        # Calculate overall confidence
+        # Calculate overall confidence (must come AFTER cross_modal_results is fully populated)
         ce2 = get_consistency_engine()
         if ce2 is None:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Consistency engine unavailable on this instance")
@@ -1793,8 +1850,26 @@ async def validate_complete(
         if not confidence_results["cross_modal_scores"].get("voice_text_similarity", 0) > 0 and "voice" in input_types and "text" in input_types:
             feedback["suggestions"].append("Voice and text description do not align well.")
 
+        # ---- Sanitize numpy types for JSON serialization ----
+        def sanitize_for_json(obj):
+            """Recursively convert numpy types to native Python types."""
+            import numpy as np
+            if isinstance(obj, dict):
+                return {k: sanitize_for_json(v) for k, v in obj.items()}
+            elif isinstance(obj, (list, tuple)):
+                return [sanitize_for_json(v) for v in obj]
+            elif isinstance(obj, (np.bool_,)):
+                return bool(obj)
+            elif isinstance(obj, (np.integer,)):
+                return int(obj)
+            elif isinstance(obj, (np.floating,)):
+                return float(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            return obj
+
         # Final response structure
-        response_data = {
+        response_data = sanitize_for_json({
             "request_id": request_id,
             "timestamp": datetime.now().isoformat(),
             "input_types": input_types,
@@ -1804,7 +1879,7 @@ async def validate_complete(
             "cross_modal": cross_modal_results,
             "confidence": confidence_results,
             "feedback": feedback
-        }
+        })
         
         # Update metrics
         if confidence_results["overall_confidence"] >= 0.7:
@@ -1814,19 +1889,57 @@ async def validate_complete(
         
         # Phase 3: External Integration - Forward to Matching Engine
         if confidence_results.get("action") == "forward_to_matching":
-            try:
-                integration_service = ExternalIntegrationService()
-                forward_result = integration_service.post_validated_item(response_data, image_path)
-                logger.info(f"External integration result: {forward_result}")
-                
-                # Add integration status to response (optional)
-                response_data["metadata"] = response_data.get("metadata", {})
-                response_data["metadata"]["integration_status"] = forward_result
-                
-            except Exception as e:
-                logger.error(f"Failed to forward to matching engine: {e}")
+            pass # Removed obsolete ExternalIntegrationService
 
         persist_validation_result(request_id, response_data)
+        
+        # ------------------------------------------------------------------ #
+        # Supabase Persistence — save validated item into lost_items/found_items
+        # Only runs when intent + user_id are provided AND confidence is sufficient
+        # ------------------------------------------------------------------ #
+        supabase_id = None
+        if intent and user_id and confidence_results.get("overall_confidence", 0) >= 0.5:
+            try:
+                from src.database.supabase_client import get_supabase_manager
+                sm = get_supabase_manager()
+                if sm:
+                    # Build item_data from validated results
+                    item_data = {
+                        "description": text or "",
+                        "confidence_score": confidence_results.get("overall_confidence"),
+                        "routing": confidence_results.get("routing", "manual"),
+                        "action": confidence_results.get("action", "review"),
+                        "validation_summary": {
+                            "input_types": input_types,
+                            "individual_scores": confidence_results.get("individual_scores", {}),
+                            "cross_modal_scores": confidence_results.get("cross_modal_scores", {}),
+                            "request_id": request_id,
+                        },
+                    }
+                    # Pull structured fields from text validator entities if available
+                    if text_result:
+                        entities = text_result.get("entities", {}) or {}
+                        completeness = text_result.get("completeness", {}).get("entities", {}) or {}
+                        item_data["item_type"] = (completeness.get("item_type") or [None])[0] or ""
+                        item_data["color"] = (completeness.get("color") or entities.get("color_mentions") or [None])[0] or ""
+                        item_data["brand"] = (completeness.get("brand") or entities.get("brand_mentions") or [None])[0] or ""
+                        item_data["location"] = (completeness.get("location") or entities.get("location_mentions") or [None])[0] or ""
+                        item_data["time"] = (completeness.get("time") or [None])[0] or ""
+                    
+                    # Note: image_path is still valid here (cleanup scheduled later)
+                    supabase_id = sm.save_validated_item(
+                        intention=intent,
+                        user_id=user_id,
+                        user_email=user_email or "",
+                        item_data=item_data,
+                        image_path=image_path,  # SupabaseManager uploads then returns URL
+                    )
+                    if supabase_id:
+                        response_data["supabase_id"] = supabase_id
+                        logger.info(f"✓ Saved to Supabase ({intent}_items): id={supabase_id}")
+            except Exception as exc:
+                logger.error(f"Supabase save failed (non-fatal): {exc}")
+        
         return ValidationResponse(**response_data)
         
     except HTTPException:
@@ -1842,9 +1955,11 @@ async def validate_complete(
 async def websocket_validation(websocket: WebSocket, client_id: str):
     """
     WebSocket endpoint for real-time validation progress updates.
+    Supports heartbeat mechanism to keep connection alive.
     """
     await websocket.accept()
     active_connections[client_id] = websocket
+    logger.info(f"WebSocket client connected: {client_id}")
     
     try:
         # Send initial connection confirmation
@@ -1852,49 +1967,69 @@ async def websocket_validation(websocket: WebSocket, client_id: str):
         
         # Wait for messages
         while True:
-            data = await websocket.receive_json()
-            
-            # Handle validation request
-            if data.get("type") == "validate":
-                task_id = datetime.now().strftime("%Y%m%d%H%M%S%f")
+            try:
+                # Receive with timeout to detect dead connections
+                data = await asyncio.wait_for(websocket.receive_json(), timeout=60.0)
                 
-                # Process text validation
-                text = data.get("text")
-                image_path = data.get("image_path")
-                audio_path = data.get("audio_path")
-                language = data.get("language", "en")
+                # Handle heartbeat/ping messages
+                if data.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+                    logger.debug(f"WebSocket ping/pong from {client_id}")
+                    continue
                 
-                # Start background task
-                asyncio.create_task(process_validation_background(
-                    client_id, task_id, text, image_path, audio_path, language
-                ))
+                # Handle validation request
+                if data.get("type") == "validate":
+                    task_id = datetime.now().strftime("%Y%m%d%H%M%S%f")
+                    
+                    # Process text validation
+                    text = data.get("text")
+                    image_path = data.get("image_path")
+                    audio_path = data.get("audio_path")
+                    language = data.get("language", "en")
+                    
+                    # Start background task
+                    asyncio.create_task(process_validation_background(
+                        client_id, task_id, text, image_path, audio_path, language
+                    ))
+                    
+                    # Send task ID to client
+                    await websocket.send_json({"task_id": task_id, "status": "accepted"})
                 
-                # Send task ID to client
-                await websocket.send_json({"task_id": task_id, "status": "accepted"})
-            
-            # Handle task status request
-            elif data.get("type") == "status" and "task_id" in data:
-                task_id = data["task_id"]
-                if task_id in background_tasks_progress:
-                    await websocket.send_json({
-                        "task_id": task_id,
-                        **background_tasks_progress[task_id]
-                    })
+                # Handle task status request
+                elif data.get("type") == "status" and "task_id" in data:
+                    task_id = data["task_id"]
+                    if task_id in background_tasks_progress:
+                        await websocket.send_json({
+                            "task_id": task_id,
+                            **background_tasks_progress[task_id]
+                        })
+                    else:
+                        await websocket.send_json({
+                            "task_id": task_id,
+                            "progress": -1,
+                            "message": "Task not found"
+                        })
                 else:
-                    await websocket.send_json({
-                        "task_id": task_id,
-                        "progress": -1,
-                        "message": "Task not found"
-                    })
+                    logger.debug(f"WebSocket message from {client_id}: {data.get('type', 'unknown')}")
+            
+            except asyncio.TimeoutError:
+                # No message received in 60 seconds, send ping to check if client is alive
+                try:
+                    await websocket.send_json({"type": "ping"})
+                    logger.debug(f"Sent server-side ping to {client_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to send ping to {client_id}: {e}")
+                    break
     
     except WebSocketDisconnect:
         logger.info(f"WebSocket client disconnected: {client_id}")
     except Exception as e:
-        logger.error(f"WebSocket error: {str(e)}")
+        logger.error(f"WebSocket error for {client_id}: {str(e)}", exc_info=True)
     finally:
         # Remove connection from active connections
         if client_id in active_connections:
             del active_connections[client_id]
+            logger.info(f"WebSocket connection removed for {client_id}")
 
 # Exception handlers
 @app.exception_handler(HTTPException)
@@ -2148,12 +2283,54 @@ def custom_openapi():
 # Set custom OpenAPI schema
 app.openapi = custom_openapi
 
-# Serve static files (if available)
-try:
-    if os.path.isdir("static"):
-        app.mount("/static", StaticFiles(directory="static"), name="static")
-except Exception as _e:
-    logger.warning(f"Static mount skipped: {_e}")
+# ──────────────── Frontend Page Routes ────────────────
+from fastapi.responses import HTMLResponse
+
+
+
+
+
+# Serve static files (js, css, images)
+# Serve static files (React build)
+# Use absolute paths to avoid working directory issues
+current_dir = os.path.dirname(os.path.abspath(__file__))
+dist_dir = os.path.join(current_dir, "frontend", "dist")
+assets_dir = os.path.join(dist_dir, "assets")
+
+logger.info(f"Serving static files from: {dist_dir}")
+logger.info(f"Assets directory: {assets_dir}")
+
+if os.path.exists(assets_dir):
+    app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+else:
+    logger.warning(f"Assets directory not found at {assets_dir}, UI may not load correctly.")
+
+# SPA Fallback for React Router
+# Explicit root handler to ensure SPA is served
+@app.get("/")
+async def serve_root():
+    # Serve the index.html from dist
+    index_path = os.path.join(dist_dir, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return Response("Frontend not found", status_code=500)
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    # API routes should be handled by their respective routers
+    if full_path.startswith("api") or full_path.startswith("ws"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    
+    # Try to serve file if it exists (e.g. favicon.ico, logo.png)
+    file_path = os.path.join(dist_dir, full_path)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return FileResponse(file_path)
+        
+    # Otherwise return index.html for SPA routing
+    index_path = os.path.join(dist_dir, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return Response("Frontend not found", status_code=500)
 
 # Main entry point
 if __name__ == "__main__":
