@@ -23,8 +23,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from supabase import create_client  # type: ignore[import-untyped]
 from dotenv import load_dotenv
+from pathlib import Path
 
-load_dotenv()
+load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
 # =========================================================
 # CONFIG
@@ -62,7 +63,9 @@ def startup_event():
 # MODEL LOADING
 # =========================================================
 
-MODEL_PATH = "assets/mobilenetv3_mc_dropout.pt"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+MODEL_PATH = os.path.join(ASSETS_DIR, "mobilenetv3_mc_dropout.pt")
 
 common_tf = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -77,8 +80,6 @@ common_tf = transforms.Compose([
 # LOAD CLASS ORDER FROM TRAINING METADATA (CRITICAL)
 # =========================================================
 
-BASE_DIR = os.path.dirname(__file__)
-ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 META_CSV = os.path.join(ASSETS_DIR, "metadata.csv")
 
 if not os.path.exists(META_CSV):
