@@ -1,41 +1,19 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
 const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 });
 
-// Request interceptor
-api.interceptors.request.use(
-  (config) => {
-    // Add auth token if available
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+api.interceptors.request.use((config) => {
+  // Don't add Authorization header for login/register endpoints
+  const isAuthEndpoint = config.url?.includes('/auth/login') || config.url?.includes('/auth/register');
 
-// Response interceptor
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized access
-      localStorage.removeItem('token');
-      // Redirect to login if needed
-    }
-    return Promise.reject(error);
+  if (!isAuthEndpoint) {
+    const token = localStorage.getItem('token');
+    if (token) config.headers.Authorization = `Bearer ${token}`;
   }
-);
+
+  return config;
+});
 
 export default api;
-
