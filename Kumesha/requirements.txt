@@ -30,8 +30,6 @@ alembic>=1.12.0
 # Google AI
 google-generativeai>=0.3.0
 
-# Firebase
-firebase-admin>=6.0.0
 
 # Supabase
 supabase>=2.0.0
