@@ -46,6 +46,10 @@ const alertSchema = new mongoose.Schema({
     type: String, // Base64 encoded image data URL
     default: null
   },
+  frameImage: {
+    type: String, // Filename of captured frame image (exact frame when alert triggered)
+    default: null
+  },
   videoInfo: {
     outputVideo: String,
     logJson: String,

@@ -60,10 +60,17 @@ const connectDB = async () => {
       }
     }
 
-    // Remove deprecated options (not needed in mongoose 8.0+)
+    // Strip driver-unsupported URI options (e.g. buffertimeoutms in MONGODB_URI)
+    mongoUri = mongoUri
+      .replace(/[?&]buffertimeoutms=[^&]*/gi, '')
+      .replace(/[?&]bufferTimeoutMS=[^&]*/gi, '')
+      .replace(/\?&/, '?')
+      .replace(/(\/[^?]*)\&/, '$1?')  // e.g. /db&w= → /db?w=
+      .replace(/\?$/, '');
+
+    // Connect without passing bufferTimeoutMS (not supported by MongoDB Node driver)
     const conn = await mongoose.connect(mongoUri, {
-      bufferCommands: true,
-      bufferTimeoutMS: 30000
+      bufferCommands: true
     });
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);

@@ -15,11 +15,21 @@ class WebSocketService {
    */
   initialize(server) {
     const { Server } = require('socket.io');
-    const cors = require('cors');
+
+    // Allow multiple origins so both localhost and 127.0.0.1 work
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:5173',
+      'http://127.0.0.1:5173'
+    ];
+    if (process.env.CORS_ORIGIN && !allowedOrigins.includes(process.env.CORS_ORIGIN)) {
+      allowedOrigins.push(process.env.CORS_ORIGIN);
+    }
 
     this.io = new Server(server, {
       cors: {
-        origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+        origin: allowedOrigins,
         methods: ['GET', 'POST'],
         credentials: true
       },

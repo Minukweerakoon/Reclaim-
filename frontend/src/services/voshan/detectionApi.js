@@ -275,6 +275,20 @@ export const getWebSocketStatus = async () => {
   return response.data;
 };
 
+/**
+ * Get full URL for a captured alert frame image (exact frame when alert triggered).
+ * Uses full backend URL so images load reliably (avoids proxy path issues).
+ * @param {string} filename - Frame image filename (e.g. from alert.frame_image or alert.frameImage)
+ * @returns {string|null} Full URL or null if no filename
+ */
+export const getAlertFrameImageUrl = (filename) => {
+  if (!filename || typeof filename !== 'string') return null;
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  const base = apiUrl.replace(/\/api\/?$/, '') || 'http://localhost:5000';
+  // Cache-bust so browser doesn't show old cached (e.g. placeholder) content for this URL
+  return `${base}/api/voshan/detection/alert-frames/${encodeURIComponent(filename)}?t=2`;
+};
+
 export default {
   checkMLServiceHealth,
   processVideo,

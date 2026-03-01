@@ -31,6 +31,24 @@ Thumbs.db
 coverage/
 .nyc_output
 
+# Debug / temp
+debug_output/
+**/debug_output/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.so
+.venv/
+venv/
+env/
+
+# Vite / tool caches
+.vite
+.qodo
+
 # Markdown
 *.md
 

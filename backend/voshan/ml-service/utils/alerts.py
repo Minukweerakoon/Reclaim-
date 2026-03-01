@@ -29,7 +29,8 @@ class AlertManager:
             "timestamp": alert.get("timestamp", datetime.now().timestamp()),
             "frame": alert.get("frame", 0) or alert.get("frame_number", 0),
             "severity": AlertManager._get_severity(alert.get("type", "")),
-            "details": {}
+            "details": {},
+            "frame_image": alert.get("frame_image"),  # Filename of captured frame (exact frame when alert triggered)
         }
         
         if camera_id:

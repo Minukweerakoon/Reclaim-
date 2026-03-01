@@ -6,14 +6,19 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
-// Construct WebSocket URL properly
+// Construct WebSocket URL: in dev use same origin so Vite proxy can forward to backend
 const getSocketUrl = () => {
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-  // Remove /api suffix if present, or use base URL
-  if (apiUrl.endsWith('/api')) {
-    return apiUrl.replace('/api', '');
+  const apiUrl = import.meta.env.VITE_API_URL || '';
+  if (import.meta.env.DEV && !apiUrl) {
+    return ''; // same origin → Vite proxy forwards /api to backend
   }
-  return apiUrl.replace(/\/api\/?$/, '') || 'http://localhost:5000';
+  if (apiUrl && apiUrl.endsWith('/api')) {
+    return apiUrl.replace(/\/api\/?$/, '');
+  }
+  if (apiUrl) {
+    return apiUrl.replace(/\/api\/?$/, '') || 'http://localhost:5000';
+  }
+  return 'http://localhost:5000';
 };
 
 const SOCKET_URL = getSocketUrl();

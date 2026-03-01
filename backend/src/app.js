@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const dotenv = require('dotenv');
 const compression = require('compression');
 
@@ -43,6 +44,14 @@ app.use((req, res, next) => {
 // TODO: Add your routes here
 // app.use('/api/auth', require('./routes/auth'));
 // app.use('/api/items', require('./routes/items'));
+
+// Voshan: Serve captured alert frames (exact frame when alert triggered)
+// __dirname is backend/src → one level up is backend, then voshan/ml-service/outputs/alert_frames
+const alertFramesDir = path.resolve(__dirname, '../voshan/ml-service/outputs/alert_frames');
+app.use('/api/voshan/detection/alert-frames', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+  next();
+}, express.static(alertFramesDir));
 
 // Voshan: Suspicious Behavior Detection Routes
 app.use('/api/voshan/detection', require('./routes/voshan/detectionRoutes'));

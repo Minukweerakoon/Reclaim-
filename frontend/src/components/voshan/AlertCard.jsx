@@ -4,6 +4,7 @@
  */
 
 import React, { useMemo } from 'react';
+import { getAlertFrameImageUrl } from '../../services/voshan/detectionApi';
 import './AlertCard.css';
 
 // List of available placeholder images
@@ -39,10 +40,19 @@ const getRandomPlaceholder = (alertId, frameNumber) => {
 };
 
 const AlertCard = ({ alert, onViewDetails, onDelete, frameSnapshot }) => {
-  // Get a consistent random placeholder for this alert
-  const placeholderImage = useMemo(() => {
+  // Image to show: 1) captured frame from backend (exact frame when alert triggered), 2) client-extracted frameSnapshot, 3) placeholder
+  const frameFilename = alert.frame_image || alert.frameImage;
+  const imageSrc = useMemo(() => {
+    if (frameFilename) {
+      const url = getAlertFrameImageUrl(frameFilename);
+      if (url) return url;
+    }
+    if (frameSnapshot) return frameSnapshot;
     return getRandomPlaceholder(alert._id || alert.alertId, alert.frame);
-  }, [alert._id, alert.alertId, alert.frame]);
+  }, [frameFilename, alert._id, alert.alertId, alert.frame, frameSnapshot]);
+
+  const fallbackSrc = frameSnapshot || getRandomPlaceholder(alert._id || alert.alertId, alert.frame);
+  const isPlaceholder = !frameFilename && !frameSnapshot;
 
   const getSeverityColor = (severity) => {
     switch (severity) {
@@ -110,48 +120,23 @@ const AlertCard = ({ alert, onViewDetails, onDelete, frameSnapshot }) => {
         </div>
       </div>
       <div className="alert-card-body">
-        {/* Frame Snapshot */}
-        {frameSnapshot ? (
-          <div className="alert-snapshot">
-            <img
-              src={frameSnapshot}
-              alt={`Frame ${alert.frame || 'N/A'} - ${getTypeLabel(alert.type)}`}
-              className="snapshot-image"
-              title={`Frame ${alert.frame || 'N/A'}`}
-              onError={(e) => {
-                console.error('[AlertCard] Frame image failed to load:', {
-                  frameNumber: alert.frame,
-                  frameSnapshotLength: frameSnapshot?.length,
-                  error: e
-                });
-                // Fallback to random placeholder on error
-                e.target.src = placeholderImage;
-                e.target.className = 'snapshot-image placeholder-image';
-              }}
-            />
-          </div>
-        ) : (
-          // Show random placeholder image when frame snapshot is not available
-          <div className="alert-snapshot">
-            <img
-              src={placeholderImage}
-              alt={`Placeholder - Frame ${alert.frame || 'N/A'} - ${getTypeLabel(alert.type)}`}
-              className="snapshot-image placeholder-image"
-              title={`Frame snapshot not available for frame ${alert.frame || 'N/A'}`}
-              onError={(e) => {
-                console.error('[AlertCard] Placeholder image failed to load:', {
-                  frameNumber: alert.frame,
-                  placeholderPath: placeholderImage,
-                  error: e
-                });
-                // Try to fallback to first placeholder if current one fails
-                if (e.target.src !== PLACEHOLDER_IMAGES[0]) {
-                  e.target.src = PLACEHOLDER_IMAGES[0];
-                }
-              }}
-            />
-          </div>
-        )}
+        {/* Frame image: captured exact frame from backend, or client-extracted snapshot, or placeholder */}
+        <div className="alert-snapshot">
+          <img
+            key={frameFilename ? `frame-${frameFilename}` : 'placeholder'}
+            src={imageSrc}
+            alt={`Frame ${alert.frame || 'N/A'} - ${getTypeLabel(alert.type)}`}
+            className={`snapshot-image ${isPlaceholder ? 'placeholder-image' : ''}`}
+            title={isPlaceholder ? `Frame snapshot not available for frame ${alert.frame || 'N/A'}` : `Frame ${alert.frame || 'N/A'}`}
+            onError={(e) => {
+              const target = e.target;
+              if (target.src !== fallbackSrc) {
+                target.src = fallbackSrc;
+                target.className = 'snapshot-image placeholder-image';
+              }
+            }}
+          />
+        </div>
         <div className="alert-info">
           <span className="alert-time">
             🕐 {formatTimestamp(alert.timestamp)}

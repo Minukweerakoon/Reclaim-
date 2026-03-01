@@ -6,6 +6,8 @@ import os
 import yaml
 import json
 import logging
+import time
+import re
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
@@ -190,6 +192,28 @@ except Exception as e:
     init_error = str(e)
     logger.error(f"Initialization failed: {init_error}")
     # Services will be None, endpoints will return errors
+
+# Directory for captured alert frames (exact frame when alert triggered)
+ALERT_FRAMES_DIR = os.path.join(os.path.dirname(__file__), 'outputs', 'alert_frames')
+os.makedirs(ALERT_FRAMES_DIR, exist_ok=True)
+
+def _save_alert_frame(frame, base_name, frame_number, alert_index, alert_type):
+    """Save the exact frame as JPEG for an alert; return filename or None on error."""
+    if frame is None or not hasattr(frame, 'shape'):
+        logger.warning("_save_alert_frame: invalid frame")
+        return None
+    try:
+        os.makedirs(ALERT_FRAMES_DIR, exist_ok=True)
+        safe_type = re.sub(r'[^\w\-]', '_', str(alert_type))[:32]
+        filename = f"{base_name}_f{frame_number}_n{alert_index}_{safe_type}.jpg"
+        filepath = os.path.join(ALERT_FRAMES_DIR, filename)
+        if not cv2.imwrite(filepath, frame):
+            logger.warning(f"cv2.imwrite failed for {filename}")
+            return None
+        return filename
+    except Exception as e:
+        logger.warning(f"Could not save alert frame: {e}")
+        return None
 
 @app.route('/api/v1/detect/status', methods=['GET'])
 def status():
@@ -455,6 +479,13 @@ def process_video():
             # Detect behaviors
             frame_alerts = behavior_detector.process_frame(tracked_objects, current_time=current_time)
             
+            # Capture exact frame for each alert and save to disk
+            video_stem = re.sub(r'[^\w\-]', '_', os.path.splitext(filename)[0])[:40]
+            for idx, alert in enumerate(frame_alerts):
+                fn = _save_alert_frame(frame, video_stem, frame_count, idx, alert.get("type", "ALERT"))
+                if fn:
+                    alert["frame_image"] = fn
+            
             # Store results
             all_detections.append(tracked_objects)
             all_alerts.extend(frame_alerts)
@@ -648,6 +679,13 @@ def process_frame():
         
         # Detect behaviors
         frame_alerts = behavior_detector.process_frame(tracked_objects)
+        
+        # Capture exact frame for each alert and save to disk
+        base_name = f"frame_{camera_id or 'live'}_{int(time.time() * 1000)}"
+        for idx, alert in enumerate(frame_alerts):
+            fn = _save_alert_frame(frame, base_name, 0, idx, alert.get("type", "ALERT"))
+            if fn:
+                alert["frame_image"] = fn
         
         # Format response
         formatted_alerts = [AlertManager.format_alert(alert, camera_id=camera_id) for alert in frame_alerts]

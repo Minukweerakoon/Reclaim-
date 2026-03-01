@@ -211,23 +211,23 @@ const VideoUpload = () => {
           setError('This video was already processed recently. Showing previous results.');
         }
         
-        setResult(response.data);
+        // Backend sends { success, data: { alerts, totalFrames, ... }, requestId } - use inner data so result.alerts exists
+        setResult(response.data?.data ?? response.data);
         
         // Re-extract frames with backend frame count for accurate matching
-        // Do this AFTER setting result so we can use the file
-        if (selectedFile && response.data?.totalFrames) {
-          console.log(`[${requestId}] Re-extracting frames with backend frame count: ${response.data.totalFrames}`);
+        const resultData = response.data?.data ?? response.data;
+        if (selectedFile && resultData?.totalFrames) {
+          console.log(`[${requestId}] Re-extracting frames with backend frame count: ${resultData.totalFrames}`);
           try {
             setExtractingFrames(true);
-            // Calculate FPS from backend data if available
-            const backendFps = response.data.videoInfo?.fps || 30;
+            const backendFps = resultData.videoInfo?.fps || 30;
             const frames = await extractVideoFrames(selectedFile, {
               onProgress: (currentFrame, totalFrames) => {
                 const progress = Math.round((currentFrame / totalFrames) * 100);
                 setFrameExtractionProgress(progress);
               },
               quality: 0.8,
-              totalFrames: response.data.totalFrames,
+              totalFrames: resultData.totalFrames,
               fps: backendFps
             });
             console.log(`[${requestId}] Re-extraction complete: ${frames.size} frames`);

@@ -211,13 +211,19 @@ exports.processVideo = async (req, res) => {
     const alerts = result.data?.alerts || [];
     const cameraId = req.body.cameraId || null;
 
+    // Ensure each alert has frame_image for frontend (exact frame capture)
+    const alertsForClient = alerts.map((a) => ({
+      ...a,
+      frame_image: a.frame_image ?? a.frameImage ?? null
+    }));
+
     // Build response from ML data immediately so we can send it without waiting for DB
     const responseData = {
       videoInfo: result.data?.video_info || {},
       totalFrames: result.data?.total_frames || 0,
       totalDetections: result.data?.total_detections || 0,
       totalAlerts: result.data?.total_alerts ?? alerts.length,
-      alerts: alerts,
+      alerts: alertsForClient,
       outputVideo: result.data?.output_video || null,
       logJson: result.data?.log_json || null,
       logCsv: result.data?.log_csv || null
@@ -241,7 +247,7 @@ exports.processVideo = async (req, res) => {
         data: responseData,
         requestId: requestId
       });
-      console.log(`[${requestId}] Response sent successfully (${alerts.length} alerts)`);
+      console.log(`[${requestId}] Response sent successfully (${alertsForClient.length} alerts)`);
     }
 
     // Save alerts to DB and broadcast in background (don't block the response)
@@ -262,6 +268,7 @@ exports.processVideo = async (req, res) => {
               frame: alert.frame || null,
               cameraId: cameraId,
               details: alert.details || {},
+              frameImage: alert.frame_image || null,
               videoInfo: {
                 outputVideo: result.data?.output_video || null,
                 logJson: result.data?.log_json || null,
@@ -276,8 +283,10 @@ exports.processVideo = async (req, res) => {
                 type: alert.type,
                 severity: alert.severity,
                 timestamp: alert.timestamp,
+                frame: alert.frame,
                 cameraId: cameraId,
-                details: alert.details || {}
+                details: alert.details || {},
+                frame_image: alert.frame_image || null
               });
             } catch (wsError) {
               console.error('[processVideo] WebSocket broadcast error:', wsError);
@@ -397,7 +406,8 @@ exports.processFrame = async (req, res) => {
               timestamp: new Date((alert.timestamp || 0) * 1000),
               frame: alert.frame,
               cameraId: cameraId,
-              details: alert.details || {}
+              details: alert.details || {},
+              frameImage: alert.frame_image || null
             });
             await alertDoc.save();
             try {
@@ -406,8 +416,10 @@ exports.processFrame = async (req, res) => {
                 type: alert.type,
                 severity: alert.severity,
                 timestamp: alert.timestamp,
+                frame: alert.frame,
                 cameraId: cameraId,
-                details: alert.details || {}
+                details: alert.details || {},
+                frame_image: alert.frame_image || null
               });
             } catch (wsError) {
               console.error('[processFrame] WebSocket broadcast error:', wsError);
@@ -473,10 +485,19 @@ exports.getAlerts = async (req, res) => {
 
     const total = await Alert.countDocuments(query);
 
+    // Normalize alerts so frontend always has frame_image (from frameImage) for captured frame URL
+    const alertsForClient = alerts.map((doc) => {
+      const a = doc.toObject ? doc.toObject() : doc;
+      return {
+        ...a,
+        frame_image: a.frame_image ?? a.frameImage ?? null
+      };
+    });
+
     res.json({
       success: true,
       data: {
-        alerts,
+        alerts: alertsForClient,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
