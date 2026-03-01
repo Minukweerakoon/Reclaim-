@@ -11,6 +11,7 @@ interface ValidationState {
     pendingVisualText: string;
     pendingImageFile: File | null;
     pendingAudioFile: File | null;
+    pendingExtractedInfo: Record<string, string> | null;  // structured chat fields
 
     // Actions
     setResult: (result: ValidationResponse | null) => void;
@@ -19,6 +20,7 @@ interface ValidationState {
     setProgress: (progress: number, message?: string) => void;
     setPendingInputs: (text: string, visualText: string) => void;
     setPendingMedia: (image: File | null, audio: File | null) => void;
+    setPendingExtractedInfo: (info: Record<string, string> | null) => void;
     clearPending: () => void;
     reset: () => void;
     intent: string | null;
@@ -35,6 +37,7 @@ export const useValidationStore = create<ValidationState>((set) => ({
     pendingVisualText: '',
     pendingImageFile: null,
     pendingAudioFile: null,
+    pendingExtractedInfo: null,
     intent: null,
 
     setResult: (result) => set({ currentResult: result, isLoading: false, error: null }),
@@ -43,7 +46,8 @@ export const useValidationStore = create<ValidationState>((set) => ({
     setProgress: (progress, message) => set({ progress, progressMessage: message || null }),
     setPendingInputs: (text, visualText) => set({ pendingText: text, pendingVisualText: visualText }),
     setPendingMedia: (image, audio) => set({ pendingImageFile: image, pendingAudioFile: audio }),
-    clearPending: () => set({ pendingText: '', pendingVisualText: '', pendingImageFile: null, pendingAudioFile: null }),
+    setPendingExtractedInfo: (info) => set({ pendingExtractedInfo: info }),
+    clearPending: () => set({ pendingText: '', pendingVisualText: '', pendingImageFile: null, pendingAudioFile: null, pendingExtractedInfo: null }),
     setIntent: (intent) => set({ intent }),
     reset: () => set({
         currentResult: null,
@@ -55,6 +59,7 @@ export const useValidationStore = create<ValidationState>((set) => ({
         pendingVisualText: '',
         pendingImageFile: null,
         pendingAudioFile: null,
+        pendingExtractedInfo: null,
         intent: null,
     }),
 }));

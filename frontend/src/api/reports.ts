@@ -2,12 +2,13 @@ import apiClient from './client';
 import type { Report, ReportsListResponse } from '../types/api';
 
 export interface SaveReportRequest {
-    item_type: string;
+    item_type: string;        // item name/category e.g. "jacket", "phone"
     description: string;
-    color?: string;
+    color?: string;           // item colour extracted from chat
     brand?: string;
     location?: string;
-    intention: 'lost' | 'found';
+    intention: 'lost' | 'found';  // "lost" or "found"
+    user_category?: string;   // same as item_type, explicit for items table
     confidence_score?: number;
     routing?: string;
     action?: string;

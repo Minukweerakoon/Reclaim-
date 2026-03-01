@@ -76,6 +76,7 @@ function ValidationHub() {
         pendingVisualText,
         pendingImageFile,
         pendingAudioFile,
+        pendingExtractedInfo,
         clearPending,
         reset,
         intent,
@@ -353,6 +354,43 @@ function ValidationHub() {
             });
             setProgress(100, 'Complete!');
             setResult(result);
+
+            // ── Save to shared items table (background, non-blocking) ──
+            if (user?.id && (intent === 'lost' || intent === 'found')) {
+                const overallConfidence = result?.confidence?.overall_confidence ?? null;
+
+                // Use structured chat data if available, otherwise fall back to text parsing
+                const extracted = pendingExtractedInfo || {};
+                const itemCategory = extracted['item_type'] || visualText?.split(' ').slice(-1)[0] || '';
+                const locationValue = extracted['location']
+                    || (() => { const m = textInput?.match(/\bat\s+(?:the\s+)?([a-zA-Z\s]{2,30})/i); return m ? m[1].trim() : ''; })();
+                const colorValue = extracted['color'] || '';
+                // description = human-readable summary, not the full structured blob
+                const descriptionValue = extracted['description'] || textInput || '';
+
+                reportsApi.saveReport({
+                    item_type: itemCategory,
+                    user_category: itemCategory,
+                    description: descriptionValue,
+                    color: colorValue,
+                    location: locationValue,
+                    intention: intent as 'lost' | 'found',
+                    confidence_score: overallConfidence,
+                    routing: overallConfidence != null && overallConfidence >= 0.7 ? 'auto' : 'manual',
+                    action: 'review',
+                    validation_results: {
+                        cross_modal: result?.cross_modal ?? {},
+                        individual_scores: result?.confidence?.individual_scores ?? {},
+                        supabase_id: result?.supabase_id,
+                    },
+                }).then((saved) => {
+                    console.info('[Reclaim] Report saved to items table:', saved.report_id);
+                }).catch((err) => {
+                    console.warn('[Reclaim] Report save failed (non-blocking):', err);
+                });
+            }
+
+
             // Auto-run context analysis so Plausibility Matrix populates
             setTimeout(() => handleAnalyzeContext(), 500);
         } catch (err: unknown) {

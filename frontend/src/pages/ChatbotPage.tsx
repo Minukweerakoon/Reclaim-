@@ -33,7 +33,7 @@ function ChatbotPage() {
     const [summaryConfirmed, setSummaryConfirmed] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const { currentResult, setPendingInputs, setPendingMedia, setIntent: setStoreIntent } = useValidationStore();
+    const { currentResult, setPendingInputs, setPendingMedia, setPendingExtractedInfo, setIntent: setStoreIntent } = useValidationStore();
 
     useEffect(() => {
         if (messages.length === 0) {
@@ -119,6 +119,7 @@ function ChatbotPage() {
         const visualSeed = buildVisualSeed(extractedInfo);
         setPendingInputs(summaryText, visualSeed);
         setPendingMedia(null, null);
+        setPendingExtractedInfo(extractedInfo);  // pass structured fields for proper Supabase mapping
         setStoreIntent((intent as 'lost' | 'found' | '') || '');
         setSummaryConfirmed(true);
         navigate('/validation', {
@@ -156,8 +157,8 @@ function ChatbotPage() {
                         <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
                             <div
                                 className={`max-w-[72%] rounded-2xl px-4 py-3 ${message.role === 'user'
-                                        ? 'text-white rounded-br-none'
-                                        : 'text-slate-100 rounded-bl-none'
+                                    ? 'text-white rounded-br-none'
+                                    : 'text-slate-100 rounded-bl-none'
                                     }`}
                                 style={message.role === 'user'
                                     ? { background: 'var(--accent-primary)', boxShadow: '0 4px 16px rgba(99,102,241,0.25)' }
