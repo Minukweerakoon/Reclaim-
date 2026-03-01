@@ -60,17 +60,18 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[
 # ------------------------------------------------------------------ #
 class SaveReportRequest(BaseModel):
     """Request body for saving a validated report."""
-    item_type: str = ""
+    item_type: str = ""      # item name/category e.g. "jacket", "phone"
     description: str = ""
     color: str = ""
     brand: str = ""
     location: str = ""
-    intention: str = "lost"
+    intention: str = "lost"  # "lost" or "found"
     confidence_score: Optional[float] = None
     routing: str = "manual"
     action: str = "review"
     image_url: Optional[str] = None
     validation_results: Dict[str, Any] = Field(default_factory=dict)
+    user_category: Optional[str] = None  # explicit category override
 
 
 class ReportResponse(BaseModel):
@@ -109,7 +110,8 @@ async def save_report(
         )
 
     item_data = {
-        "item_type": body.item_type,
+        "item_type": body.item_type,           # item name e.g. "jacket"
+        "user_category": body.user_category or body.item_type,  # for items table
         "description": body.description,
         "color": body.color,
         "brand": body.brand,
