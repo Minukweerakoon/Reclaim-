@@ -54,19 +54,17 @@ class ObjectTracker:
                 persist=persist,
                 tracker=self.tracker_config,
                 verbose=False,
-                imgsz=min(frame.shape[0], frame.shape[1])  # Use frame size for tracking
+                imgsz=640
             )
         except Exception as e:
-            # If tracking fails, fall back to detection only
-            error_msg = str(e)
-            if "optical flow" in error_msg.lower() or "lkpyramid" in error_msg.lower():
-                # Fall back to detection without tracking
+            error_msg = str(e).lower()
+            if "optical flow" in error_msg or "lkpyramid" in error_msg or "prevpyr" in error_msg or "lvlstep" in error_msg:
                 results = self.model.predict(
                     frame,
-                    verbose=False
+                    verbose=False,
+                    imgsz=640
                 )
-                # Convert to tracking format (no track IDs)
-                if len(results) > 0:
+                if len(results) > 0 and results[0].boxes is not None:
                     results[0].boxes.id = None
             else:
                 raise

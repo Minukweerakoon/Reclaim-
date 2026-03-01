@@ -21,7 +21,8 @@ class BehaviorDetector:
         loiter_near_radius: float = 70,
         loiter_near_sec: float = 20,
         running_speed: float = 260,
-        fps: float = 30.0
+        fps: float = 30.0,
+        item_class_names: Optional[List[str]] = None,
     ):
         """
         Initialize behavior detector
@@ -33,6 +34,7 @@ class BehaviorDetector:
             loiter_near_sec: Time (seconds) person must stay to trigger loitering alert
             running_speed: Speed threshold (pixels/second) for running detection
             fps: Frames per second of video
+            item_class_names: Class names treated as "items" (unattended/loitering). Default ["bag"].
         """
         self.owner_max_dist = owner_max_dist
         self.owner_absent_sec = owner_absent_sec
@@ -40,11 +42,13 @@ class BehaviorDetector:
         self.loiter_near_sec = loiter_near_sec
         self.running_speed = running_speed
         self.fps = fps
-        
-        # State tracking (matching notebook implementation)
-        self.bag_owner_lastseen = defaultdict(float)  # bag_id -> last time owner was near
-        self.bag_center = {}  # bag_id -> (center_x, center_y)
-        self.unattended_bags = set()  # Set of unattended bag IDs
+        self._item_class_set = set((c or "").strip().lower() for c in (item_class_names or ["bag"]) if c)
+
+        # State tracking
+        self.bag_owner_lastseen = defaultdict(float)
+        self.bag_center = {}
+        self.item_type_by_id = {}  # item_id -> class_name (e.g. "bag", "handbag")
+        self.unattended_bags = set()
         
         # Person tracking
         self.person_pos_hist = defaultdict(lambda: deque(maxlen=int(fps * 5)))  # Short history for speed calculation
@@ -98,16 +102,16 @@ class BehaviorDetector:
         
         frame_alerts = []
         
-        # Separate bags and persons (matching notebook structure)
-        people = {}  # person_id -> (center_x, center_y, bbox)
-        bags = {}   # bag_id -> (center_x, center_y, bbox)
+        # Separate people and items by configurable class names (supports bag + handbag, backpack, suitcase, etc.)
+        people = {}   # person_id -> (center_x, center_y, bbox)
+        bags = {}     # item_id -> (center_x, center_y, bbox, item_type)
         
         for obj in tracked_objects:
             track_id = obj.get("track_id")
             if track_id is None:
                 continue
             
-            class_id = obj.get("class_id")
+            class_name = (obj.get("class_name") or "").strip().lower()
             bbox = obj.get("bbox", [])
             if len(bbox) != 4:
                 continue
@@ -115,14 +119,15 @@ class BehaviorDetector:
             center_x = (bbox[0] + bbox[2]) / 2
             center_y = (bbox[1] + bbox[3]) / 2
             
-            if class_id == 1:  # Person
+            if class_name == "person":
                 people[track_id] = (center_x, center_y, bbox)
-            elif class_id == 0:  # Bag
-                bags[track_id] = (center_x, center_y, bbox)
+            elif class_name in self._item_class_set:
+                bags[track_id] = (center_x, center_y, bbox, class_name)
+                self.item_type_by_id[track_id] = class_name
         
-        # === Unattended Bag Detection (matching notebook Cell 13 logic) ===
-        for bag_id, (bag_cx, bag_cy, bag_bbox) in bags.items():
-            # Store bag center
+        # === Unattended Item Detection ===
+        for bag_id, bag_data in bags.items():
+            bag_cx, bag_cy, bag_bbox, item_type = bag_data[0], bag_data[1], bag_data[2], bag_data[3]
             self.bag_center[bag_id] = (bag_cx, bag_cy)
             
             # Find nearest person to the bag
@@ -146,6 +151,7 @@ class BehaviorDetector:
                     alert = {
                         "type": "OWNER_RETURNED",
                         "bag_id": bag_id,
+                        "item_type": item_type,
                         "person_id": nearest_person_id,
                         "bag_bbox": bag_bbox,
                         "distance_px": round(min_dist, 1),
@@ -164,11 +170,11 @@ class BehaviorDetector:
                 sec_since_owner = self.current_time - self.bag_owner_lastseen[bag_id]
                 if sec_since_owner >= self.owner_absent_sec:
                     if bag_id not in self.unattended_bags:
-                        # Just became unattended
                         self.unattended_bags.add(bag_id)
                         alert = {
                             "type": "BAG_UNATTENDED",
                             "bag_id": bag_id,
+                            "item_type": item_type,
                             "bag_bbox": bag_bbox,
                             "duration_seconds": sec_since_owner,
                             "frame": self.frame_count,
@@ -219,12 +225,13 @@ class BehaviorDetector:
                     # Check if loitering long enough
                     dwell_time = self.current_time - self.near_unattend_start[person_id][bag_id]
                     if dwell_time >= self.loiter_near_sec:
-                        # Generate loitering alert
-                        bag_bbox = bags.get(bag_id, (None, None, []))[2] if bag_id in bags else []
+                        bag_bbox = bags.get(bag_id, (None, None, [], ""))[2] if bag_id in bags else []
+                        item_type = self.item_type_by_id.get(bag_id, "item")
                         alert = {
                             "type": "LOITER_NEAR_UNATTENDED",
                             "person_id": person_id,
                             "bag_id": bag_id,
+                            "item_type": item_type,
                             "person_bbox": person_bbox,
                             "bag_bbox": bag_bbox,
                             "dwell_time_seconds": round(dwell_time, 1),
@@ -253,6 +260,7 @@ class BehaviorDetector:
         """Reset all state"""
         self.bag_owner_lastseen = defaultdict(float)
         self.bag_center = {}
+        self.item_type_by_id = {}
         self.unattended_bags = set()
         self.person_pos_hist = defaultdict(lambda: deque(maxlen=int(self.fps * 5)))
         self.near_unattend_start = defaultdict(lambda: defaultdict(float))

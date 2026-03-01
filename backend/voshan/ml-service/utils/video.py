@@ -222,13 +222,14 @@ class VideoProcessor:
             
             if alert_type == "BAG_UNATTENDED":
                 bag_bbox = alert.get("bag_bbox", [])
+                item_label = alert.get("item_type", "bag").upper().replace("_", " ")
                 if len(bag_bbox) == 4:
                     x1, y1, x2, y2 = map(int, bag_bbox)
                     # Draw red border for unattended bag
                     cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
                     cv2.putText(
                         annotated_frame,
-                        "UNATTENDED BAG",
+                        f"UNATTENDED {item_label}",
                         (x1, y1 - 10),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.7,

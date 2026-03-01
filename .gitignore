@@ -31,8 +31,9 @@ Thumbs.db
 coverage/
 .nyc_output
 
-PROJECT_STRUCTURE.md
-SETUP_GUIDE.md
+# Markdown
+*.md
+
 backend/env.example.txt
 frontend/env.example.txt
 backend/.env

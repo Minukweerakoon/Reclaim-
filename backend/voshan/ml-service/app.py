@@ -123,11 +123,12 @@ with open(config_path, 'r') as f:
 detector = None
 tracker = None
 behavior_detector = None
+coco_extension = None  # Optional: COCO model for handbag, backpack, suitcase
 video_processor = VideoProcessor()
 
 def initialize_services():
     """Initialize ML services"""
-    global detector, tracker, behavior_detector
+    global detector, tracker, behavior_detector, coco_extension
     
     try:
         model_path = os.path.join(os.path.dirname(__file__), config['model']['path'])
@@ -143,14 +144,38 @@ def initialize_services():
             tracker_config=config['tracking']['tracker']
         )
         
+        item_class_names = config.get('behavior', {}).get('item_class_names') or ['bag']
+        
         behavior_detector = BehaviorDetector(
             owner_max_dist=config['behavior']['owner_max_dist'],
             owner_absent_sec=config['behavior']['owner_absent_sec'],
             loiter_near_radius=config['behavior']['loiter_near_radius'],
             loiter_near_sec=config['behavior']['loiter_near_sec'],
             running_speed=config['behavior']['running_speed'],
-            fps=30.0  # Default, will be updated from video
+            fps=30.0,
+            item_class_names=item_class_names
         )
+        
+        coco_cfg = config.get('coco_extension') or {}
+        if coco_cfg.get('enabled'):
+            try:
+                from services.coco_extension import CocoExtension
+                coco_model_path = coco_cfg.get('model_path')
+                if coco_model_path and not os.path.isabs(coco_model_path):
+                    coco_model_path = os.path.join(os.path.dirname(__file__), coco_model_path)
+                coco_extension = CocoExtension(
+                    model_path=coco_model_path or "yolo11n.pt",
+                    item_class_names=coco_cfg.get('item_class_names') or ['handbag', 'backpack', 'suitcase'],
+                    confidence=float(coco_cfg.get('confidence', 0.25)),
+                    track_id_offset=int(coco_cfg.get('track_id_offset', 100000)),
+                    device=config['model'].get('device', 'cuda:0'),
+                )
+                logger.info("COCO extension enabled for extra item classes")
+            except Exception as coco_err:
+                logger.warning(f"COCO extension disabled: {coco_err}")
+                coco_extension = None
+        else:
+            coco_extension = None
         
         logger.info("Services initialized successfully")
     except Exception as e:
@@ -158,10 +183,12 @@ def initialize_services():
         raise
 
 # Initialize on startup
+init_error = None  # Store reason if initialization fails
 try:
     initialize_services()
 except Exception as e:
-    logger.error(f"Initialization failed: {e}")
+    init_error = str(e)
+    logger.error(f"Initialization failed: {init_error}")
     # Services will be None, endpoints will return errors
 
 @app.route('/api/v1/detect/status', methods=['GET'])
@@ -170,17 +197,21 @@ def status():
     if detector is None:
         return jsonify({
             "status": "error",
-            "message": "Services not initialized"
+            "message": "Services not initialized",
+            "init_error": init_error if init_error else "Unknown error during startup"
         }), 500
     
     try:
         model_info = detector.get_model_info()
-        return jsonify({
+        status_payload = {
             "status": "healthy",
             "model_loaded": True,
             "model_info": model_info,
             "gpu_available": config['model']['device'].startswith('cuda')
-        })
+        }
+        if coco_extension is not None:
+            status_payload["coco_extension"] = coco_extension.get_model_info()
+        return jsonify(status_payload)
     except Exception as e:
         return jsonify({
             "status": "error",
@@ -208,7 +239,8 @@ def process_video():
     if detector is None or tracker is None or behavior_detector is None:
         return jsonify({
             "status": "error",
-            "message": "Services not initialized"
+            "message": "Services not initialized",
+            "init_error": init_error if init_error else "Start the ML service and check its console for errors."
         }), 500
     
     try:
@@ -371,22 +403,19 @@ def process_video():
                         tracked_objects = tracker.track(frame, persist=config['tracking']['persist'])
                         consecutive_tracking_failures = 0  # Reset counter on success
                     except Exception as track_error:
-                        # If tracking fails due to optical flow error, fall back to detection-only
+                        # If tracking fails (e.g. OpenCV optical flow / lkpyramid / prevPyr), fall back to detection-only
                         error_msg = str(track_error)
-                        if "optical flow" in error_msg.lower() or "lkpyramid" in error_msg.lower() or "prevPyr" in error_msg:
+                        if ("optical flow" in error_msg.lower() or "lkpyramid" in error_msg.lower()
+                                or "prevpyr" in error_msg.lower() or "lvlstep" in error_msg.lower() or "prevPyr" in error_msg):
                             consecutive_tracking_failures += 1
                             logger.warning(f"Optical flow error at frame {frame_count}: {error_msg[:100]}")
-                            
-                            # If too many consecutive failures, switch to detection-only mode permanently
-                            if consecutive_tracking_failures >= 5:
-                                logger.warning(f"{consecutive_tracking_failures} consecutive tracking failures detected. Switching to detection-only mode for remaining frames.")
+                            if consecutive_tracking_failures >= 1:
+                                logger.warning(f"Optical flow errors detected. Switching to detection-only mode for remaining frames.")
                                 use_detection_only = True
-                            
-                            # Fall back to detection-only for this frame (and future frames if threshold reached)
                             detections = detector.detect(frame)
                             tracked_objects = [
                                 {
-                                    "track_id": None,  # No tracking ID in detection-only mode
+                                    "track_id": None,
                                     "bbox": det["bbox"],
                                     "confidence": det["confidence"],
                                     "class_id": det["class_id"],
@@ -396,13 +425,32 @@ def process_video():
                             ]
                             logger.info(f"Using detection-only mode for frame {frame_count} ({len(tracked_objects)} objects detected)")
                         else:
-                            # Re-raise if it's a different error
-                            raise
+                            # Other tracking error: still try detection-only for this frame
+                            detections = detector.detect(frame)
+                            tracked_objects = [
+                                {
+                                    "track_id": None,
+                                    "bbox": det["bbox"],
+                                    "confidence": det["confidence"],
+                                    "class_id": det["class_id"],
+                                    "class_name": det["class_name"]
+                                }
+                                for det in detections
+                            ]
+                            logger.debug(f"Tracking failed, using detection-only for frame {frame_count}: {len(tracked_objects)} objects")
             except Exception as detect_error:
                 # If even detection fails, log and continue with empty detections
                 error_msg = str(detect_error)
                 logger.error(f"Both tracking and detection failed at frame {frame_count}: {error_msg[:200]}")
                 tracked_objects = []  # Continue with empty detections rather than crashing
+            
+            # Merge COCO extension detections (handbag, backpack, suitcase) if enabled
+            if coco_extension is not None:
+                try:
+                    coco_objects = coco_extension.track(frame, persist=config['tracking']['persist'])
+                    tracked_objects = list(tracked_objects) + coco_objects
+                except Exception as coco_err:
+                    logger.debug(f"COCO extension frame error: {coco_err}")
             
             # Detect behaviors
             frame_alerts = behavior_detector.process_frame(tracked_objects, current_time=current_time)
@@ -563,7 +611,8 @@ def process_frame():
     if detector is None or tracker is None or behavior_detector is None:
         return jsonify({
             "status": "error",
-            "message": "Services not initialized"
+            "message": "Services not initialized",
+            "init_error": init_error if init_error else "Start the ML service and check its console for errors."
         }), 500
     
     try:
@@ -590,6 +639,12 @@ def process_frame():
         
         # Track objects
         tracked_objects = tracker.track(frame, persist=config['tracking']['persist'])
+        if coco_extension is not None:
+            try:
+                coco_objects = coco_extension.track(frame, persist=config['tracking']['persist'])
+                tracked_objects = list(tracked_objects) + coco_objects
+            except Exception:
+                pass
         
         # Detect behaviors
         frame_alerts = behavior_detector.process_frame(tracked_objects)

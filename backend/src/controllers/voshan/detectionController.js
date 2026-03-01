@@ -176,6 +176,12 @@ exports.processVideo = async (req, res) => {
         errorDetails = 'The ML service took too long to respond. The video may be too large or the service is overloaded.';
       } else if (result.details?.error) {
         errorDetails = result.details.error;
+      } else if (result.details?.data?.init_error) {
+        errorDetails = result.details.data.init_error;
+      } else if (result.details?.init_error) {
+        errorDetails = result.details.init_error;
+      } else if (result.details?.data?.message) {
+        errorDetails = result.details.data.message;
       }
       
       console.error('ML Service Error:', {
@@ -202,92 +208,22 @@ exports.processVideo = async (req, res) => {
       });
     }
 
-    // Save alerts to database
     const alerts = result.data?.alerts || [];
-    console.log(`[${requestId}] Processing ${alerts.length} alerts from ML service`);
-    const savedAlerts = [];
+    const cameraId = req.body.cameraId || null;
 
-    for (const alert of alerts) {
-      try {
-        // Validate alert structure
-        if (!alert || !alert.alert_id) {
-          console.warn('Skipping invalid alert:', alert);
-          continue;
-        }
-
-        const alertDoc = new Alert({
-          alertId: alert.alert_id || alert.alertId,
-          type: alert.type,
-          severity: alert.severity,
-          timestamp: new Date((alert.timestamp || 0) * 1000),
-          frame: alert.frame || null,
-          cameraId: req.body.cameraId || null,
-          details: alert.details || {},
-          videoInfo: {
-            outputVideo: result.data?.output_video || null,
-            logJson: result.data?.log_json || null,
-            logCsv: result.data?.log_csv || null
-          }
-        });
-
-        await alertDoc.save();
-        // Convert Mongoose document to plain object for JSON response
-        savedAlerts.push(alertDoc.toObject());
-
-        // Broadcast alert via WebSocket (non-blocking)
-        try {
-          websocketService.broadcastAlert({
-            alertId: alert.alert_id || alert.alertId,
-            type: alert.type,
-            severity: alert.severity,
-            timestamp: alert.timestamp,
-            cameraId: req.body.cameraId || null,
-            details: alert.details || {}
-          });
-        } catch (wsError) {
-          console.error('Error broadcasting alert via WebSocket:', wsError);
-        }
-
-        // Send notification (non-blocking - don't await to avoid delays)
-        notificationService.sendHighPriorityAlert({
-          alertId: alert.alert_id || alert.alertId,
-          type: alert.type,
-          severity: alert.severity,
-          timestamp: alert.timestamp,
-          cameraId: req.body.cameraId || null
-        }).catch(notifError => {
-          console.error('Error sending notification:', notifError);
-        });
-      } catch (saveError) {
-        console.error('Error saving alert:', saveError);
-        // Continue saving other alerts even if one fails
-      }
-    }
-
-    // Prepare response with safe property access
+    // Build response from ML data immediately so we can send it without waiting for DB
     const responseData = {
       videoInfo: result.data?.video_info || {},
       totalFrames: result.data?.total_frames || 0,
       totalDetections: result.data?.total_detections || 0,
-      totalAlerts: result.data?.total_alerts || alerts.length,
-      alerts: savedAlerts,
+      totalAlerts: result.data?.total_alerts ?? alerts.length,
+      alerts: alerts,
       outputVideo: result.data?.output_video || null,
       logJson: result.data?.log_json || null,
       logCsv: result.data?.log_csv || null
     };
 
-    console.log(`[${requestId}] Sending success response with:`, {
-      totalFrames: responseData.totalFrames,
-      totalAlerts: responseData.totalAlerts,
-      savedAlertsCount: savedAlerts.length,
-      sampleAlert: savedAlerts.length > 0 ? {
-        frame: savedAlerts[0].frame,
-        type: savedAlerts[0].type,
-        hasFrame: savedAlerts[0].frame !== undefined && savedAlerts[0].frame !== null
-      } : null
-    });
-
-    // Move from active to completed requests
+    // Move from active to completed (so duplicate requests can get cached result)
     activeProcessingRequests.delete(requestId);
     completedProcessingRequests.set(requestId, {
       completedTime: Date.now(),
@@ -295,34 +231,74 @@ exports.processVideo = async (req, res) => {
       resultData: responseData
     });
 
-    // Send response with error handling for large responses
-    try {
-      // Check if response headers were already sent (shouldn't happen, but safety check)
-      if (res.headersSent) {
-        console.warn(`[${requestId}] Response headers already sent, cannot send response`);
-        return;
-      }
-
-      // Send response
+    // Send response to client immediately so they don't timeout waiting for DB
+    if (res.headersSent) {
+      console.warn(`[${requestId}] Response headers already sent`);
+    } else {
       res.json({
         success: true,
         message: 'Video processed successfully',
         data: responseData,
-        requestId: requestId // Include request ID so frontend can track it
+        requestId: requestId
       });
-      
-      console.log(`[${requestId}] Response sent successfully`);
-    } catch (sendError) {
-      console.error(`[${requestId}] Error sending response:`, sendError);
-      // If headers not sent yet, try to send error response
-      if (!res.headersSent) {
-        res.status(500).json({
-          success: false,
-          message: 'Error sending response',
-          error: sendError.message,
-          requestId: requestId
-        });
-      }
+      console.log(`[${requestId}] Response sent successfully (${alerts.length} alerts)`);
+    }
+
+    // Save alerts to DB and broadcast in background (don't block the response)
+    if (alerts.length > 0) {
+      setImmediate(async () => {
+        const savedAlerts = [];
+        for (const alert of alerts) {
+          try {
+            if (!alert || !alert.alert_id) {
+              console.warn('[processVideo] Skipping invalid alert:', alert ? 'missing alert_id' : 'null');
+              continue;
+            }
+            const alertDoc = new Alert({
+              alertId: alert.alert_id || alert.alertId,
+              type: alert.type,
+              severity: alert.severity,
+              timestamp: new Date((alert.timestamp || 0) * 1000),
+              frame: alert.frame || null,
+              cameraId: cameraId,
+              details: alert.details || {},
+              videoInfo: {
+                outputVideo: result.data?.output_video || null,
+                logJson: result.data?.log_json || null,
+                logCsv: result.data?.log_csv || null
+              }
+            });
+            await alertDoc.save();
+            savedAlerts.push(alertDoc.toObject());
+            try {
+              websocketService.broadcastAlert({
+                alertId: alert.alert_id || alert.alertId,
+                type: alert.type,
+                severity: alert.severity,
+                timestamp: alert.timestamp,
+                cameraId: cameraId,
+                details: alert.details || {}
+              });
+            } catch (wsError) {
+              console.error('[processVideo] WebSocket broadcast error:', wsError);
+            }
+            notificationService.sendHighPriorityAlert({
+              alertId: alert.alert_id || alert.alertId,
+              type: alert.type,
+              severity: alert.severity,
+              timestamp: alert.timestamp,
+              cameraId: cameraId
+            }).catch(notifError => {
+              console.error('[processVideo] Notification error:', notifError);
+            });
+          } catch (saveError) {
+            console.error('[processVideo] Error saving alert:', saveError);
+          }
+        }
+        if (savedAlerts.length > 0) {
+          console.log(`[${requestId}] Saved ${savedAlerts.length} alerts to database (background)`);
+        }
+      });
     }
   } catch (error) {
     console.error(`[${requestId || 'unknown'}] Error in processVideo:`, error);
@@ -393,57 +369,64 @@ exports.processFrame = async (req, res) => {
       });
     }
 
-    // Save alerts to database if any
     const alerts = result.data.alerts || [];
-    const savedAlerts = [];
 
-    for (const alert of alerts) {
-      try {
-        const alertDoc = new Alert({
-          alertId: alert.alert_id,
-          type: alert.type,
-          severity: alert.severity,
-          timestamp: new Date(alert.timestamp * 1000),
-          frame: alert.frame,
-          cameraId: cameraId,
-          details: alert.details
-        });
-
-        await alertDoc.save();
-        // Convert Mongoose document to plain object for JSON response
-        savedAlerts.push(alertDoc.toObject());
-
-        // Broadcast alert via WebSocket
-        websocketService.broadcastAlert({
-          alertId: alert.alert_id,
-          type: alert.type,
-          severity: alert.severity,
-          timestamp: alert.timestamp,
-          cameraId: cameraId,
-          details: alert.details
-        });
-
-        // Send notification
-        await notificationService.sendHighPriorityAlert({
-          alertId: alert.alert_id,
-          type: alert.type,
-          severity: alert.severity,
-          timestamp: alert.timestamp,
-          cameraId: cameraId
-        });
-      } catch (saveError) {
-        console.error('Error saving alert:', saveError);
-      }
+    // Send response immediately so real-time clients don't block on DB
+    if (res.headersSent) {
+      return;
     }
-
     res.json({
       success: true,
       data: {
         detections: result.data.detections,
-        alerts: savedAlerts,
+        alerts: alerts,
         cameraId: cameraId
       }
     });
+
+    // Save alerts and broadcast in background
+    if (alerts.length > 0) {
+      setImmediate(async () => {
+        for (const alert of alerts) {
+          try {
+            if (!alert || !alert.alert_id) continue;
+            const alertDoc = new Alert({
+              alertId: alert.alert_id || alert.alertId,
+              type: alert.type,
+              severity: alert.severity,
+              timestamp: new Date((alert.timestamp || 0) * 1000),
+              frame: alert.frame,
+              cameraId: cameraId,
+              details: alert.details || {}
+            });
+            await alertDoc.save();
+            try {
+              websocketService.broadcastAlert({
+                alertId: alert.alert_id || alert.alertId,
+                type: alert.type,
+                severity: alert.severity,
+                timestamp: alert.timestamp,
+                cameraId: cameraId,
+                details: alert.details || {}
+              });
+            } catch (wsError) {
+              console.error('[processFrame] WebSocket broadcast error:', wsError);
+            }
+            notificationService.sendHighPriorityAlert({
+              alertId: alert.alert_id || alert.alertId,
+              type: alert.type,
+              severity: alert.severity,
+              timestamp: alert.timestamp,
+              cameraId: cameraId
+            }).catch(notifError => {
+              console.error('[processFrame] Notification error:', notifError);
+            });
+          } catch (saveError) {
+            console.error('[processFrame] Error saving alert:', saveError);
+          }
+        }
+      });
+    }
   } catch (error) {
     console.error('Error in processFrame:', error);
     res.status(500).json({

@@ -1,15 +1,43 @@
 model:
   path: "models/best.pt"
   image_size: 800
-  confidence: 0.25
+  confidence: 0.15   # Lower = more detections (try 0.1 if still 0 detections). Was 0.25.
   device: "cuda:0"  # Use "cuda:0" for GPU, "cpu" for CPU only. Will auto-fallback to CPU if GPU not available
 
+# Optional: add COCO-pretrained classes without retraining your bag-only dataset.
+# Your custom model keeps "bag" + "person"; COCO adds handbag, backpack, suitcase, cell phone, laptop, tv, etc.
+# Tablets are often detected as "laptop" or "cell phone" depending on angle. Set enabled: false to use only your model.
+coco_extension:
+  enabled: false
+  model_path: null   # e.g. "yolo11n.pt" to download; or "models/yolo11s.pt" for local COCO .pt
+  confidence: 0.25
+  # COCO class names to add as "items" (unattended/loitering). Must match Ultralytics COCO names exactly (lowercase).
+  item_class_names:
+    - handbag
+    - backpack
+    - suitcase
+    - cell phone
+    - laptop
+    - tv
+    # - keyboard   # optional: leave-behind keyboards
+    # - book       # optional: leave-behind books
+  track_id_offset: 100000
+
 behavior:
-  owner_max_dist: 120      # pixels - max distance for bag to be considered "attended"
-  owner_absent_sec: 20     # seconds - time before bag is marked "unattended"
-  loiter_near_radius: 70   # pixels - radius for loitering detection near unattended bag
+  owner_max_dist: 120      # pixels - max distance for item to be considered "attended"
+  owner_absent_sec: 20     # seconds - time before item is marked "unattended"
+  loiter_near_radius: 70   # pixels - radius for loitering detection near unattended item
   loiter_near_sec: 20      # seconds - time person must stay to trigger loitering alert
   running_speed: 260       # pixels/second - speed threshold for running detection
+  # All class names treated as "leaveable items". Include "bag" (custom) and COCO items above.
+  item_class_names:
+    - bag
+    - handbag
+    - backpack
+    - suitcase
+    - cell phone
+    - laptop
+    - tv
 
 tracking:
   tracker: "botsort.yaml"

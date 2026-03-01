@@ -61,7 +61,10 @@ const connectDB = async () => {
     }
 
     // Remove deprecated options (not needed in mongoose 8.0+)
-    const conn = await mongoose.connect(mongoUri);
+    const conn = await mongoose.connect(mongoUri, {
+      bufferCommands: true,
+      bufferTimeoutMS: 30000
+    });
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     console.log(`   Database: ${conn.connection.name}`);

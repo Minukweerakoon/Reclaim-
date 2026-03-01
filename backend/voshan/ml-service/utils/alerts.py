@@ -40,6 +40,7 @@ class AlertManager:
         if alert_type == "BAG_UNATTENDED":
             formatted["details"] = {
                 "bag_id": alert.get("bag_id"),
+                "item_type": alert.get("item_type", "bag"),
                 "bag_bbox": alert.get("bag_bbox"),
                 "duration_seconds": alert.get("duration_seconds", 0)
             }
@@ -47,6 +48,7 @@ class AlertManager:
             formatted["details"] = {
                 "person_id": alert.get("person_id"),
                 "bag_id": alert.get("bag_id"),
+                "item_type": alert.get("item_type", "bag"),
                 "person_bbox": alert.get("person_bbox"),
                 "bag_bbox": alert.get("bag_bbox"),
                 "dwell_time_seconds": alert.get("dwell_time_seconds", 0)
@@ -60,6 +62,7 @@ class AlertManager:
         elif alert_type == "OWNER_RETURNED":
             formatted["details"] = {
                 "bag_id": alert.get("bag_id"),
+                "item_type": alert.get("item_type", "bag"),
                 "person_id": alert.get("person_id"),
                 "bag_bbox": alert.get("bag_bbox"),
                 "distance_px": alert.get("distance_px", 0)
