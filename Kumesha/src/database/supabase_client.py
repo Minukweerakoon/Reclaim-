@@ -125,9 +125,11 @@ class SupabaseManager:
         user_email: str,
         item_data: Dict[str, Any],
         image_path: Optional[str] = None,
+        supabase_id: Optional[str] = None,
     ) -> Tuple[Optional[str], Optional[str]]:
         """
         Save a validated item to the shared `items` table.
+        If `supabase_id` is provided, update the existing record instead of creating a new one.
 
         Args:
             intention: "lost" or "found" — stored as `item_type`
@@ -138,9 +140,10 @@ class SupabaseManager:
                        confidence_score, routing, action, validation_summary,
                        user_category, image_url
             image_path: Optional local path to the uploaded image
+            supabase_id: Optional existing item ID to update
 
         Returns:
-            Tuple of (UUID of the inserted row, public image URL), or (None, None) on failure
+            Tuple of (UUID of the inserted/updated row, public image URL), or (None, None) on failure
         """
         # Upload image to Storage if provided locally
         image_url = None
@@ -161,7 +164,6 @@ class SupabaseManager:
             "description": item_data.get("description", ""),
             "location": item_data.get("location", ""),
             "time_of_incident": item_data.get("time", ""),
-            "image_url": image_url,
             "status": "active",
             # Additional Kumesha tracking fields
             "color": item_data.get("color", ""),
@@ -170,22 +172,35 @@ class SupabaseManager:
             "action": item_data.get("action", "review"),
             "validation_summary": item_data.get("validation_summary", {}),
         }
+        
+        # Only update image_url if it's provided (so we don't overwrite an existing image with None on update)
+        if image_url:
+            record["image_url"] = image_url
 
         try:
-            result = self.client.table(self.TABLE).insert(record).execute()
+            if supabase_id:
+                result = self.client.table(self.TABLE).update(record).eq("id", supabase_id).execute()
+                action_str = "Updated"
+            else:
+                result = self.client.table(self.TABLE).insert(record).execute()
+                action_str = "Inserted"
+                
             if result.data and len(result.data) > 0:
                 row_id = result.data[0].get("id", "unknown")
+                # Ensure we return the image URL that was actually saved/maintained
+                final_image_url = result.data[0].get("image_url")
                 logger.info(
-                    "Saved to %s: id=%s (user: %s, type: %s, category: %s, image: %s)",
+                    "%s %s: id=%s (user: %s, type: %s, category: %s, image: %s)",
+                    action_str,
                     self.TABLE,
                     row_id,
                     user_email,
                     record["item_type"],
                     record["user_category"],
-                    "yes" if image_url else "no",
+                    "yes" if final_image_url else "no",
                 )
-                return str(row_id), image_url
-            logger.warning("Insert to %s returned no data", self.TABLE)
+                return str(row_id), final_image_url
+            logger.warning("%s to %s returned no data", action_str, self.TABLE)
             return None, None
         except Exception as exc:
             logger.error("Failed to save to %s: %s", self.TABLE, exc)

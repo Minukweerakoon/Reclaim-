@@ -492,18 +492,14 @@ function ValidationHub() {
             // Use NLP results first, fall back to chatbot-parsed values
             const itemType = entities.entities.item_type?.[0]
                 || chatbotParsed['item_type']
-                || chatbotParsed['item'];
+                || chatbotParsed['item']
+                || 'unknown item';
             const locationValue = entities.entities.location?.[0]
-                || chatbotParsed['location'];
+                || chatbotParsed['location']
+                || 'unknown location';
             const timeValue = entities.entities.time?.[0]
                 || chatbotParsed['time']
                 || 'today';  // sensible default — report is about a recent event
-
-            if (!itemType || !locationValue) {
-                setAnalysisError('Unable to infer item type or location from the text. Add those details and retry.');
-                setContextResult(null);
-                return;
-            }
 
             const context = await contextApi.validateContext({
                 item_type: itemType,
@@ -636,12 +632,17 @@ function ValidationHub() {
     // Build discrepancies from cross-modal analysis
     const discrepancies: Discrepancy[] = useMemo(() => {
         if (!currentResult?.cross_modal?.image_text) return [];
-        const it = currentResult.cross_modal.image_text;
+        const it = currentResult.cross_modal.image_text as any;
         const items: Discrepancy[] = [];
         if (!it.valid) {
             items.push({ type: 'Cross-Modal Mismatch', description: it.feedback });
         }
-        it.suggestions?.forEach((s) => {
+        if (it.mismatch_detection?.mismatches) {
+            it.mismatch_detection.mismatches.forEach((m: any) => {
+                items.push({ type: `Mismatch: ${m.type}`, description: m.message });
+            });
+        }
+        it.suggestions?.forEach((s: string) => {
             items.push({ type: 'Suggestion', description: s });
         });
         return items;

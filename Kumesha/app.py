@@ -1574,6 +1574,7 @@ async def validate_complete(
     intent: Optional[str] = Form(None),      # "lost" or "found"
     user_id: Optional[str] = Form(None),     # Firebase UID
     user_email: Optional[str] = Form(None),  # User email
+    supabase_id: Optional[str] = Form(None), # Existing DB record ID to update
     background_tasks: BackgroundTasks = BackgroundTasks(),
     api_key: APIKey = Depends(get_api_key)
 ):
@@ -1928,15 +1929,16 @@ async def validate_complete(
                         item_data["time"] = (completeness.get("time") or [None])[0] or ""
                     
                     # Note: image_path is still valid here (cleanup scheduled later)
-                    supabase_id, sup_image_url = sm.save_validated_item(
+                    supabase_id_saved, sup_image_url = sm.save_validated_item(
                         intention=intent,
                         user_id=user_id,
                         user_email=user_email or "",
                         item_data=item_data,
                         image_path=image_path,  # SupabaseManager uploads then returns URL
+                        supabase_id=supabase_id,
                     )
-                    if supabase_id:
-                        response_data["supabase_id"] = supabase_id
+                    if supabase_id_saved:
+                        response_data["supabase_id"] = supabase_id_saved
                         if sup_image_url:
                             response_data["image_url"] = sup_image_url
                         logger.info(f"✓ Saved to Supabase ({intent}_items): id={supabase_id}")
