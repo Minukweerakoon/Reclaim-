@@ -1248,11 +1248,14 @@ async def generate_attention_heatmap(
             error=str(e)
         )
 
+class XAIExplainRequest(BaseModel):
+    text: Optional[str] = None
+    image_path: Optional[str] = None
+    transcription: Optional[str] = None
+
 @app.post("/api/xai/explain-enhanced")
 async def get_enhanced_xai_explanation(
-    image_result: Optional[Dict] = None,
-    text_result: Optional[Dict] = None,
-    voice_result: Optional[Dict] = None,
+    request: XAIExplainRequest,
     include_discrepancies: bool = True,
     api_key: APIKey = Depends(get_api_key)
 ):
@@ -1271,6 +1274,11 @@ async def get_enhanced_xai_explanation(
         
         explainer = XAIExplainer()
         
+        # Build mock result dicts from the frontend request to pass to the explainer and checkers
+        image_result = {"image_path": request.image_path} if request.image_path else None
+        text_result = {"text": request.text} if request.text else None
+        voice_result = {"transcription": request.transcription} if request.transcription else None
+        
         # Get basic explanation
         base_explanation = explainer.generate_explanation(
             image_result=image_result,
@@ -1281,28 +1289,51 @@ async def get_enhanced_xai_explanation(
         # Add enhanced discrepancy checks if requested
         if include_discrepancies:
             enhanced_checks = {}
+            discrepancies = []
             
             # Brand mismatch
             if image_result and text_result:
                 brand_check = check_brand_mismatch(image_result, text_result)
                 if brand_check.get("has_mismatch"):
                     enhanced_checks["brand_mismatch"] = brand_check
+                    discrepancies.append({
+                        "type": "BRAND_MISMATCH",
+                        "explanation": brand_check.get("explanation", "Brand mismatch detected.")
+                    })
             
             # Location consistency (text vs voice)
             if text_result and voice_result:
                 location_check = check_location_consistency(text_result, voice_result)
                 if location_check.get("has_mismatch"):
                     enhanced_checks["location_inconsistency"] = location_check
+                    discrepancies.append({
+                        "type": "LOCATION_INCONSISTENCY",
+                        "explanation": location_check.get("explanation", "Location mismatch detected.")
+                    })
             
             # Condition mismatch
             if image_result and text_result:
                 condition_check = check_condition_mismatch(image_result, text_result)
                 if condition_check.get("has_mismatch"):
                     enhanced_checks["condition_mismatch"] = condition_check
+                    discrepancies.append({
+                        "type": "CONDITION_MISMATCH",
+                        "explanation": condition_check.get("explanation", "Condition mismatch detected.")
+                    })
+                    
+            if base_explanation.get("has_discrepancy") and base_explanation.get("discrepancy_type"):
+                # Initial explainer checks (color, object)
+                discrepancies.append({
+                    "type": base_explanation["discrepancy_type"].upper(),
+                    "explanation": base_explanation.get("explanation", "")
+                })
             
-            if enhanced_checks:
+            if enhanced_checks or len(discrepancies) > 0:
                 base_explanation["enhanced_checks"] = enhanced_checks
+                base_explanation["discrepancies"] = discrepancies
                 base_explanation["has_discrepancy"] = True
+                if len(discrepancies) > 0:
+                     base_explanation["explanation"] = f"Found {len(discrepancies)} cross-modal mismatches."
                 logger.info(f"Enhanced XAI: {len(enhanced_checks)} additional discrepancies detected")
         
         return base_explanation

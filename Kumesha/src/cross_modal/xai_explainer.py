@@ -114,7 +114,7 @@ class XAIExplainer:
         result = {
             "has_discrepancy": False,
             "discrepancy_type": None,
-            "explanation": "",
+            "explanation": "All provided inputs (text, image, voice) appear consistent. No multi-modal discrepancies detected.",
             "severity": "low",
             "suggestions": []
         }
