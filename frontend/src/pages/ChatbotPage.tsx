@@ -4,6 +4,7 @@ import { chatApi } from '../api/chat';
 import { formatErrorMessage } from '../components/ErrorMessage';
 import type { ChatMessage } from '../types/api';
 import { useValidationStore } from '../store/useValidationStore';
+import { useChatStore } from '../store/useChatStore';
 
 const summarizeExtractedInfo = (info: Record<string, any>, intentValue: string) => {
     const parts: string[] = [];
@@ -26,11 +27,19 @@ function ChatbotPage() {
     const initialIntent = searchParams.get('intent') || '';
 
     const [input, setInput] = useState('');
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [isTyping, setIsTyping] = useState(false);
-    const [extractedInfo, setExtractedInfo] = useState<Record<string, any>>({});
-    const [intent, setIntent] = useState(initialIntent);
-    const [summaryConfirmed, setSummaryConfirmed] = useState(false);
+    const {
+        messages, setMessages,
+        isTyping, setIsTyping,
+        extractedInfo, setExtractedInfo,
+        intent, setIntent,
+        summaryConfirmed, setSummaryConfirmed
+    } = useChatStore();
+
+    useEffect(() => {
+        if (initialIntent && !intent) {
+            setIntent(initialIntent);
+        }
+    }, [initialIntent, intent, setIntent]);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const { currentResult, setPendingInputs, setPendingMedia, setPendingExtractedInfo, setIntent: setStoreIntent } = useValidationStore();

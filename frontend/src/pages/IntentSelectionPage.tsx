@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useChatStore } from '../store/useChatStore';
 
 function IntentSelectionPage() {
     const navigate = useNavigate();
@@ -21,7 +22,10 @@ function IntentSelectionPage() {
                     {/* I LOST IT */}
                     <button
                         type="button"
-                        onClick={() => navigate('/chatbot?intent=lost')}
+                        onClick={() => {
+                            useChatStore.getState().resetChat();
+                            navigate('/chatbot?intent=lost');
+                        }}
                         className="glass-panel rounded-2xl p-8 text-left transition-all duration-300 group"
                         style={{ border: '1px solid rgba(239,68,68,0.25)' }}
                         onMouseEnter={e => {
@@ -43,7 +47,10 @@ function IntentSelectionPage() {
                     {/* I FOUND IT */}
                     <button
                         type="button"
-                        onClick={() => navigate('/chatbot?intent=found')}
+                        onClick={() => {
+                            useChatStore.getState().resetChat();
+                            navigate('/chatbot?intent=found');
+                        }}
                         className="glass-panel rounded-2xl p-8 text-left transition-all duration-300 group"
                         style={{ border: '1px solid rgba(99,102,241,0.25)' }}
                         onMouseEnter={e => {
