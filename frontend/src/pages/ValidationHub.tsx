@@ -370,6 +370,7 @@ function ValidationHub() {
                 intent: intent || undefined,
                 userId: user?.id,
                 userEmail: user?.email ?? undefined,
+                supabaseId: currentResult?.supabase_id || undefined,
             });
             setProgress(100, 'Complete!');
             setResult(result);

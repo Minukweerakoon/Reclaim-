@@ -45,6 +45,8 @@ export interface CompleteValidationParams {
     userId?: string;
     /** Email of the authenticated user */
     userEmail?: string;
+    /** Existing ID to update in the DB instead of creating a new one */
+    supabaseId?: string;
 }
 
 export const validationApi = {
@@ -63,6 +65,7 @@ export const validationApi = {
         if (params.intent) formData.append('intent', params.intent);
         if (params.userId) formData.append('user_id', params.userId);
         if (params.userEmail) formData.append('user_email', params.userEmail);
+        if (params.supabaseId) formData.append('supabase_id', params.supabaseId);
 
         const response = await validationClient.post('/validate/complete', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
