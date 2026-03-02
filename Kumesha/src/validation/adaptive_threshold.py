@@ -26,23 +26,23 @@ class AdaptiveThresholdCalculator:
     
     # Base thresholds by item category
     CATEGORY_THRESHOLDS = {
-        "phone": 0.75,
-        "laptop": 0.80,
-        "watch": 0.78,
-        "jewelry": 0.75,
-        "wallet": 0.70,
-        "keys": 0.68,
-        "bag": 0.65,
-        "backpack": 0.65,
-        "shoe": 0.70,
-        "clothing": 0.55,
-        "glasses": 0.70,
-        "headphones": 0.72,
-        "charger": 0.60,
-        "book": 0.62,
-        "pen": 0.50,
-        "card": 0.50,
-        "unknown": 0.60
+        "phone": 0.35,
+        "laptop": 0.35,
+        "watch": 0.35,
+        "jewelry": 0.32,
+        "wallet": 0.30,
+        "keys": 0.28,
+        "bag": 0.28,
+        "backpack": 0.28,
+        "shoe": 0.30,
+        "clothing": 0.25,
+        "glasses": 0.30,
+        "headphones": 0.32,
+        "charger": 0.25,
+        "book": 0.28,
+        "pen": 0.22,
+        "card": 0.22,
+        "unknown": 0.25
     }
     
     # Item distinctiveness (how easy to identify from images)
@@ -190,7 +190,7 @@ class AdaptiveThresholdCalculator:
             Tuple of (adaptive_threshold, factor_breakdown)
         """
         # Get base threshold for category
-        base_threshold = self.CATEGORY_THRESHOLDS.get(item_category.lower(), 0.60)
+        base_threshold = self.CATEGORY_THRESHOLDS.get(item_category.lower(), 0.25)
         
         # Calculate individual factors
         w_completeness = self.calculate_completeness_factor(num_modalities)
@@ -201,8 +201,8 @@ class AdaptiveThresholdCalculator:
         # Apply formula: θ_adaptive = θ_base × W_c × W_q × W_s × W_h
         adaptive_threshold = base_threshold * w_completeness * w_quality * w_specificity * w_historical
         
-        # Constrain to valid range [0.50, 0.95]
-        adaptive_threshold = max(0.50, min(adaptive_threshold, 0.95))
+        # Constrain to valid range [0.20, 0.95]
+        adaptive_threshold = max(0.20, min(adaptive_threshold, 0.95))
         
         logger.info(
             f"Adaptive Threshold for '{item_category}': "
