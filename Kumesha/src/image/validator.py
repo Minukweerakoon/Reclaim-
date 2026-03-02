@@ -266,6 +266,37 @@ class ImageValidator:
                     })
             
             detections.sort(key=lambda x: x["confidence"], reverse=True)
+
+            # ── Person & Background Noise Filter ─────────────────────────────
+            # Remove YOLO classes that are background/scene elements,
+            # not personal items that can be lost or found.
+            # Keeping these would cause false color/object mismatches.
+            BACKGROUND_CLASSES = {
+                # People
+                "person",
+                # Furniture / scene
+                "chair", "couch", "sofa", "bench", "bed", "dining table",
+                "toilet", "sink", "refrigerator", "oven", "microwave",
+                "tv", "monitor", "desk",
+                # Vehicles (not typically lost items)
+                "car", "truck", "bus", "train", "motorcycle", "bicycle",
+                "boat", "airplane",
+                # Food / plants
+                "bottle", "cup", "bowl", "banana", "apple", "orange",
+                "pizza", "donut", "cake", "sandwich", "hot dog",
+                "potted plant", "vase", "flower",
+                # Animals
+                "cat", "dog", "bird", "horse", "cow", "sheep",
+            }
+            detections = [
+                d for d in detections
+                if d.get("original_class", d.get("class", "")).lower() not in BACKGROUND_CLASSES
+            ]
+            logger.info(
+                f"[DETECTION] After background filter: {[d['class'] for d in detections[:5]]}"
+            )
+            # ─────────────────────────────────────────────────────────────────
+
             high_conf = [d for d in detections if d["confidence"] > 0.4]
             
             # If YOLO found something with decent confidence, use it

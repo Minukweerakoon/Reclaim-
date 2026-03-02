@@ -246,14 +246,36 @@ class CLIPValidator:
             similarity = self._calculate_similarity(image_embedding, text_embedding)
             result["similarity"] = similarity
             
-            # Determine validity based on threshold
-            result["valid"] = similarity >= self.similarity_threshold
+            # ── Adaptive threshold for peripheral/accessory categories ────────
+            # CLIP scores are systematically lower for peripherals (keyboards, mice,
+            # headphones, chargers) because they are less-common in CLIP's training data.
+            # Use a lower threshold so they are not falsely flagged as mismatches.
+            PERIPHERAL_KEYWORDS = {
+                "keyboard", "mouse", "charger", "cable", "remote", "earbuds",
+                "headphones", "headset", "usb", "power bank", "hard drive",
+                "usb drive", "adapter", "hub", "dock", "speaker"
+            }
+            text_lower_check = text.lower()
+            is_peripheral = any(kw in text_lower_check for kw in PERIPHERAL_KEYWORDS)
+            effective_threshold = 0.30 if is_peripheral else self.similarity_threshold
+
+            # Determine validity based on (adaptive) threshold
+            result["valid"] = similarity >= effective_threshold
+            result["threshold"] = effective_threshold
+            if is_peripheral:
+                logger.info(
+                    f"[CLIP] Peripheral item detected — using relaxed threshold "
+                    f"{effective_threshold} (raw sim: {similarity:.3f})"
+                )
 
             # Lightweight attribute-level diagnostics using CLIP zero-shot prompts
             try:
                 item_labels = [
                     "phone","wallet","keys","bag","backpack","laptop","umbrella","watch",
-                    "glasses","headphones","camera","book","jacket","purse","card"
+                    "glasses","headphones","earbuds","camera","book","jacket","purse","card",
+                    # Peripherals and accessories (CLIP scores lower for these)
+                    "keyboard","mouse","charger","cable","remote","tablet","speaker",
+                    "power bank","hard drive","usb drive","pen","pencil case"
                 ]
                 color_labels = [
                     "black","white","red","blue","green","yellow","brown","gray","purple",

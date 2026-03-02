@@ -1,0 +1,4 @@
+﻿***ITEMS***
+["id", "user_id", "user_email", "item_type", "image_url", "description", "location", "user_category", "model_category", "final_category", "metric_vec", "entropy", "alpha", "status", "created_at", "time_of_incident", "brand", "colour"]
+***LOST_ITEMS***
+["id", "user_id", "user_email", "item_type", "description", "color", "brand", "location", "time_of_incident", "confidence_score", "routing", "action", "validation_summary", "status", "created_at", "image_url", "metric_vec", "entropy", "alpha", "predicted_category"]

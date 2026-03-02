@@ -43,6 +43,7 @@ function ValidationHub() {
     const [recordingError, setRecordingError] = useState<string | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [isWebcamActive, setIsWebcamActive] = useState(false);
+    const [localExtractedInfo, setLocalExtractedInfo] = useState<Record<string, string>>({});
     const [webcamError, setWebcamError] = useState<string | null>(null);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
     const [_entityResult, setEntityResult] = useState<EntityDetectionResponse | null>(null);
@@ -308,6 +309,9 @@ function ValidationHub() {
         if (pendingVisualText) {
             setVisualText(pendingVisualText);
         }
+        if (pendingExtractedInfo && Object.keys(pendingExtractedInfo).length > 0) {
+            setLocalExtractedInfo(pendingExtractedInfo);
+        }
         if (pendingImageFile) {
             setImageFile(pendingImageFile);
             const reader = new FileReader();
@@ -359,11 +363,22 @@ function ValidationHub() {
             if (user?.id && (intent === 'lost' || intent === 'found')) {
                 const overallConfidence = result?.confidence?.overall_confidence ?? null;
 
-                // Use structured chat data if available, otherwise fall back to text parsing
-                const extracted = pendingExtractedInfo || {};
+                // Use local preserved structured chat data if available
+                const extracted = localExtractedInfo || {};
                 const itemCategory = extracted['item_type'] || visualText?.split(' ').slice(-1)[0] || '';
-                const locationValue = extracted['location']
-                    || (() => { const m = textInput?.match(/\bat\s+(?:the\s+)?([a-zA-Z\s]{2,30})/i); return m ? m[1].trim() : ''; })();
+                const locationValue = (() => {
+                    // Priority 1: structured extracted info from chat (most reliable)
+                    if (extracted['location'] && extracted['location'].trim()) {
+                        return extracted['location'].trim();
+                    }
+                    // Priority 2: parse "location: X" key-value from the summaryText
+                    // e.g. "intent: found, item type: keyboard, location: 4th floor of computing faculty building"
+                    const locKv = textInput?.match(/\blocation:\s*([^,]+)/i);
+                    if (locKv) return locKv[1].trim();
+                    // Priority 3: simple "at the X" regex as last resort
+                    const locAt = textInput?.match(/\bat\s+(?:the\s+)?([a-zA-Z\s]{2,40})/i);
+                    return locAt ? locAt[1].trim() : '';
+                })();
                 const colorValue = extracted['color'] || '';
                 // description = human-readable summary, not the full structured blob
                 const descriptionValue = extracted['description'] || textInput || '';
