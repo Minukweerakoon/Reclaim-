@@ -9,7 +9,7 @@ import logging
 import os
 import uuid as _uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("SupabaseManager")
 
@@ -125,7 +125,7 @@ class SupabaseManager:
         user_email: str,
         item_data: Dict[str, Any],
         image_path: Optional[str] = None,
-    ) -> Optional[str]:
+    ) -> Tuple[Optional[str], Optional[str]]:
         """
         Save a validated item to the shared `items` table.
 
@@ -140,7 +140,7 @@ class SupabaseManager:
             image_path: Optional local path to the uploaded image
 
         Returns:
-            The UUID of the inserted row, or None on failure
+            Tuple of (UUID of the inserted row, public image URL), or (None, None) on failure
         """
         # Upload image to Storage if provided locally
         image_url = None
@@ -184,12 +184,12 @@ class SupabaseManager:
                     record["user_category"],
                     "yes" if image_url else "no",
                 )
-                return str(row_id)
+                return str(row_id), image_url
             logger.warning("Insert to %s returned no data", self.TABLE)
-            return None
+            return None, None
         except Exception as exc:
             logger.error("Failed to save to %s: %s", self.TABLE, exc)
-            return None
+            return None, None
 
     # -------------------- Read -------------------- #
     def get_lost_items(

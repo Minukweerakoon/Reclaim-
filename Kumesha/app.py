@@ -418,6 +418,7 @@ class ValidationResponse(BaseModel):
     feedback: dict
     clarification_questions: List[str] = []
     supabase_id: Optional[str] = None
+    image_url: Optional[str] = None
 
 class TextValidationRequest(BaseModel):
     text: str
@@ -1927,7 +1928,7 @@ async def validate_complete(
                         item_data["time"] = (completeness.get("time") or [None])[0] or ""
                     
                     # Note: image_path is still valid here (cleanup scheduled later)
-                    supabase_id = sm.save_validated_item(
+                    supabase_id, sup_image_url = sm.save_validated_item(
                         intention=intent,
                         user_id=user_id,
                         user_email=user_email or "",
@@ -1936,6 +1937,8 @@ async def validate_complete(
                     )
                     if supabase_id:
                         response_data["supabase_id"] = supabase_id
+                        if sup_image_url:
+                            response_data["image_url"] = sup_image_url
                         logger.info(f"✓ Saved to Supabase ({intent}_items): id={supabase_id}")
             except Exception as exc:
                 logger.error(f"Supabase save failed (non-fatal): {exc}")

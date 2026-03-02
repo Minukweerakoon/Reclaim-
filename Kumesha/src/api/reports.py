@@ -123,7 +123,7 @@ async def save_report(
         "validation_summary": body.validation_results,
     }
 
-    report_id = sb.save_validated_item(
+    report_id, _ = sb.save_validated_item(
         intention=body.intention,
         user_id=user["id"],
         user_email=user.get("email", ""),
