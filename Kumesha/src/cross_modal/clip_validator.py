@@ -281,6 +281,10 @@ class CLIPValidator:
                     "black","white","red","blue","green","yellow","brown","gray","purple",
                     "orange","pink","silver","gold"
                 ]
+                brand_labels = [
+                    "apple", "samsung", "dell", "asus", "hp", "lenovo", "acer", "sony",
+                    "nike", "adidas", "puma", "reebok", "gucci", "prada", "rolex", "casio"
+                ]
                 # Build prompt templates
                 def _score_prompts(prompts: List[str]) -> List[Tuple[str, float]]:
                     with torch.no_grad():
@@ -296,26 +300,33 @@ class CLIPValidator:
                 # Score items and colors
                 item_prompts = [f"a photo of a {l}" for l in item_labels]
                 color_prompts = [f"{c} color" for c in color_labels]
+                brand_prompts = [f"{b} brand" for b in brand_labels]
+                
                 top_items = _score_prompts(item_prompts)[:3]
                 top_colors = _score_prompts(color_prompts)[:3]
+                top_brands = _score_prompts(brand_prompts)[:3]
 
                 # Extract tokens from user text for comparison
                 text_lower = text.lower()
                 mentioned_items = [l for l in item_labels if l in text_lower]
                 mentioned_colors = [c for c in color_labels if c in text_lower]
+                mentioned_brands = [b for b in brand_labels if b in text_lower]
 
                 # Attribute scores
                 result["mismatch_detection"]["attribute_scores"] = {
                     "predicted_items": top_items,
                     "predicted_colors": top_colors,
+                    "predicted_brands": top_brands,
                     "mentioned_items": mentioned_items,
                     "mentioned_colors": mentioned_colors,
+                    "mentioned_brands": mentioned_brands,
                 }
 
                 # Basic mismatch detection and suggestions
                 mismatches: List[Dict[str, Any]] = []
                 item_mismatch = False
                 color_mismatch = False
+                brand_mismatch = False
                 if mentioned_items:
                     ti = [t[0].split(" ")[-1] for t in top_items]
                     if all(mi not in ti for mi in mentioned_items):
@@ -326,6 +337,11 @@ class CLIPValidator:
                     if all(mc not in tc for mc in mentioned_colors):
                         mismatches.append({"type": "color", "message": "Color in text not prominent in image"})
                         color_mismatch = True
+                if mentioned_brands:
+                    tb = [t[0].split(" ")[0] for t in top_brands]
+                    if all(mb not in tb for mb in mentioned_brands):
+                        mismatches.append({"type": "brand", "message": "Brand in text not prominent in image"})
+                        brand_mismatch = True
                 result["mismatch_detection"]["mismatches"] = mismatches
 
                 # Suggestions
@@ -355,6 +371,11 @@ class CLIPValidator:
                     if all(mc not in top_color_name for mc in mentioned_colors):
                         explanations.append(f"Conflict detected: Text mentions '{mentioned_colors[0]}' but image appears '{top_color_name}'")
                 
+                if mentioned_brands and top_brands:
+                    top_brand_name = top_brands[0][0].split(' ')[0]
+                    if all(mb not in top_brand_name for mb in mentioned_brands):
+                        explanations.append(f"Conflict detected: Text mentions '{mentioned_brands[0]}' but image appears '{top_brand_name}'")
+
                 if mentioned_items and top_items:
                     top_item_name = top_items[0][0].replace('a photo of a ', '')
                     if all(mi not in top_item_name for mi in mentioned_items):
