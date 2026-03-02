@@ -207,6 +207,7 @@ class SpatialTemporalValidator:
         "iphone": "phone", "samsung": "phone", "smartphone": "phone", 
         "mobile": "phone", "cellphone": "phone", "android": "phone",
         "macbook": "laptop", "notebook": "laptop", "chromebook": "laptop",
+        "keyboard": "laptop", "mouse": "laptop", "charger": "laptop",
         "ipad": "tablet", "headset": "headphones", "airpods": "headphones", "earbuds": "headphones",
         "wireless headphones": "headphones", "bluetooth headset": "headphones",
         "earphones": "headphones", "smartwatch": "watch", "apple watch": "watch",
@@ -228,19 +229,19 @@ class SpatialTemporalValidator:
     
     # Location aliases for normalization
     LOCATION_ALIASES: Dict[str, str] = {
-        "canteen": "cafeteria", "food court": "cafeteria", "mess": "cafeteria",
-        "reading room": "library", "study room": "library",
-        "lecture hall": "classroom", "seminar room": "classroom",
-        "computer lab": "lab", "research lab": "lab",
-        "locker room": "gym", "fitness center": "gym", "sports hall": "gym",
-        "parking lot": "parking", "garage": "parking",
-        "car park": "parking", "parking area": "parking", "parking space": "parking",
-        "main entrance": "entrance", "gate": "entrance", "lobby": "entrance",
-        "bathroom": "restroom", "toilet": "restroom", "washroom": "restroom",
-        "corridor": "hallway", "passage": "hallway",
-        "dorm": "hostel", "dormitory": "hostel", "residence": "hostel",
+        "canteen": "cafeteria", "food court": "cafeteria", "mess": "cafeteria", "cafe": "cafeteria", "dining": "cafeteria",
+        "reading room": "library", "study room": "library", "study area": "library", "study": "library",
+        "lecture hall": "classroom", "seminar room": "classroom", "faculty": "classroom", "lecture": "classroom", "class": "classroom",
+        "computer lab": "lab", "research lab": "lab", "computing": "lab", "laboratory": "lab",
+        "locker room": "gym", "fitness center": "gym", "sports hall": "gym", "ground": "gym", "stadium": "gym",
+        "parking lot": "parking", "garage": "parking", "car park": "parking", "parking area": "parking", "parking space": "parking",
+        "main entrance": "entrance", "gate": "entrance", "lobby": "entrance", "foyer": "entrance", "reception": "entrance",
+        "bathroom": "restroom", "toilet": "restroom", "washroom": "restroom", "lavatory": "restroom",
+        "corridor": "hallway", "passage": "hallway", "stairs": "hallway", "staircase": "hallway",
+        "dorm": "hostel", "dormitory": "hostel", "residence": "hostel", "accommodation": "hostel", "room": "hostel",
         "swimming pool": "pool", "aquatic center": "pool",
         "data center": "server room", "it room": "server room",
+        "building": "office", "department": "office", "headquarters": "office", "hq": "office",
     }
     
     # Time period mapping
@@ -473,14 +474,62 @@ class SpatialTemporalValidator:
             plausibility_score = round(math.pow(raw_plausibility, 0.7), 2)
             time_display = "unspecified"
         
-        # Determine validity threshold
+        # Determine validity threshold (initial statistical)
         is_valid = plausibility_score >= 0.40
         
-        # Generate explanation
-        explanation = self._generate_explanation(
-            norm_item, norm_location, time_display,
-            p_location, p_time, plausibility_score, is_valid
-        )
+        # --- LLM INTELLIGENCE FALLBACK ---
+        # If the statistical model fails to identify the context or gives a low score,
+        # fallback to the advanced reasoning of Gemini/Groq.
+        llm_used = False
+        explanation = ""
+        
+        if not is_valid or norm_location == "unknown" or norm_item == "unknown":
+            try:
+                from src.intelligence.llm_client import get_llm_client
+                import json
+                llm = get_llm_client()
+                
+                if llm.provider in ["gemini", "openai"]:
+                    prompt = f"""
+Analyze the real-world plausibility of this lost & found scenario:
+Item: {item}
+Location: {location}
+Time: {time if time else 'Not specified'}
+
+Based on human behavior and environmental logic, is it plausible to find this item here?
+Return ONLY a valid JSON object:
+{{
+  "plausibility_score": <float between 0.01 and 0.99>,
+  "valid": <boolean (true if score >= 0.40)>,
+  "explanation": "<Concise, friendly explanation starting with an emoji (e.g. ✅ or ⚠️)>"
+}}
+"""
+                    response_text = ""
+                    if llm.provider == "gemini":
+                        response_text = llm._call_gemini_with_retry(prompt, use_fallback=True)
+                    else:
+                        response = llm.openai_client.chat.completions.create(
+                            model=llm.model,
+                            messages=[{"role": "user", "content": prompt}],
+                            response_format={"type": "json_object"}
+                        )
+                        response_text = response.choices[0].message.content
+                    
+                    data = json.loads(response_text)
+                    plausibility_score = float(data.get("plausibility_score", plausibility_score))
+                    is_valid = bool(data.get("valid", is_valid))
+                    explanation = data.get("explanation", explanation)
+                    llm_used = True
+                    logger.info(f"LLM Plausibility Fallback Success for {item} at {location} -> Score: {plausibility_score}")
+            except Exception as e:
+                logger.warning(f"LLM Plausibility Fallback failed: {e}")
+        
+        # Generate statistical explanation if LLM wasn't used or failed
+        if not llm_used or not explanation:
+            explanation = self._generate_explanation(
+                norm_item, norm_location, time_display,
+                p_location, p_time, plausibility_score, is_valid
+            )
         
         # Generate suggestions for low plausibility
         suggestions = []
