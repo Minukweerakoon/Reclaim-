@@ -8,6 +8,7 @@ import { contextApi } from '../api/context';
 import { xaiApi } from '../api/xai';
 import { feedbackApi } from '../api/feedback';
 import { useValidationStore } from '../store/useValidationStore';
+import { useChatStore } from '../store/useChatStore';
 import { useAuth } from '../contexts/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { ErrorMessage, formatErrorMessage } from '../components/ErrorMessage';
@@ -83,6 +84,8 @@ function ValidationHub() {
         intent,
     } = useValidationStore();
 
+    const { pendingImage: chatImage, imagePreview: chatImagePreview, setPendingImage } = useChatStore();
+
     const clientId = useState(() => `client_${Date.now()}_${Math.random().toString(36).slice(2)}`)[0];
 
     const { isConnected } = useWebSocket({
@@ -115,10 +118,13 @@ function ValidationHub() {
             }
             setImageFile(file);
             const reader = new FileReader();
-            reader.onload = () => setImagePreview(reader.result as string);
+            reader.onload = () => {
+                setImagePreview(reader.result as string);
+                setPendingImage(file, reader.result as string);
+            };
             reader.readAsDataURL(file);
         }
-    }, [setError]);
+    }, [setError, setPendingImage]);
 
     const stopRecordingStream = useCallback(() => {
         if (recordingStreamRef.current) {
@@ -263,6 +269,7 @@ function ValidationHub() {
                     setCapturedImage(url);
                     setImageFile(file);
                     setImagePreview(url);
+                    setPendingImage(file, url);
                     stopWebcam();
                 }
             }, 'image/jpeg', 0.9);
@@ -312,10 +319,16 @@ function ValidationHub() {
         if (pendingExtractedInfo && Object.keys(pendingExtractedInfo).length > 0) {
             setLocalExtractedInfo(pendingExtractedInfo);
         }
-        if (pendingImageFile) {
+        if (chatImage) {
+            setImageFile(chatImage);
+            setImagePreview(chatImagePreview);
+        } else if (pendingImageFile) {
             setImageFile(pendingImageFile);
             const reader = new FileReader();
-            reader.onload = () => setImagePreview(reader.result as string);
+            reader.onload = () => {
+                setImagePreview(reader.result as string);
+                setPendingImage(pendingImageFile, reader.result as string);
+            };
             reader.readAsDataURL(pendingImageFile);
         }
         if (pendingAudioFile) {
@@ -326,11 +339,13 @@ function ValidationHub() {
             clearPending();
         }
     }, [
-        pendingText,
         pendingVisualText,
         pendingImageFile,
         pendingAudioFile,
         clearPending,
+        chatImage,
+        chatImagePreview,
+        setPendingImage
     ]);
 
     const handleSubmit = async () => {
@@ -383,26 +398,30 @@ function ValidationHub() {
                 // description = human-readable summary, not the full structured blob
                 const descriptionValue = extracted['description'] || textInput || '';
 
-                reportsApi.saveReport({
-                    item_type: itemCategory,
-                    user_category: itemCategory,
-                    description: descriptionValue,
-                    color: colorValue,
-                    location: locationValue,
-                    intention: intent as 'lost' | 'found',
-                    confidence_score: overallConfidence,
-                    routing: overallConfidence != null && overallConfidence >= 0.7 ? 'auto' : 'manual',
-                    action: 'review',
-                    validation_results: {
-                        cross_modal: result?.cross_modal ?? {},
-                        individual_scores: result?.confidence?.individual_scores ?? {},
-                        supabase_id: result?.supabase_id,
-                    },
-                }).then((saved) => {
-                    console.info('[Reclaim] Report saved to items table:', saved.report_id);
-                }).catch((err) => {
-                    console.warn('[Reclaim] Report save failed (non-blocking):', err);
-                });
+                if (!result?.supabase_id) {
+                    reportsApi.saveReport({
+                        item_type: itemCategory,
+                        user_category: itemCategory,
+                        description: descriptionValue,
+                        color: colorValue,
+                        location: locationValue,
+                        intention: intent as 'lost' | 'found',
+                        confidence_score: overallConfidence,
+                        routing: overallConfidence != null && overallConfidence >= 0.7 ? 'auto' : 'manual',
+                        action: 'review',
+                        validation_results: {
+                            cross_modal: result?.cross_modal ?? {},
+                            individual_scores: result?.confidence?.individual_scores ?? {},
+                            supabase_id: result?.supabase_id,
+                        },
+                    }).then((saved) => {
+                        console.info('[Reclaim] Report saved to items table fallback:', saved.report_id);
+                    }).catch((err) => {
+                        console.warn('[Reclaim] Report save fallback failed:', err);
+                    });
+                } else {
+                    console.info('[Reclaim] Report already saved by backend to items table with ID:', result.supabase_id);
+                }
             }
 
 
@@ -436,6 +455,7 @@ function ValidationHub() {
         setAudioFile(null);
         clearRecording();
         setImagePreview(null);
+        setPendingImage(null, null);
         setEntityResult(null);
         setContextResult(null);
         setXaiExplain(null);
@@ -873,6 +893,7 @@ function ValidationHub() {
                                         setImageFile(null);
                                         setImagePreview(null);
                                         clearWebcamCapture();
+                                        setPendingImage(null, null);
                                     }}
                                     className="mt-3 text-[11px] text-alert-red hover:underline"
                                 >

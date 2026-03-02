@@ -32,8 +32,25 @@ function ChatbotPage() {
         isTyping, setIsTyping,
         extractedInfo, setExtractedInfo,
         intent, setIntent,
-        summaryConfirmed, setSummaryConfirmed
+        summaryConfirmed, setSummaryConfirmed,
+        pendingImage, imagePreview, setPendingImage
     } = useChatStore();
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = () => setPendingImage(file, reader.result as string);
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const removeImage = () => {
+        setPendingImage(null, null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
 
     useEffect(() => {
         if (initialIntent && !intent) {
@@ -124,19 +141,20 @@ function ChatbotPage() {
     };
 
     const handleConfirm = () => {
-        if (!summaryText) return;
-        const visualSeed = buildVisualSeed(extractedInfo);
-        setPendingInputs(summaryText, visualSeed);
-        setPendingMedia(null, null);
-        setPendingExtractedInfo(extractedInfo);  // pass structured fields for proper Supabase mapping
-        setStoreIntent((intent as 'lost' | 'found' | '') || '');
-        setSummaryConfirmed(true);
+        setStoreIntent(intent);
+        setPendingInputs(
+            summarizeExtractedInfo(extractedInfo, intent), // The structured facts
+            buildVisualSeed(extractedInfo)                 // The visual hint for CLIP
+        );
+        setPendingExtractedInfo(extractedInfo);
+        if (pendingImage) {
+            setPendingMedia(pendingImage, null);
+        }
         navigate('/validation', {
             state: {
-                prefillText: summaryText,
-                prefillVisualText: visualSeed,
-                intent,
-            },
+                prefillText: summarizeExtractedInfo(extractedInfo, intent),
+                prefillVisualText: buildVisualSeed(extractedInfo)
+            }
         });
     };
 
@@ -199,8 +217,43 @@ function ChatbotPage() {
                     <div ref={messagesEndRef} />
                 </div>
 
+                {/* Image Preview Area */}
+                {imagePreview && (
+                    <div className="mt-4 flex">
+                        <div className="relative rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <img src={imagePreview} alt="Attached preview" className="h-20 w-auto object-cover opacity-90" />
+                            <button
+                                onClick={removeImage}
+                                className="absolute top-1 right-1 bg-black/50 hover:bg-black/80 text-white rounded-full p-1 transition-colors backdrop-blur-sm"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                                    <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Input bar */}
-                <div className="mt-5 flex items-end gap-3">
+                <div className="mt-3 flex items-end gap-3">
+                    <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        ref={fileInputRef}
+                        onChange={handleImageChange}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="h-12 w-12 rounded-xl flex items-center justify-center transition-all duration-200 text-slate-400 hover:text-white"
+                        style={{ background: 'var(--bg-input)', border: '1px solid rgba(255,255,255,0.08)' }}
+                        title="Attach image"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+                        </svg>
+                    </button>
                     <div className="flex-1 rounded-xl transition-all duration-200"
                         style={{ background: 'var(--bg-input)', border: '1px solid rgba(255,255,255,0.08)' }}
                         onFocusCapture={e => (e.currentTarget.style.borderColor = 'rgba(99,102,241,0.55)')}
