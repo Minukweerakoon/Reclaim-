@@ -435,11 +435,13 @@ Respond ONLY with valid JSON in this exact format:
         item_mapping = {
             'phone': 'phone',
             'iphone': 'phone',
+            'samsung': 'phone',
             'laptop': 'laptop',
             'macbook': 'laptop',
             'computer': 'laptop',
             'keys': 'keys',
             'wallet': 'wallet',
+            'purse': 'bag',
             'watch': 'watch',
             'bag': 'bag',
             'backpack': 'bag',
@@ -450,7 +452,23 @@ Respond ONLY with valid JSON in this exact format:
             'sneaker': 'shoes',
             'sneakers': 'shoes',
             'jacket': 'jacket',
-            'coat': 'coat'
+            'coat': 'coat',
+            'camera': 'camera',
+            'nikon': 'camera',
+            'canon': 'camera',
+            'sony': 'camera',
+            'umbrella': 'umbrella',
+            'charger': 'charger',
+            'cable': 'cable',
+            'headphones': 'headphones',
+            'earbuds': 'headphones',
+            'airpods': 'headphones',
+            'book': 'book',
+            'glasses': 'glasses',
+            'sunglasses': 'glasses',
+            'id card': 'id_card',
+            'passport': 'id_card',
+            'license': 'id_card'
         }
         for kw, item in item_mapping.items():
             if kw in msg_lower:
@@ -465,7 +483,12 @@ Respond ONLY with valid JSON in this exact format:
                 break
         
         # Locations
-        locations = ['library', 'cafeteria', 'parking', 'classroom', 'gym', 'cafe', 'park', 'bus', 'train']
+        locations = [
+            'library', 'cafeteria', 'parking', 'classroom', 'gym', 'cafe', 'park', 
+            'bus', 'train', 'theater', 'theator', 'cinema', 'mall', 'shop', 
+            'market', 'lobby', 'reception', 'canteen', 'restaurant', 'office',
+            'airport', 'station', 'hospital', 'bank', 'atm'
+        ]
         for loc in locations:
             if loc in msg_lower:
                 extracted["location"] = loc
