@@ -13,6 +13,43 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("SupabaseManager")
 
+import re
+
+def _parse_time_for_db(time_str: str) -> Optional[str]:
+    """Parse time string into valid SQL TIME format (HH:MM:SS), or return None."""
+    if not time_str:
+        return None
+        
+    time_str = str(time_str).lower().strip()
+    
+    # Check for HH:MM AM/PM pattern
+    am_pm_match = re.search(r'(\d{1,2})[.:]?(\d{2})?\s*([ap]\.?m\.?)', time_str)
+    if am_pm_match:
+        hour_str = am_pm_match.group(1)
+        minute_str = am_pm_match.group(2) or '00'
+        period = am_pm_match.group(3).replace('.', '')
+        
+        try:
+            hour = int(hour_str)
+            minute = int(minute_str)
+            
+            if period == 'pm' and hour < 12:
+                hour += 12
+            elif period == 'am' and hour == 12:
+                hour = 0
+                
+            if 0 <= hour <= 23 and 0 <= minute <= 59:
+                return f"{hour:02d}:{minute:02d}:00"
+        except ValueError:
+            pass
+            
+    # Check for HH:MM (24-hour format)
+    military_match = re.search(r'\b([01]?\d|2[0-3]):([0-5]\d)\b', time_str)
+    if military_match:
+        return f"{military_match.group(1).zfill(2)}:{military_match.group(2)}:00"
+        
+    return None
+
 
 # ------------------------------------------------------------------ #
 # Lazy Supabase Client
@@ -163,7 +200,7 @@ class SupabaseManager:
             "user_category": item_data.get("user_category") or item_data.get("item_type", ""),
             "description": item_data.get("description", ""),
             "location": item_data.get("location", ""),
-            "time_of_incident": item_data.get("time", ""),
+            "time_of_incident": _parse_time_for_db(item_data.get("time", "")),
             "status": "active",
             # Additional Kumesha tracking fields
             "color": item_data.get("color", ""),
