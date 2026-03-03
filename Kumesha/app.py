@@ -1265,11 +1265,11 @@ async def get_enhanced_xai_explanation(
     Phase 2: Enhanced XAI with brand, location, and condition checks.
     """
     try:
-        from src.cross_modal.xai_explainer import XAIExplainer
         from src.cross_modal.enhanced_discrepancies import (
             check_brand_mismatch,
             check_location_consistency,
-            check_condition_mismatch
+            check_condition_mismatch,
+            check_color_mismatch
         )
         
         explainer = XAIExplainer()
@@ -1309,6 +1309,18 @@ async def get_enhanced_xai_explanation(
                     discrepancies.append({
                         "type": "LOCATION_INCONSISTENCY",
                         "explanation": location_check.get("explanation", "Location mismatch detected.")
+                    })
+                    
+            # Color mismatch
+            if image_result and text_result:
+                # We don't have full cross_modal_results here easily, so we pass None
+                # check_color_mismatch will fallback to image_result's attribute_scores
+                color_check = check_color_mismatch(image_result, text_result, None)
+                if color_check.get("has_mismatch"):
+                    enhanced_checks["color_mismatch"] = color_check
+                    discrepancies.append({
+                        "type": "COLOR_MISMATCH",
+                        "explanation": color_check.get("explanation", "Color mismatch detected.")
                     })
             
             # Condition mismatch
