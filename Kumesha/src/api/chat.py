@@ -93,6 +93,7 @@ async def chat_message(request: ChatRequest, api_key: str = Depends(get_api_key)
             except Exception as e:
                 logger.warning(f"Failed to record active learning feedback: {e}")
         
+        logger.info(f"LLM returned extracted_info: {response.get('extracted_info')}")
         return ChatResponse(
             bot_response=response["response"],
             intention=response["intention"],

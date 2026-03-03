@@ -112,10 +112,18 @@ function ChatbotPage() {
                 timestamp: new Date()
             };
             setMessages((prev) => [...prev, botMessage]);
-            setExtractedInfo((prev) => ({
-                ...prev,
-                ...response.extracted_info,
-            }));
+            setExtractedInfo((prev) => {
+                const next = { ...prev };
+                if (response.extracted_info) {
+                    Object.entries(response.extracted_info).forEach(([key, value]) => {
+                        // Only overwrite if the new value is actually provided (non-empty string)
+                        if (value !== null && value !== undefined && value !== '') {
+                            next[key] = value;
+                        }
+                    });
+                }
+                return next;
+            });
             if (response.intention) {
                 setIntent(response.intention);
             }

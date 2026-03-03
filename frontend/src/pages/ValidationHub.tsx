@@ -360,6 +360,16 @@ function ValidationHub() {
 
         try {
             setProgress(10, 'Sending to server...');
+
+            // Auto-detect intent from text if not provided in state (e.g. user bypassed chat)
+            let effectiveIntent = intent;
+            if (!effectiveIntent && textInput) {
+                const match = textInput.match(/\bintent:\s*(lost|found)\b/i);
+                if (match) {
+                    effectiveIntent = match[1].toLowerCase() as 'lost' | 'found';
+                }
+            }
+
             const result = await validationApi.validateComplete({
                 text: textInput || undefined,
                 visualText: visualText || undefined,
@@ -367,7 +377,7 @@ function ValidationHub() {
                 audioFile: audioFile || undefined,
                 language: 'en',
                 // Supabase routing — both intent and user required
-                intent: intent || undefined,
+                intent: effectiveIntent || undefined,
                 userId: user?.id,
                 userEmail: user?.email ?? undefined,
                 supabaseId: currentResult?.supabase_id || undefined,
@@ -376,7 +386,7 @@ function ValidationHub() {
             setResult(result);
 
             // ── Save to shared items table (background, non-blocking) ──
-            if (user?.id && (intent === 'lost' || intent === 'found')) {
+            if (user?.id && (effectiveIntent === 'lost' || effectiveIntent === 'found')) {
                 const overallConfidence = result?.confidence?.overall_confidence ?? null;
 
                 // Use local preserved structured chat data if available
@@ -406,7 +416,7 @@ function ValidationHub() {
                         description: descriptionValue,
                         color: colorValue,
                         location: locationValue,
-                        intention: intent as 'lost' | 'found',
+                        intention: effectiveIntent as 'lost' | 'found',
                         confidence_score: overallConfidence,
                         routing: overallConfidence != null && overallConfidence >= 0.7 ? 'auto' : 'manual',
                         action: 'review',
