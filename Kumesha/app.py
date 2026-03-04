@@ -28,6 +28,7 @@ from supabase import create_client, Client
 import time
 import json
 import uuid
+import requests  # For AI backend HTTP requests
 from typing import Dict, List, Optional, Any, Union
 from functools import wraps
 from datetime import datetime, timedelta
@@ -1937,6 +1938,36 @@ async def validate_complete(
                     response_data["supabase_id"] = supabase_saved_id
                     if image_url:
                         response_data["image_url"] = image_url
+
+                    # Trigger AI backend processing after successful insert
+                    if image_url:  # Only trigger if image was uploaded
+                        try:
+                            AI_BACKEND_URL = "http://localhost:8001/items/process"
+
+                            ai_payload = {
+                                "item_id": supabase_saved_id,
+                                "item_type": intent,  # "lost" or "found"
+                                "image_url": image_url,
+                                "user_category": item_data.get("user_category") or None,
+                                "k": 5,
+                                "mc_T": 20
+                            }
+
+                            logger.info(f"🤖 Triggering AI backend for item {supabase_saved_id}")
+                            response = requests.post(
+                                AI_BACKEND_URL,
+                                json=ai_payload,
+                                timeout=30
+                            )
+                            
+                            if response.status_code == 200:
+                                logger.info(f"✓ AI processing completed for item {supabase_saved_id}")
+                                logger.info(f"  Response: {response.json()}")
+                            else:
+                                logger.warning(f"AI backend returned status {response.status_code}: {response.text}")
+
+                        except Exception as ai_err:
+                            logger.warning(f"AI processing trigger failed (non-fatal): {ai_err}")
                 else:
                     logger.warning("Supabase insert returned no data")
                     
