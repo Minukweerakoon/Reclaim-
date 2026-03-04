@@ -6,7 +6,7 @@
 const mlService = require('../../services/voshan/mlService');
 const websocketService = require('../../services/voshan/websocketService');
 const notificationService = require('../../services/voshan/notificationService');
-const Alert = require('../../models/voshan/alertModel');
+const alertSupabase = require('../../services/voshan/alertSupabaseService');
 const crypto = require('crypto');
 
 // Track active and completed processing requests to prevent duplicates
@@ -254,29 +254,32 @@ exports.processVideo = async (req, res) => {
     if (alerts.length > 0) {
       setImmediate(async () => {
         const savedAlerts = [];
+        const payload = {
+          cameraId,
+          videoInfo: {
+            outputVideo: result.data?.output_video || null,
+            logJson: result.data?.log_json || null,
+            logCsv: result.data?.log_csv || null
+          }
+        };
         for (const alert of alerts) {
           try {
             if (!alert || !alert.alert_id) {
               console.warn('[processVideo] Skipping invalid alert:', alert ? 'missing alert_id' : 'null');
               continue;
             }
-            const alertDoc = new Alert({
+            const inserted = await alertSupabase.insert({
               alertId: alert.alert_id || alert.alertId,
               type: alert.type,
               severity: alert.severity,
               timestamp: new Date((alert.timestamp || 0) * 1000),
-              frame: alert.frame || null,
-              cameraId: cameraId,
+              frame: alert.frame ?? null,
+              cameraId: payload.cameraId,
               details: alert.details || {},
               frameImage: alert.frame_image || null,
-              videoInfo: {
-                outputVideo: result.data?.output_video || null,
-                logJson: result.data?.log_json || null,
-                logCsv: result.data?.log_csv || null
-              }
+              videoInfo: payload.videoInfo
             });
-            await alertDoc.save();
-            savedAlerts.push(alertDoc.toObject());
+            if (inserted) savedAlerts.push(inserted);
             try {
               websocketService.broadcastAlert({
                 alertId: alert.alert_id || alert.alertId,
@@ -399,7 +402,7 @@ exports.processFrame = async (req, res) => {
         for (const alert of alerts) {
           try {
             if (!alert || !alert.alert_id) continue;
-            const alertDoc = new Alert({
+            await alertSupabase.insert({
               alertId: alert.alert_id || alert.alertId,
               type: alert.type,
               severity: alert.severity,
@@ -409,7 +412,6 @@ exports.processFrame = async (req, res) => {
               details: alert.details || {},
               frameImage: alert.frame_image || null
             });
-            await alertDoc.save();
             try {
               websocketService.broadcastAlert({
                 alertId: alert.alert_id || alert.alertId,
@@ -464,35 +466,17 @@ exports.getAlerts = async (req, res) => {
       endDate
     } = req.query;
 
-    const query = {};
-
-    if (type) query.type = type;
-    if (severity) query.severity = severity;
-    if (cameraId) query.cameraId = cameraId;
-
-    if (startDate || endDate) {
-      query.timestamp = {};
-      if (startDate) query.timestamp.$gte = new Date(startDate);
-      if (endDate) query.timestamp.$lte = new Date(endDate);
-    }
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const alerts = await Alert.find(query)
-      .sort({ timestamp: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    const total = await Alert.countDocuments(query);
-
-    // Normalize alerts so frontend always has frame_image (from frameImage) for captured frame URL
-    const alertsForClient = alerts.map((doc) => {
-      const a = doc.toObject ? doc.toObject() : doc;
-      return {
-        ...a,
-        frame_image: a.frame_image ?? a.frameImage ?? null
-      };
+    const result = await alertSupabase.findMany({
+      type,
+      severity,
+      cameraId,
+      startDate,
+      endDate,
+      page: parseInt(page),
+      limit: parseInt(limit)
     });
+    const alertsForClient = result.alerts;
+    const total = result.total;
 
     res.json({
       success: true,
@@ -523,7 +507,7 @@ exports.getAlertById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const alert = await Alert.findById(id);
+    const alert = await alertSupabase.findById(id);
 
     if (!alert) {
       return res.status(404).json({
@@ -559,19 +543,14 @@ exports.getAlertsByCamera = async (req, res) => {
       severity
     } = req.query;
 
-    const query = { cameraId };
-
-    if (type) query.type = type;
-    if (severity) query.severity = severity;
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const alerts = await Alert.find(query)
-      .sort({ timestamp: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    const total = await Alert.countDocuments(query);
+    const result = await alertSupabase.findByCamera(cameraId, {
+      type,
+      severity,
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
+    const alerts = result.alerts;
+    const total = result.total;
 
     res.json({
       success: true,
@@ -602,9 +581,8 @@ exports.deleteAlert = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const alert = await Alert.findByIdAndDelete(id);
-
-    if (!alert) {
+    const deleted = await alertSupabase.deleteById(id);
+    if (!deleted) {
       return res.status(404).json({
         success: false,
         message: 'Alert not found'

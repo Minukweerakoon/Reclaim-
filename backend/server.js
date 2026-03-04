@@ -35,7 +35,7 @@ connectDB()
   })
   .catch((err) => {
     console.error('Database connection failed:', err.message);
-    console.log('Starting server anyway - database features (e.g. alerts) will fail until MongoDB is available.');
+    console.log('Starting server anyway - database features (e.g. alerts) will fail until Supabase is configured.');
     startServer();
   });
 
