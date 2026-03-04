@@ -37,7 +37,7 @@ class LLMClient:
         
         # Retry configuration for rate limit handling
         self.retry_config = {
-            "max_attempts": 3,
+            "max_attempts": 1,
             "backoff_factor": 2,  # Exponential backoff: 1s, 2s, 4s
             "timeout": 10
         }
@@ -148,13 +148,13 @@ class LLMClient:
                 # but we can safely just log that we are calling Gemini
                 logger.info(f"Calling Gemini (attempt {attempt + 1}/{self.retry_config['max_attempts']})")
                 
-                # Add timeout to prevent indefinite hangs
+                # Add timeout to prevent indefinite hangs. 8 seconds is enough for Flash models.
                 response = model.generate_content(
                     prompt,
                     generation_config=genai.GenerationConfig(
                         response_mime_type="application/json"
                     ),
-                    request_options={"timeout": 30}  # 30 second timeout
+                    request_options={"timeout": 8}  # REDUCED TO 8 SECONDS
                 )
                 
                 return response.text.strip()
