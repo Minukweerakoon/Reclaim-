@@ -139,18 +139,35 @@ class TextValidator:
             # Also update the class-level keyword maps if they are used as fallbacks
             # (Though in this implementation, the class attributes are separate from instance attributes)
 
-        # Initialize LLM Client
-        self.llm_client = get_llm_client()
+        # Initialize LLM Client (optional - don't fail if unavailable)
+        try:
+            self.llm_client = get_llm_client()
+            if self.enable_logging:
+                logger.info("LLM Client initialized")
+        except Exception as e:
+            if self.enable_logging:
+                logger.warning(f"LLM Client unavailable: {e}")
+            self.llm_client = None
         
-        # Initialize Knowledge Graph (Research-Grade Feature #1)
-        self.knowledge_graph = get_knowledge_graph()
-        if self.enable_logging:
-            logger.info("Knowledge Graph initialized for context-aware validation")
+        # Initialize Knowledge Graph (Research-Grade Feature #1) - optional
+        try:
+            self.knowledge_graph = get_knowledge_graph()
+            if self.enable_logging:
+                logger.info("Knowledge Graph initialized for context-aware validation")
+        except Exception as e:
+            if self.enable_logging:
+                logger.warning(f"Knowledge Graph unavailable: {e}")
+            self.knowledge_graph = None
         
-        # Initialize Active Learning System (Research-Grade Feature #2)
-        self.active_learning = get_active_learning_system()
-        if self.enable_logging:
-            logger.info("Active Learning System initialized for self-improvement")
+        # Initialize Active Learning System (Research-Grade Feature #2) - optional
+        try:
+            self.active_learning = get_active_learning_system()
+            if self.enable_logging:
+                logger.info("Active Learning System initialized for self-improvement")
+        except Exception as e:
+            if self.enable_logging:
+                logger.warning(f"Active Learning unavailable: {e}")
+            self.active_learning = None
 
         # Ensure no corrupted multilingual keyword lists leak into runtime
         # Prefer empty lists over unreliable matches; production should load UTF-8 resources
@@ -201,7 +218,7 @@ class TextValidator:
                         except OSError:
                             if self.enable_logging:
                                 logger.warning("English spaCy model not found; using multi-language model")
-                            self.nlp_models[lang] = spacy.load('xx_ent_wiki_sm')
+                            self.nlp_models[lang] = spacy.load('en_core_web_sm')
                 elif lang == 'si':
                     # Use small model for Sinhala if available, otherwise use multi-language model
                     try:
@@ -209,7 +226,7 @@ class TextValidator:
                     except OSError:
                         if self.enable_logging:
                             logger.warning(f"Sinhala model not found, using multi-language model")
-                        self.nlp_models[lang] = spacy.load('xx_ent_wiki_sm')
+                        self.nlp_models[lang] = spacy.load('en_core_web_sm')
                 elif lang == 'ta':
                     # Use small model for Tamil if available, otherwise use multi-language model
                     try:
@@ -217,7 +234,7 @@ class TextValidator:
                     except OSError:
                         if self.enable_logging:
                             logger.warning(f"Tamil model not found, using multi-language model")
-                        self.nlp_models[lang] = spacy.load('xx_ent_wiki_sm')
+                        self.nlp_models[lang] = spacy.load('en_core_web_sm')
             
             # Load BERT model and tokenizer for semantic analysis
             self.tokenizer = AutoTokenizer.from_pretrained(bert_model_name)
@@ -300,12 +317,25 @@ class TextValidator:
         Returns:
             Dict containing LLM analysis results
         """
+        # Return basic analysis if LLM is unavailable
+        if self.llm_client is None:
+            return {
+                "analysis": "Basic validation (LLM unavailable)",
+                "confidence": 0.5,
+                "suggestions": [],
+                "interpretations": []
+            }
+        
         try:
             return self.llm_client.analyze_text(text)
         except Exception as e:
             if self.enable_logging:
                 logger.error(f"LLM analysis failed: {str(e)}")
-            return {"error": str(e)}
+            return {
+                "error": str(e),
+                "analysis": "Basic validation (LLM failed)",
+                "confidence": 0.5
+            }
 
     def validate_text(
         self,

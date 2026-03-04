@@ -30,7 +30,6 @@ class ItemResponse(BaseModel):
     color: str = ""
     brand: str = ""
     location: str = ""
-    time_of_incident: str = ""
     confidence_score: Optional[float] = None
     routing: str = ""
     action: str = ""

@@ -163,7 +163,6 @@ class SupabaseManager:
             "user_category": item_data.get("user_category") or item_data.get("item_type", ""),
             "description": item_data.get("description", ""),
             "location": item_data.get("location", ""),
-            "time_of_incident": item_data.get("time", ""),
             "status": "active",
             # Additional Kumesha tracking fields
             "color": item_data.get("color", ""),

@@ -5,8 +5,9 @@ import type { ValidationResponse } from '../types/api';
 const API_KEY = import.meta.env.VITE_API_KEY || 'test-api-key';
 
 // Separate axios instance for /validate/* endpoints (not under /api prefix)
+// Use direct URL to bypass Vite proxy issues
 const validationClient = axios.create({
-    baseURL: '',
+    baseURL: 'http://127.0.0.1:8000',
     headers: {
         'X-API-Key': API_KEY,
     },
@@ -61,11 +62,12 @@ export const validationApi = {
         if (params.imageFile) formData.append('image_file', params.imageFile);
         if (params.audioFile) formData.append('audio_file', params.audioFile);
         formData.append('language', params.language || 'en');
-        // Pass intent + user info for Supabase routing
+
         if (params.intent) formData.append('intent', params.intent);
-        if (params.userId) formData.append('user_id', params.userId);
-        if (params.userEmail) formData.append('user_email', params.userEmail);
-        if (params.supabaseId) formData.append('supabase_id', params.supabaseId);
+
+        // FIX: backend expects these exact names
+        if (params.userId) formData.append('userId', params.userId);
+        if (params.userEmail) formData.append('userEmail', params.userEmail);
 
         const response = await validationClient.post('/validate/complete', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },

@@ -3,8 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { validationApi } from '../api/validation';
 import { reportsApi } from '../api/reports';
-import { entitiesApi } from '../api/entities';
-import { contextApi } from '../api/context';
 import { xaiApi } from '../api/xai';
 import { feedbackApi } from '../api/feedback';
 import { useValidationStore } from '../store/useValidationStore';
@@ -339,9 +337,11 @@ function ValidationHub() {
             clearPending();
         }
     }, [
+        pendingText,
         pendingVisualText,
         pendingImageFile,
         pendingAudioFile,
+        pendingExtractedInfo,
         clearPending,
         chatImage,
         chatImagePreview,
@@ -435,9 +435,8 @@ function ValidationHub() {
                 }
             }
 
-
-            // Auto-run context analysis so Plausibility Matrix populates
-            setTimeout(() => handleAnalyzeContext(), 500);
+            // Note: Context analysis auto-run removed to prevent loops
+            // User can manually click "Run context analysis" button if needed
         } catch (err: unknown) {
             let errorMsg = formatErrorMessage(err);
             if (err && typeof err === 'object' && 'message' in err) {
@@ -477,49 +476,65 @@ function ValidationHub() {
     };
 
     const handleAnalyzeContext = async () => {
-        if (!textInput.trim()) {
+        // Prevent re-triggering if already validating or if we already have results
+        if (analysisLoading || isLoading) {
+            console.log('[ValidationHub] Context analysis already in progress, skipping');
+            return;
+        }
+
+        if (!textInput.trim() && !currentResult) {
             setAnalysisError('Provide text input before running context analysis.');
             return;
         }
+
         setAnalysisError(null);
         setAnalysisLoading(true);
+        
         try {
-            // Parse chatbot-structured "key: value" pairs as fallbacks
-            // The chatbot formats text like: "intent: lost, Item type: camera, color: black, location: movie theater, time: today"
-            const chatbotParsed: Record<string, string> = {};
+            console.log('[ValidationHub] Running context analysis with existing data');
+            
+            // If we already have a validation result, just use it
+            if (currentResult) {
+                console.log('[ValidationHub] Using existing validation result');
+                setAnalysisLoading(false);
+                return;
+            }
+
+            // Extract entity data from text input
+            const extractedEntities: Record<string, string> = {};
             textInput.split(',').forEach((segment) => {
                 const colonIdx = segment.indexOf(':');
                 if (colonIdx > 0) {
                     const key = segment.slice(0, colonIdx).trim().toLowerCase().replace(/\s+/g, '_');
                     const val = segment.slice(colonIdx + 1).trim();
-                    if (val) chatbotParsed[key] = val;
+                    if (val && key !== 'intent') extractedEntities[key] = val;
                 }
             });
 
-            // Run NLP entity detection
-            const entities = await entitiesApi.detectEntities({ text: textInput, language: 'en' });
-            setEntityResult(entities);
+            // Merge with localExtractedInfo if available
+            const merged = { ...extractedEntities, ...localExtractedInfo };
 
-            // Use NLP results first, fall back to chatbot-parsed values
-            const itemType = entities.entities.item_type?.[0]
-                || chatbotParsed['item_type']
-                || chatbotParsed['item']
-                || 'unknown item';
-            const locationValue = entities.entities.location?.[0]
-                || chatbotParsed['location']
-                || 'unknown location';
-            const timeValue = entities.entities.time?.[0]
-                || chatbotParsed['time']
-                || 'today';  // sensible default — report is about a recent event
+            console.log('[ValidationHub] Extracted entities:', merged);
+            console.log('[ValidationHub] Calling validateComplete with FormData');
 
-            const context = await contextApi.validateContext({
-                item_type: itemType,
-                location: locationValue,
-                time: timeValue,
+            // Use the existing validation API that properly formats the request
+            const result = await validationApi.validateComplete({
+                text: textInput || undefined,
+                visualText: visualText || undefined,
+                imageFile: imageFile || undefined,
+                audioFile: audioFile || undefined,
+                language: 'en',
+                intent: intent || undefined,
+                userId: user?.id,
+                userEmail: user?.email ?? undefined,
             });
-            setContextResult(context);
+
+            console.log('[ValidationHub] Context analysis response:', result);
+            setResult(result);
+            setAnalysisError(null);
         } catch (err) {
             const message = formatErrorMessage(err);
+            console.error('[ValidationHub] Context analysis error:', message);
             setAnalysisError(message);
         } finally {
             setAnalysisLoading(false);
