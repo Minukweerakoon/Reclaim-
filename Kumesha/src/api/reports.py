@@ -114,7 +114,7 @@ async def save_report(
         "user_category": body.user_category or body.item_type,  # for items table
         "description": body.description,
         "color": body.color,
-        "brand": body.brand,
+        #"brand": body.brand,
         "location": body.location,
         "confidence_score": body.confidence_score,
         "routing": body.routing,

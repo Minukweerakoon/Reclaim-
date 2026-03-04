@@ -1846,7 +1846,7 @@ async def validate_complete(
                         "individual_scores": confidence_results.get("individual_scores", {}),
                         "request_id": request_id,
                     },
-                    "intent": intent,
+                    "item_type": intent,
                     "user_id": userId,
                     "user_email": userEmail or "",
                     "status": "pending",
@@ -1857,11 +1857,13 @@ async def validate_complete(
                 if text_result and not text_result.get("degraded"):
                     entities = text_result.get("entities", {}) or {}
                     completeness = text_result.get("completeness", {}).get("entities", {}) or {}
-                    item_data["item_type"] = (completeness.get("item_type") or [None])[0] or ""
+                    # Store extracted item category in user_category (NOT item_type)
+                    # item_type must remain as intent ("lost"/"found") per DB constraint
+                    item_data["user_category"] = (completeness.get("item_type") or [None])[0] or ""
                     item_data["color"] = (completeness.get("color") or [None])[0] or ""
-                    item_data["brand"] = (completeness.get("brand") or [None])[0] or ""
+                    #item_data["brand"] = (completeness.get("brand") or [None])[0] or ""
                     item_data["location"] = (completeness.get("location") or [None])[0] or ""
-                    item_data["time"] = (completeness.get("time") or [None])[0] or ""
+                    #item_data["time"] = (completeness.get("time") or [None])[0] or ""
                 
                 # Upload image to Supabase storage if available
                 if image_path and os.path.exists(image_path):
@@ -1906,9 +1908,9 @@ async def validate_complete(
                                 image_url = signed.get("signedURL") or signed.get("signedUrl")
 
                         # Store URL only if successfully generated
-                        # if image_url:
-                        #     item_data["image_url"] = image_url
-                        item_data["image_url"] = image_url if image_url else None
+                        if image_url:
+                            item_data["image_url"] = image_url
+                       
                         logger.error(f"FINAL INSERT PAYLOAD: {json.dumps(item_data, indent=2)}")
 
                         logger.info(
