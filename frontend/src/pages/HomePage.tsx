@@ -1,7 +1,8 @@
 // @ts-nocheck
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
-import { Search, ShieldCheck, Zap, ArrowRight, MapPin } from 'lucide-react';
+import { Search, ShieldCheck, Zap, ArrowRight, MapPin, ShieldAlert } from 'lucide-react';
 
 const stats = [
     { label: 'Items Returned', value: '12,405' },
@@ -10,13 +11,13 @@ const stats = [
     { label: 'Active Users', value: '50k+' },
 ];
 
-export function HomePage({ onNavigate, user, onSignOut }) {
+export function HomePage({ onNavigate, user, onSignOut, showAdminLink }) {
     return (
         <div className="min-h-screen w-full bg-[#08080f] text-white relative overflow-x-hidden">
             <div className="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-600/10 blur-[120px] pointer-events-none" />
             <div className="fixed bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-cyan-600/10 blur-[120px] pointer-events-none" />
 
-            <Navbar currentPage="home" onNavigate={onNavigate} user={user} onSignOut={onSignOut} />
+            <Navbar currentPage="home" onNavigate={onNavigate} user={user} onSignOut={onSignOut} showAdminLink={showAdminLink} />
 
             <main className="pt-24 pb-16 px-4 md:px-8 max-w-7xl mx-auto relative z-10">
                 {/* Hero */}
@@ -35,6 +36,14 @@ export function HomePage({ onNavigate, user, onSignOut }) {
                         The intelligent platform that connects lost items with their owners instantly using advanced image recognition and location matching.
                     </p>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                        {showAdminLink && (
+                            <Link
+                                to="/reclaim/admin"
+                                className="w-full sm:w-auto px-8 py-4 bg-amber-600/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-full font-medium transition-all hover:scale-105 flex items-center justify-center gap-2"
+                            >
+                                <ShieldAlert className="w-5 h-5" /> Admin Dashboard
+                            </Link>
+                        )}
                         <button onClick={() => onNavigate?.('lost')}
                             className="w-full sm:w-auto px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full font-medium transition-all hover:scale-105 shadow-[0_0_20px_rgba(99,102,241,0.4)] flex items-center justify-center gap-2">
                             <Search className="w-5 h-5" /> Find Lost Item
