@@ -1271,6 +1271,7 @@ async def get_enhanced_xai_explanation(
             check_condition_mismatch,
             check_color_mismatch
         )
+        from src.cross_modal.xai_explainer import XAIExplainer
         
         explainer = XAIExplainer()
         
