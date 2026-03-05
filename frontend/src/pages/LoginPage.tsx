@@ -8,7 +8,11 @@ export function LoginPage({ onBack }) {
 
     const handleGoogleSignIn = async () => {
         setLoading(true);
-        await supabase.auth.signInWithOAuth({ provider: 'google' });
+        const redirectTo = `${window.location.origin}/reclaim`;
+        await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: { redirectTo },
+        });
         setLoading(false);
     };
 

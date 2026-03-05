@@ -33,7 +33,8 @@ function ChatbotPage() {
         extractedInfo, setExtractedInfo,
         intent, setIntent,
         summaryConfirmed, setSummaryConfirmed,
-        pendingImage, imagePreview, setPendingImage
+        pendingImage, imagePreview, setPendingImage,
+        resetChat
     } = useChatStore();
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,10 +54,15 @@ function ChatbotPage() {
     };
 
     useEffect(() => {
-        if (initialIntent && !intent) {
+        if (!initialIntent) return;
+
+        // Always trust explicit URL intent. If it differs from the store,
+        // start a fresh chat session to avoid stale "found/lost" carry-over.
+        if (initialIntent !== intent) {
+            resetChat();
             setIntent(initialIntent);
         }
-    }, [initialIntent, intent, setIntent]);
+    }, [initialIntent, intent, resetChat, setIntent]);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const { currentResult, setPendingInputs, setPendingMedia, setPendingExtractedInfo, setIntent: setStoreIntent } = useValidationStore();
@@ -75,8 +81,7 @@ function ChatbotPage() {
                 timestamp: new Date()
             }]);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [intent, messages.length, setMessages]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -167,24 +172,39 @@ function ChatbotPage() {
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 min-h-[calc(100vh-160px)] animate-fade-in">
-            {/* ── Chat Panel ── */}
-            <section className="glass-panel rounded-2xl p-6 flex flex-col">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-5 pb-4"
-                    style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div>
-                        <div className="text-[11px] uppercase tracking-[0.3em] font-semibold"
-                            style={{ color: 'var(--accent-secondary)' }}>
-                            Conversation Phase
-                        </div>
-                        <div className="text-xs text-slate-400 mt-1">Gemini-guided intake and clarification</div>
-                    </div>
-                    <div className="text-[10px] uppercase tracking-widest text-slate-500 px-2 py-1 rounded"
-                        style={{ background: 'rgba(255,255,255,0.04)' }}>
-                        Intent: {intent || 'pending'}
-                    </div>
+        <div className="animate-fade-in">
+            {/* Page Title */}
+            <div className="mb-8 text-center">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-medium mb-4">
+                    <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                    </span>
+                    Conversation Phase
                 </div>
+                <h1 className="text-4xl md:text-5xl font-bold mb-3 tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400">
+                    Describe Your Item
+                </h1>
+                <p className="text-slate-400 max-w-2xl mx-auto">
+                    Tell me about the {intent === 'lost' ? 'lost' : intent === 'found' ? 'found' : ''} item. I'll guide you through gathering the details.
+                </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+                {/* ── Chat Panel ── */}
+                <section className="glass-panel rounded-2xl p-6 flex flex-col">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-5 pb-4 border-b border-white/10">
+                        <div>
+                            <div className="text-xs uppercase tracking-wider text-indigo-400 font-semibold">
+                                Chat Interface
+                            </div>
+                            <div className="text-xs text-slate-400 mt-1">Gemini-guided intake and clarification</div>
+                        </div>
+                        <div className="text-[10px] uppercase tracking-widest text-slate-300 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+                            Intent: {intent || 'pending'}
+                        </div>
+                    </div>
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto space-y-4 pr-1">
@@ -335,6 +355,7 @@ function ChatbotPage() {
                     {summaryConfirmed ? '✓ Confirmed' : 'Confirm and Continue'}
                 </button>
             </aside>
+            </div>
         </div>
     );
 }

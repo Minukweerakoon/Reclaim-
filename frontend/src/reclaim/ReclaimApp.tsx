@@ -1,23 +1,38 @@
 // @ts-nocheck
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
-import { HomePage } from './pages/HomePage';
-import { LoginPage } from './pages/LoginPage';
-import { ReclaimPage } from './pages/ReclaimPage';
+import { HomePage } from '../pages/HomePage';
+import { LoginPage } from '../pages/LoginPage';
 
 /**
  * ReclaimApp — mounts the group project's Reclaim UI inside the NCC frontend.
  *
  * Uses the shared NCC supabaseClient (same Supabase project / session).
- * Navigates internally via state — no React Router needed here.
- *
- * Flow:
- *   HomePage → "Start Chat Now" → (if not authed) LoginPage → ReclaimPage
- *                                → (if authed)    ReclaimPage
+ * Uses a lightweight internal state for Home/Login and routes to
+ * the protected app flow (Intent/Chatbot pages) when users choose chat actions.
  */
 export default function ReclaimApp() {
+    const navigate = useNavigate();
     const [user, setUser] = useState(null);
-    const [currentPage, setCurrentPage] = useState<'home' | 'login' | 'chat'>('home');
+    const [currentPage, setCurrentPage] = useState<'home' | 'login'>('home');
+    const [pendingAction, setPendingAction] = useState<'home' | 'intent' | 'lost' | 'found' | null>(null);
+
+    const continueToAction = (action) => {
+        if (action === 'intent') {
+            navigate('/');
+            return;
+        }
+        if (action === 'lost') {
+            navigate('/chatbot?intent=lost');
+            return;
+        }
+        if (action === 'found') {
+            navigate('/chatbot?intent=found');
+            return;
+        }
+        setCurrentPage('home');
+    };
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -26,19 +41,42 @@ export default function ReclaimApp() {
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setUser(session?.user ?? null);
-            // After login, proceed to chat
-            if (session?.user && currentPage === 'login') setCurrentPage('chat');
+
+            // After login from /reclaim, continue based on the action that triggered auth.
+            if (session?.user && currentPage === 'login') {
+                continueToAction(pendingAction || 'home');
+                setPendingAction(null);
+            }
+
+            if (!session?.user) {
+                setPendingAction(null);
+            }
         });
 
         return () => subscription.unsubscribe();
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentPage, pendingAction]);
 
-    const handleNavigate = (page: 'home' | 'chat') => {
-        if (page === 'chat' && !user) {
+    const handleNavigate = (action: 'home' | 'login' | 'intent' | 'lost' | 'found') => {
+        if (action === 'home') {
+            setCurrentPage('home');
+            return;
+        }
+
+        // Explicit login from top-right button should only authenticate and return to home.
+        if (action === 'login') {
+            setPendingAction('home');
             setCurrentPage('login');
             return;
         }
-        setCurrentPage(page);
+
+        if (!user) {
+            setPendingAction(action);
+            setCurrentPage('login');
+            return;
+        }
+
+        continueToAction(action);
     };
 
     const handleSignOut = async () => {
@@ -49,10 +87,6 @@ export default function ReclaimApp() {
 
     if (currentPage === 'login') {
         return <LoginPage onBack={() => setCurrentPage('home')} />;
-    }
-
-    if (currentPage === 'chat') {
-        return <ReclaimPage onNavigate={handleNavigate} user={user} onSignOut={handleSignOut} />;
     }
 
     return <HomePage onNavigate={handleNavigate} user={user} onSignOut={handleSignOut} />;

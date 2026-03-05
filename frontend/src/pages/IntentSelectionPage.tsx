@@ -5,13 +5,21 @@ function IntentSelectionPage() {
     const navigate = useNavigate();
 
     return (
-        <div className="min-h-[calc(100vh-160px)] flex items-center justify-center">
-            <div className="max-w-5xl w-full animate-fade-in">
+        <div className="min-h-[calc(100vh-160px)] flex items-center justify-center animate-fade-in">
+            <div className="max-w-5xl w-full">
                 {/* Header */}
                 <div className="mb-10 text-center">
-                    <div className="text-[11px] uppercase tracking-[0.4em] text-slate-500 mb-2">Phase 0</div>
-                    <h1 className="text-3xl md:text-4xl font-bold text-white">Select Your Mission</h1>
-                    <p className="text-sm text-slate-400 mt-3 max-w-lg mx-auto">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-medium mb-4">
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                        </span>
+                        Phase 0
+                    </div>
+                    <h1 className="text-5xl md:text-6xl font-bold mb-4 tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400">
+                        Select Your Mission
+                    </h1>
+                    <p className="text-lg text-slate-400 mt-4 max-w-2xl mx-auto leading-relaxed">
                         Choose whether you lost something or found something. The command center will
                         tailor the conversation for your case.
                     </p>
@@ -26,20 +34,11 @@ function IntentSelectionPage() {
                             useChatStore.getState().resetChat();
                             navigate('/chatbot?intent=lost');
                         }}
-                        className="glass-panel rounded-2xl p-8 text-left transition-all duration-300 group"
-                        style={{ border: '1px solid rgba(239,68,68,0.25)' }}
-                        onMouseEnter={e => {
-                            (e.currentTarget as HTMLElement).style.border = '1px solid rgba(239,68,68,0.55)';
-                            (e.currentTarget as HTMLElement).style.boxShadow = '0 0 24px rgba(239,68,68,0.1)';
-                        }}
-                        onMouseLeave={e => {
-                            (e.currentTarget as HTMLElement).style.border = '1px solid rgba(239,68,68,0.25)';
-                            (e.currentTarget as HTMLElement).style.boxShadow = 'none';
-                        }}
+                        className="glass-panel rounded-2xl p-8 text-left transition-all duration-300 group border border-red-500/25 hover:border-red-500/55 hover:shadow-[0_0_24px_rgba(239,68,68,0.1)]"
                     >
-                        <div className="text-4xl mb-5">😟</div>
-                        <div className="text-xl font-semibold text-white mb-2">I LOST IT</div>
-                        <p className="text-sm text-slate-400">
+                        <div className="text-5xl mb-5">😟</div>
+                        <div className="text-2xl font-bold text-white mb-3">I LOST IT</div>
+                        <p className="text-slate-400 leading-relaxed">
                             Report a missing item and walk through the guided questions.
                         </p>
                     </button>
@@ -51,20 +50,11 @@ function IntentSelectionPage() {
                             useChatStore.getState().resetChat();
                             navigate('/chatbot?intent=found');
                         }}
-                        className="glass-panel rounded-2xl p-8 text-left transition-all duration-300 group"
-                        style={{ border: '1px solid rgba(99,102,241,0.25)' }}
-                        onMouseEnter={e => {
-                            (e.currentTarget as HTMLElement).style.border = '1px solid rgba(99,102,241,0.55)';
-                            (e.currentTarget as HTMLElement).style.boxShadow = '0 0 24px rgba(99,102,241,0.12)';
-                        }}
-                        onMouseLeave={e => {
-                            (e.currentTarget as HTMLElement).style.border = '1px solid rgba(99,102,241,0.25)';
-                            (e.currentTarget as HTMLElement).style.boxShadow = 'none';
-                        }}
+                        className="glass-panel rounded-2xl p-8 text-left transition-all duration-300 group border border-indigo-500/25 hover:border-indigo-500/55 hover:shadow-[0_0_24px_rgba(99,102,241,0.12)]"
                     >
-                        <div className="text-4xl mb-5">😊</div>
-                        <div className="text-xl font-semibold text-white mb-2">I FOUND IT</div>
-                        <p className="text-sm text-slate-400">
+                        <div className="text-5xl mb-5">😊</div>
+                        <div className="text-2xl font-bold text-white mb-3">I FOUND IT</div>
+                        <p className="text-slate-400 leading-relaxed">
                             Log a found item so it can be matched quickly.
                         </p>
                     </button>

@@ -1,8 +1,7 @@
 // @ts-nocheck
 import React, { useState } from 'react';
 import { Navbar } from '../components/Navbar';
-import { ChatInterface } from '../components/ChatInterface';
-import { ValidationPanel } from '../components/ValidationPanel';
+import { ValidationPanel } from '../reclaim/components/ValidationPanel';
 
 export function ReclaimPage({ onNavigate, user, onSignOut }) {
     const [showPanel, setShowPanel] = useState(false);
@@ -37,8 +36,19 @@ export function ReclaimPage({ onNavigate, user, onSignOut }) {
             <Navbar currentPage="chat" onNavigate={onNavigate} user={user} onSignOut={onSignOut} />
 
             <main className="pt-16 h-screen flex flex-row overflow-hidden">
-                <div className="flex-1 min-w-0">
-                    <ChatInterface onResultsReady={handleResultsReady} user={user} />
+                <div className="flex-1 min-w-0 flex items-center justify-center">
+                    <div className="text-center max-w-md">
+                        <h2 className="text-2xl font-bold mb-4">Chat Interface</h2>
+                        <p className="text-slate-400 mb-6">
+                            Use the Chat page to report and search for items.
+                        </p>
+                        <button
+                            onClick={() => onNavigate?.('home')}
+                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors"
+                        >
+                            Go to Home
+                        </button>
+                    </div>
                 </div>
                 <ValidationPanel isVisible={showPanel} {...panelData} />
             </main>

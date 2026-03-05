@@ -35,11 +35,11 @@ export function HomePage({ onNavigate, user, onSignOut }) {
                         The intelligent platform that connects lost items with their owners instantly using advanced image recognition and location matching.
                     </p>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                        <button onClick={() => document.getElementById('features-section')?.scrollIntoView({ behavior: 'smooth' })}
+                        <button onClick={() => onNavigate?.('lost')}
                             className="w-full sm:w-auto px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full font-medium transition-all hover:scale-105 shadow-[0_0_20px_rgba(99,102,241,0.4)] flex items-center justify-center gap-2">
                             <Search className="w-5 h-5" /> Find Lost Item
                         </button>
-                        <button onClick={() => document.getElementById('features-section')?.scrollIntoView({ behavior: 'smooth' })}
+                        <button onClick={() => onNavigate?.('found')}
                             className="w-full sm:w-auto px-8 py-4 bg-[#1a1a2e] hover:bg-[#232338] border border-white/10 text-white rounded-full font-medium transition-all hover:scale-105 flex items-center justify-center gap-2">
                             <MapPin className="w-5 h-5 text-cyan-400" /> Report Found Item
                         </button>
@@ -79,7 +79,7 @@ export function HomePage({ onNavigate, user, onSignOut }) {
                         <p className="text-slate-400 mb-8 max-w-xl mx-auto">Don't wait. The sooner you report a lost item, the higher the chance of recovery.</p>
                         <button
                             id="start-chat-now"
-                            onClick={() => onNavigate?.('chat')}
+                            onClick={() => onNavigate?.('intent')}
                             className="px-8 py-4 bg-white text-black hover:bg-slate-200 rounded-full font-bold transition-all hover:scale-105 inline-flex items-center gap-2"
                         >
                             Start Chat Now <ArrowRight className="w-5 h-5" />

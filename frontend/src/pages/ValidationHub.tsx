@@ -788,8 +788,26 @@ function ValidationHub() {
     const lineageCards = useMemo(() => overlayReports.slice(0, 3), [overlayReports]);
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6 min-h-[calc(100vh-160px)]">
-            <section className="glass-panel-heavy rounded-2xl overflow-hidden flex flex-col">
+        <div className="animate-fade-in">
+            {/* Page Title */}
+            <div className="mb-8 text-center">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-xs font-medium mb-4">
+                    <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                    </span>
+                    Validation Stage
+                </div>
+                <h1 className="text-4xl md:text-5xl font-bold mb-3 tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400">
+                    Validation Hub
+                </h1>
+                <p className="text-slate-400 max-w-2xl mx-auto">
+                    Proactive multimodal input validation. Visual attention overlay and real-time analysis.
+                </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6">
+                <section className="glass-panel-heavy rounded-2xl overflow-hidden flex flex-col">
                 <div className="p-6 border-b border-white/10">
                     <div className="flex justify-between items-center text-[10px] uppercase tracking-[0.2em] text-slate-500">
                         <span>Sequence Progress</span>
@@ -1382,6 +1400,7 @@ function ValidationHub() {
                     </div>
                 )}
             </section>
+            </div>
         </div>
     );
 }
