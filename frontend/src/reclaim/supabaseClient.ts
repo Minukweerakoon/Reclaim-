@@ -48,7 +48,6 @@ export async function processItem({
             image_url: imageUrl,
             user_category: userCategory,
             location,
-            time_of_incident: time,
             description,
             status: 'active',
         })

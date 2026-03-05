@@ -23,9 +23,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from supabase import create_client  # type: ignore[import-untyped]
 from dotenv import load_dotenv
-from pathlib import Path
+import os
 
-load_dotenv(dotenv_path=Path(__file__).parent / ".env")
+# Load environment variables
+load_dotenv()
+
+print("SUPABASE_URL:", os.getenv("SUPABASE_URL"))
+print("SUPABASE_SERVICE_ROLE_KEY:", "Loaded" if os.getenv("SUPABASE_SERVICE_ROLE_KEY") else "Missing")
 
 # =========================================================
 # CONFIG
@@ -163,7 +167,7 @@ def rebuild_faiss():
 
     rows = supabase.table("items") \
         .select("id, metric_vec, final_category, image_url") \
-        .eq("status", "active") \
+        .eq("status", "pending") \
         .eq("item_type", "found") \
         .execute().data
 

@@ -3,7 +3,7 @@ Reports API — REST endpoints for saving and retrieving validated reports.
 
 Uses Supabase JWT tokens for user authentication and Supabase for storage.
 """
-
+import requests
 import logging
 import os
 from typing import Any, Dict, List, Optional
@@ -114,7 +114,7 @@ async def save_report(
         "user_category": body.user_category or body.item_type,  # for items table
         "description": body.description,
         "color": body.color,
-        "brand": body.brand,
+        #"brand": body.brand,
         "location": body.location,
         "confidence_score": body.confidence_score,
         "routing": body.routing,
@@ -135,6 +135,32 @@ async def save_report(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save report",
         )
+
+    # ------------------------------------------------
+    # Trigger AI backend processing
+    # ------------------------------------------------
+
+    try:
+        AI_BACKEND_URL = "http://localhost:8001/items/process"
+
+        requests.post(
+            AI_BACKEND_URL,
+            json={
+                "item_id": report_id,
+                "status": body.intention,
+                "image_url": body.image_url,
+                "user_category": body.user_category or body.item_type,
+                "description": body.description,
+                "location": body.location,
+                "color": body.color,
+            },
+            timeout=10,
+        )
+
+        logger.info(f"AI processing triggered for item {report_id}")
+
+    except Exception as e:
+        logger.warning(f"AI backend call failed: {e}")
 
     return {"report_id": report_id, "message": "Report saved successfully"}
 

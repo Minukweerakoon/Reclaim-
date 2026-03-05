@@ -149,3 +149,10 @@ cython_debug/
 node_modules
 
 Balanced_Dataset/
+
+# Uploads folder - user-generated content
+uploads/
+Kumesha/uploads/
+
+# But keep the directory structure
+!uploads/.gitkeep

@@ -9,10 +9,26 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-import time
+# ============================================
+# Configure logging FIRST (before using logger)
+# ============================================
 import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger('validation-api')
+
+# ============================================
+# Import Supabase BEFORE using it
+# ============================================
+from supabase import create_client, Client
+
+import time
 import json
 import uuid
+import requests  # For AI backend HTTP requests
 from typing import Dict, List, Optional, Any, Union
 from functools import wraps
 from datetime import datetime, timedelta
@@ -30,12 +46,31 @@ from pydantic import BaseModel, Field, validator
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 import redis
-from redis.exceptions import RedisError
 
+
+
+from src.cross_modal.xai_explainer import XAIExplainer
 # Initialize Redis client
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 redis_client = redis.from_url(REDIS_URL)
 _redis_available = True
+
+# ============================================
+# Initialize Supabase client
+# ============================================
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        logger.info("✓ Supabase client initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize Supabase: {e}")
+        supabase = None
+else:
+    logger.warning("Supabase credentials missing - database features disabled")
+    supabase = None
 
 # Caching decorator
 def cached(ttl: int = 300):
@@ -116,13 +151,6 @@ def cached(ttl: int = 300):
 
 import importlib
 import importlib.util
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger('validation-api')
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -1549,7 +1577,7 @@ async def validate_image(
         iv = get_image_validator()
         if iv is None:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Image validator unavailable on this instance")
-        image_result = cached()(iv.validate_image)(image_path, text)
+        image_result = iv.validate_image(image_path, text)
         
         # Inject missing fields required by ImageValidationResult model
         image_result["image_path"] = image_path
@@ -1560,7 +1588,10 @@ async def validate_image(
         if text:
             cv = get_clip_validator()
             if cv is not None:
-                clip_image_text_result = cached()(cv.validate_image_text_alignment)(image_path, text)
+                # Use visualText for CLIP if available (visual attributes only), else use full text
+                clip_text = visualText if visualText else text
+                logger.info(f"[CLIP] Using text for validation: '{clip_text}' (visual_only={bool(visualText)})")
+                clip_image_text_result = cached()(cv.validate_image_text_alignment)(image_path, clip_text)
         
         # Prepare response data
         response_data = {
@@ -1610,312 +1641,181 @@ async def validate_image(
 @app.post("/validate/complete", response_model=ValidationResponse)
 async def validate_complete(
     text: Optional[str] = Form(None),
-    visualText: Optional[str] = Form(None),  # Visual-only text for CLIP (item+color+brand)
+    visualText: Optional[str] = Form(None),
     image_file: Optional[UploadFile] = File(None),
     audio_file: Optional[UploadFile] = File(None),
     language: str = Form("en"),
-    # ---- Supabase routing fields (populated by authenticated frontend) ----
-    intent: Optional[str] = Form(None),      # "lost" or "found"
-    user_id: Optional[str] = Form(None),     # Firebase UID
-    user_email: Optional[str] = Form(None),  # User email
-    supabase_id: Optional[str] = Form(None), # Existing DB record ID to update
+    intent: Optional[str] = Form(None),
+    userId: Optional[str] = Form(None),
+    userEmail: Optional[str] = Form(None),
+    supabase_id: Optional[str] = Form(None),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     api_key: APIKey = Depends(get_api_key)
 ):
     """
-    Perform complete multimodal validation with any combination of text, image, and audio inputs.
+    Perform complete multimodal validation with fallback support.
+    ALWAYS saves to Supabase even if validators fail.
     """
     start_time = time.time()
+    request_id = str(uuid.uuid4())
     
     # Initialize results
     text_result = None
     image_result = None
     voice_result = None
-    clip_image_text_result = None
-    voice_text_consistency_result = None
-    
+    cross_modal_results = {}
     input_types = []
-
-    request_id = str(uuid.uuid4())
-
+    image_path = None
+    audio_path = None
+    
+    # Log received data
+    logger.info(f"[VALIDATE] Received - Text: {bool(text)}, Image: {bool(image_file)}, Audio: {bool(audio_file)}")
+    logger.info(f"[VALIDATE] Intent: {intent}, UserID: {userId}")
+    
     try:
-        # DEBUGGING: Log what text data we receive
-        logger.info(f"[FRONTEND DATA] Received text parameter: '{text}'")
-        logger.info(f"[FRONTEND DATA] Has image: {image_file is not None}, Has audio: {audio_file is not None}")
-        
         # Check if at least one modality is provided
-        if text is None and image_file is None and audio_file is None:
+        if not text and not image_file and not audio_file:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="At least one modality (text, image, or audio) must be provided"
             )
         
-        # Process text if provided
+        # ============ PROCESS TEXT WITH FALLBACK ============
         if text:
             input_types.append("text")
-            tv = get_text_validator()
-            if tv is None:
-                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Text validator unavailable on this instance")
-            text_result = tv.validate_text(text, language)
+            try:
+                tv = get_text_validator()
+                if tv is None:
+                    raise Exception("Text validator not available")
+                text_result = tv.validate_text(text, language)
+                logger.info("✓ Text validation successful")
+            except Exception as e:
+                logger.warning(f"Text validation failed, using fallback: {e}")
+                # Fallback: Basic entity extraction
+                text_result = {
+                    "text": text,
+                    "valid": True,
+                    "overall_score": 0.5,
+                    "completeness": {"valid": True, "score": 0.5, "entities": {}, "missing_info": []},
+                    "coherence": {"valid": True, "score": 0.5},
+                    "entities": {},
+                    "timestamp": datetime.now().isoformat(),
+                    "degraded": True,
+                    "degradation_reason": str(e)
+                }
         
-        # Process image if provided
-        image_path = None
+        # ============ PROCESS IMAGE WITH FALLBACK ============
         if image_file:
             input_types.append("image")
-            # Validate file type
-            if not validate_file_type(image_file, ALLOWED_IMAGE_TYPES):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Unsupported image file type: {image_file.content_type}. Supported types: {ALLOWED_IMAGE_TYPES}"
-                )
-            
-            # Validate file size
-            if not validate_file_size(image_file, MAX_IMAGE_FILE_SIZE):
-                raise HTTPException(
-                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                    detail=f"Image file too large. Maximum size: {MAX_IMAGE_FILE_SIZE / (1024 * 1024)}MB"
-                )
-            
-            # Save uploaded file
-            image_path = save_uploaded_file(image_file)
-            
-            # Schedule file cleanup
-            background_tasks.add_task(cleanup_file, image_path)
-            
-            iv = get_image_validator()
-            if iv is None:
-                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Image validator unavailable on this instance")
-            image_result = iv.validate_image(image_path)
-            # Inject missing fields required by ImageValidationResult model
-            image_result["image_path"] = image_path
-            image_result["timestamp"] = datetime.now().isoformat()
+            try:
+                if not validate_file_type(image_file, ALLOWED_IMAGE_TYPES):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid image type: {image_file.content_type}"
+                    )
+                
+                if not validate_file_size(image_file, MAX_IMAGE_FILE_SIZE):
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"Image too large (max {MAX_IMAGE_FILE_SIZE / (1024 * 1024)}MB)"
+                    )
+                
+                image_path = save_uploaded_file(image_file)
+                background_tasks.add_task(cleanup_file, image_path)
+                
+                iv = get_image_validator()
+                if iv is None:
+                    raise Exception("Image validator not available")
+                    
+                image_result = iv.validate_image(image_path)
+                image_result["image_path"] = image_path
+                image_result["timestamp"] = datetime.now().isoformat()
+                logger.info("✓ Image validation successful")
+                
+            except Exception as e:
+                logger.warning(f"Image validation failed, using fallback: {e}")
+                image_result = {
+                    "image_path": image_path or "",
+                    "valid": True,
+                    "overall_score": 0.5,
+                    "timestamp": datetime.now().isoformat(),
+                    "degraded": True,
+                    "degradation_reason": str(e)
+                }
         
-        # Process audio if provided
-        audio_path = None
+        # ============ PROCESS AUDIO WITH FALLBACK ============
         if audio_file:
             input_types.append("voice")
-            # Validate file type
-            if not validate_file_type(audio_file, ALLOWED_AUDIO_TYPES):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Unsupported audio file type: {audio_file.content_type}. Supported types: {ALLOWED_AUDIO_TYPES}"
-                )
-            
-            # Validate file size
-            if not validate_file_size(audio_file, MAX_AUDIO_FILE_SIZE):
-                raise HTTPException(
-                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                    detail=f"Audio file too large. Maximum size: {MAX_AUDIO_FILE_SIZE / (1024 * 1024)}MB"
-                )
-            
-            # Save uploaded file
-            audio_path = save_uploaded_file(audio_file)
-            
-            # Schedule file cleanup
-            background_tasks.add_task(cleanup_file, audio_path)
-            
-            vv = get_voice_validator()
-            if vv is None:
-                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Voice validator unavailable on this instance")
-            voice_result = vv.validate_voice(audio_path)
-
-        # Perform cross-modal consistency checks
-        cross_modal_results = {}
-        if image_path and text:
-            cv = get_clip_validator()
-            if cv is not None:
-                # Use visualText for CLIP if available (visual attributes only), else use full text
-                clip_text = visualText if visualText else text
-                logger.info(f"[CLIP] Using text for validation: '{clip_text}' (visual_only={bool(visualText)})")
-                clip_image_text_result = cached()(cv.validate_image_text_alignment)(image_path, clip_text)
-            cross_modal_results["image_text"] = clip_image_text_result
+            try:
+                if not validate_file_type(audio_file, ALLOWED_AUDIO_TYPES):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid audio type: {audio_file.content_type}"
+                    )
+                
+                if not validate_file_size(audio_file, MAX_AUDIO_FILE_SIZE):
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"Audio too large (max {MAX_AUDIO_FILE_SIZE / (1024 * 1024)}MB)"
+                    )
+                
+                audio_path = save_uploaded_file(audio_file)
+                background_tasks.add_task(cleanup_file, audio_path)
+                
+                vv = get_voice_validator()
+                if vv is None:
+                    raise Exception("Voice validator not available")
+                    
+                voice_result = vv.validate_voice(audio_path)
+                logger.info("✓ Voice validation successful")
+                
+            except Exception as e:
+                logger.warning(f"Voice validation failed, using fallback: {e}")
+                voice_result = {
+                    "audio_path": audio_path or "",
+                    "valid": True,
+                    "overall_score": 0.5,
+                    "timestamp": datetime.now().isoformat(),
+                    "degraded": True,
+                    "degradation_reason": str(e)
+                }
         
-        if voice_result and text_result:
+        # ============ CALCULATE CONFIDENCE ============
+        try:
             ce = get_consistency_engine()
             if ce is None:
-                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Consistency engine unavailable on this instance")
-            voice_text_consistency_result = cached()(ce.validate_voice_text_consistency)(
-                voice_result["transcription"]["transcription"], text
+                raise Exception("Consistency engine not available")
+            confidence_results = ce.calculate_overall_confidence(
+                image_result, text_result, voice_result, cross_modal_results
             )
-            cross_modal_results["voice_text"] = voice_text_consistency_result
-            context_consistency = cached()(ce.validate_context_consistency)(text_result, voice_result)
-            cross_modal_results["context"] = context_consistency
+        except Exception as e:
+            logger.warning(f"Confidence calculation failed, using fallback: {e}")
+            # Fallback confidence based on what we have
+            scores = []
+            if image_result:
+                scores.append(image_result.get("overall_score", 0.5))
+            if text_result:
+                scores.append(text_result.get("overall_score", 0.5))
+            if voice_result:
+                scores.append(voice_result.get("overall_score", 0.5))
+            
+            avg_confidence = sum(scores) / len(scores) if scores else 0.3
+            
+            confidence_results = {
+                "overall_confidence": avg_confidence,
+                "routing": "manual" if avg_confidence < 0.7 else "high_quality",
+                "action": "review",
+                "individual_scores": {
+                    "image": image_result.get("overall_score", 0) if image_result else 0,
+                    "text": text_result.get("overall_score", 0) if text_result else 0,
+                    "voice": voice_result.get("overall_score", 0) if voice_result else 0,
+                },
+                "cross_modal_scores": {},
+                "degraded": True
+            }
         
-        # Enhanced XAI Discrepancy Checks (Phase 2)
-        logger.info(f"[XAI DEBUG] Checking discrepancies. Has image: {bool(image_result)}, Has text: {bool(text_result)}, Has voice: {bool(voice_result)}")
-        if (image_result and text_result) or (text_result and voice_result):
-            try:
-                from src.cross_modal.enhanced_discrepancies import (
-                    check_brand_mismatch, 
-                    check_location_consistency, 
-                    check_condition_mismatch,
-                    check_color_mismatch
-                )
-                
-                # Log what data we're passing
-                logger.info(f"[XAI DEBUG] Text content: {text_result.get('text', 'N/A')[:100] if text_result else 'No text'}")
-                logger.info(f"[XAI DEBUG] Image OCR: {image_result.get('ocr_text', 'N/A')[:100] if image_result else 'No image'}")
-                logger.info(f"[XAI DEBUG] Text entities: {text_result.get('entities', {}) if text_result else {}}")
-                
-                brand_check = check_brand_mismatch(image_result, text_result, image_path) if image_result and text_result else {"has_mismatch": False}
-                logger.info(f"[XAI DEBUG] Brand check: {brand_check}")
-                
-                # Pass cross_modal data to color check (contains CLIP mismatch detection)
-                color_check = check_color_mismatch(image_result, text_result, cross_modal_results) if image_result and text_result else {"has_mismatch": False}
-                logger.info(f"[XAI DEBUG] Color check: {color_check}")
-                
-                cond_check = check_condition_mismatch(image_result, text_result) if image_result and text_result else {"has_mismatch": False}
-                logger.info(f"[XAI DEBUG] Condition check: {cond_check}")
-                
-                loc_check = check_location_consistency(text_result, voice_result) if text_result and voice_result else {"has_mismatch": False}
-                logger.info(f"[XAI DEBUG] Location check: {loc_check}")
-                
-                has_discrepancy = (
-                    brand_check.get("has_mismatch") or 
-                    color_check.get("has_mismatch") or
-                    loc_check.get("has_mismatch") or
-                    cond_check.get("has_mismatch")
-                )
-                
-                if has_discrepancy:
-                    # Construct explanations for both UI Card and Legacy Chat
-                    explanations = []
-                    discrepancy_list = []
-                    
-                    if brand_check.get("has_mismatch"):
-                        explanations.append(brand_check["explanation"])
-                        discrepancy_list.append({"type": "Brand", "explanation": brand_check["explanation"]})
-                    
-                    if color_check.get("has_mismatch"):
-                        explanations.append(color_check["explanation"])
-                        discrepancy_list.append({"type": "Color", "explanation": color_check["explanation"]})
-                        
-                    if loc_check.get("has_mismatch"):
-                        explanations.append(loc_check["explanation"])
-                        discrepancy_list.append({"type": "Location", "explanation": loc_check["explanation"]})
-                        
-                    if cond_check.get("has_mismatch"):
-                        explanations.append(cond_check["explanation"])
-                        discrepancy_list.append({"type": "Condition", "explanation": cond_check["explanation"]})
-                    
-                    full_explanation = " ".join(explanations)
-                    
-                    cross_modal_results["xai_explanation"] = {
-                        "has_discrepancy": True,
-                        "explanation": full_explanation,
-                        "severity": "medium", # Aggregate severity could be calculated
-                        "details": {
-                            "brand": brand_check,
-                            "color": color_check,
-                            "location": loc_check, 
-                            "condition": cond_check
-                        },
-                        "discrepancies": discrepancy_list, # For legacy Chat support
-                        "suggestion": "Please review the discrepancies highlighted above."
-                    }
-                    logger.info(f"Enhanced XAI Discrepancies found: {full_explanation}")
-                    
-            except Exception as e:
-                logger.error(f"Enhanced XAI check failed: {e}")
-
-        
-        # ============================================================
-        # Novel Feature #1: Spatial-Temporal Context Validation
-        # ============================================================
-        spatial_temporal_result = None
-        if text_result:
-            try:
-                from src.intelligence.spatial_temporal_validator import get_spatial_temporal_validator
-                
-                # Extract context from text analysis
-                completeness_entities = text_result.get("completeness", {}).get("entities", {}) or {}
-                entities = text_result.get("entities", {}) or {}
-                item_mentions = entities.get("item_mentions", [])
-                location_mentions = entities.get("location_mentions", [])
-                
-                # Extract item type (prefer explicit entity extraction)
-                item_type = None
-                item_hints = completeness_entities.get("item_type", [])
-                if item_hints and len(item_hints) > 0:
-                    item_type = item_hints[0]
-                elif item_mentions and len(item_mentions) > 0:
-                    item_type = item_mentions[0]
-                
-                # Extract location (prefer explicit entity extraction)
-                location = None
-                location_hints = completeness_entities.get("location", [])
-                if location_hints and len(location_hints) > 0:
-                    location = location_hints[0]
-                elif location_mentions and len(location_mentions) > 0:
-                    location = location_mentions[0]
-                
-                # Extract time context
-                time_val = None
-                time_hints = completeness_entities.get("time", [])
-                if time_hints and len(time_hints) > 0:
-                    time_val = time_hints[0]
-                
-                if item_type and location:
-                    st_validator = get_spatial_temporal_validator()
-                    st_result = st_validator.calculate_plausibility(
-                        item=item_type,
-                        location=location,
-                        time=time_val or "unknown"
-                    )
-                    spatial_temporal_result = st_result
-                    logger.info(f"Spatial-Temporal: {item_type} @ {location} → {st_result.get('plausibility_score', 'N/A')}")
-                    cross_modal_results["spatial_temporal"] = spatial_temporal_result
-            except Exception as e:
-                logger.warning(f"Spatial-temporal validation skipped: {e}")
-        
-        # Calculate overall confidence (must come AFTER cross_modal_results is fully populated)
-        ce2 = get_consistency_engine()
-        if ce2 is None:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Consistency engine unavailable on this instance")
-        confidence_results = ce2.calculate_overall_confidence(
-            image_result,
-            text_result,
-            voice_result,
-            cross_modal_results
-        )
-
-        # Prepare feedback (simplified for now, can be expanded)
-        feedback = {
-            "suggestions": [],
-            "missing_elements": [],
-            "message": "Validation complete."
-        }
-        if not confidence_results["individual_scores"].get("image", 0) > 0 and "image" in input_types:
-            feedback["suggestions"].append("Image quality could be improved.")
-        if not confidence_results["individual_scores"].get("text", 0) > 0 and "text" in input_types:
-            feedback["suggestions"].append("Text description could be more complete/coherent.")
-        if not confidence_results["individual_scores"].get("voice", 0) > 0 and "voice" in input_types:
-            feedback["suggestions"].append("Voice recording quality could be improved.")
-        if not confidence_results["cross_modal_scores"].get("clip_similarity", 0) > 0 and "image" in input_types and "text" in input_types:
-            feedback["suggestions"].append("Image and text description do not align well.")
-        if not confidence_results["cross_modal_scores"].get("voice_text_similarity", 0) > 0 and "voice" in input_types and "text" in input_types:
-            feedback["suggestions"].append("Voice and text description do not align well.")
-
-        # ---- Sanitize numpy types for JSON serialization ----
-        def sanitize_for_json(obj):
-            """Recursively convert numpy types to native Python types."""
-            import numpy as np
-            if isinstance(obj, dict):
-                return {k: sanitize_for_json(v) for k, v in obj.items()}
-            elif isinstance(obj, (list, tuple)):
-                return [sanitize_for_json(v) for v in obj]
-            elif isinstance(obj, (np.bool_,)):
-                return bool(obj)
-            elif isinstance(obj, (np.integer,)):
-                return int(obj)
-            elif isinstance(obj, (np.floating,)):
-                return float(obj)
-            elif isinstance(obj, np.ndarray):
-                return obj.tolist()
-            return obj
-
-        # Final response structure
-        response_data = sanitize_for_json({
+        # ============ BUILD RESPONSE ============
+        response_data = {
             "request_id": request_id,
             "timestamp": datetime.now().isoformat(),
             "input_types": input_types,
@@ -1924,80 +1824,172 @@ async def validate_complete(
             "voice": voice_result,
             "cross_modal": cross_modal_results,
             "confidence": confidence_results,
-            "feedback": feedback
-        })
+            "feedback": {
+                "suggestions": [],
+                "missing_elements": [],
+                "message": "Validation complete (some validators unavailable)" if confidence_results.get("degraded") else "Validation complete"
+            }
+        }
         
-        # Update metrics
-        if confidence_results["overall_confidence"] >= 0.7:
-            metrics_collector.record_validation_result("multimodal", confidence_results["overall_confidence"], confidence_results["routing"])
-        else:
-            metrics_collector.record_validation_failure("multimodal", "low_confidence")
+        # ============ SAVE TO SUPABASE (ALWAYS ATTEMPT) ============
+        supabase_saved_id = None
+        image_url = None
         
-        # Phase 3: External Integration - Forward to Matching Engine
-        if confidence_results.get("action") == "forward_to_matching":
-            pass # Removed obsolete ExternalIntegrationService
-
-        persist_validation_result(request_id, response_data)
-        
-        # ------------------------------------------------------------------ #
-        # Supabase Persistence — save validated item into lost_items/found_items
-        # Only runs when intent + user_id are provided AND confidence is sufficient
-        # ------------------------------------------------------------------ #
-        supabase_id = None
-        if intent and user_id and confidence_results.get("overall_confidence", 0) >= 0.5:
+        if intent and userId and supabase:
             try:
-                from src.database.supabase_client import get_supabase_manager
-                sm = get_supabase_manager()
-                if sm:
-                    # Build item_data from validated results
-                    item_data = {
-                        "description": text or "",
-                        "confidence_score": confidence_results.get("overall_confidence"),
-                        "routing": confidence_results.get("routing", "manual"),
-                        "action": confidence_results.get("action", "review"),
-                        "validation_summary": {
-                            "input_types": input_types,
-                            "individual_scores": confidence_results.get("individual_scores", {}),
-                            "cross_modal_scores": confidence_results.get("cross_modal_scores", {}),
-                            "request_id": request_id,
-                        },
-                    }
-                    # Pull structured fields from text validator entities if available
-                    if text_result:
-                        entities = text_result.get("entities", {}) or {}
-                        completeness = text_result.get("completeness", {}).get("entities", {}) or {}
-                        item_data["item_type"] = (completeness.get("item_type") or [None])[0] or ""
-                        item_data["color"] = (completeness.get("color") or entities.get("color_mentions") or [None])[0] or ""
-                        item_data["brand"] = (completeness.get("brand") or entities.get("brand_mentions") or [None])[0] or ""
-                        item_data["location"] = (completeness.get("location") or entities.get("location_mentions") or [None])[0] or ""
-                        item_data["time"] = (completeness.get("time") or [None])[0] or ""
+                # Build item data
+                item_data = {
+                    "description": text or "",
+                    "confidence_score": confidence_results.get("overall_confidence", 0.5),
+                    "routing": confidence_results.get("routing", "manual"),
+                    "action": confidence_results.get("action", "review"),
+                    "validation_summary": {
+                        "input_types": input_types,
+                        "individual_scores": confidence_results.get("individual_scores", {}),
+                        "request_id": request_id,
+                    },
+                    "item_type": intent,
+                    "user_id": userId,
+                    "user_email": userEmail or "",
+                    "status": "pending",
+                    "created_at": datetime.utcnow().isoformat(),
+                }
+                
+                # Extract entities from text if available
+                if text_result and not text_result.get("degraded"):
+                    entities = text_result.get("entities", {}) or {}
+                    completeness = text_result.get("completeness", {}).get("entities", {}) or {}
+                    # Store extracted item category in user_category (NOT item_type)
+                    # item_type must remain as intent ("lost"/"found") per DB constraint
+                    item_data["user_category"] = (completeness.get("item_type") or [None])[0] or ""
+                    item_data["color"] = (completeness.get("color") or [None])[0] or ""
+                    #item_data["brand"] = (completeness.get("brand") or [None])[0] or ""
+                    item_data["location"] = (completeness.get("location") or [None])[0] or ""
+                    #item_data["time"] = (completeness.get("time") or [None])[0] or ""
+                
+                # Upload image to Supabase storage if available
+                if image_path and os.path.exists(image_path):
+                    try:
+                        # Storage bucket is `items` (public). Organize objects by intent folder.
+                        bucket_name = "items"
+
+                        ext = os.path.splitext(image_path)[1].lower() or ".jpg"
+                        ct_map = {
+                            ".jpg": "image/jpeg",
+                            ".jpeg": "image/jpeg",
+                            ".png": "image/png",
+                            ".webp": "image/webp",
+                        }
+                        content_type = ct_map.get(ext, "image/jpeg")
+
+                        base_name = os.path.basename(image_path)
+                        safe_name = "".join(c if (c.isalnum() or c in "-_.") else "_" for c in base_name)
+                        storage_path = f"{intent}/{userId}_{request_id}_{safe_name}"
+
+                        with open(image_path, "rb") as fh:
+                            supabase.storage.from_(bucket_name).upload(
+                                path=storage_path,
+                                file=fh.read(),
+                                file_options={"content-type": content_type, "upsert": "true"},
+                            )
+
+                        # Determine storage visibility mode (default: public)
+                        BUCKET_PUBLIC = os.getenv("BUCKET_PUBLIC", "true").lower() == "true"
+
+                        if BUCKET_PUBLIC:
+                            # Construct deterministic public URL
+                            image_url = f"{SUPABASE_URL}/storage/v1/object/public/{bucket_name}/{storage_path}"
+                        else:
+                            # Generate signed URL (valid for 1 hour)
+                            signed = supabase.storage.from_(bucket_name).create_signed_url(
+                                storage_path,
+                                expires_in=3600
+                            )
+                            image_url = None
+                            if isinstance(signed, dict):
+                                image_url = signed.get("signedURL") or signed.get("signedUrl")
+
+                        # Store URL only if successfully generated
+                        if image_url:
+                            item_data["image_url"] = image_url
+                       
+                        logger.error(f"FINAL INSERT PAYLOAD: {json.dumps(item_data, indent=2)}")
+
+                        logger.info(
+                            f"✓ Uploaded image to Supabase storage: bucket={bucket_name} path={storage_path} url={image_url}"
+                        )
+                    except Exception as img_err:
+                        logger.warning(f"Image upload failed (non-fatal): {img_err}")
+                
+                # Insert into database
+                table_name = "items"
+                logger.error("========== DEBUG INSERT ==========")
+                logger.error(f"TABLE NAME: {table_name}")
+                logger.error(f"IMAGE URL VALUE: {item_data.get('image_url')}")
+                logger.error(f"IMAGE URL TYPE: {type(item_data.get('image_url'))}")
+                logger.error(f"FULL ITEM DATA KEYS: {list(item_data.keys())}")
+                logger.error("==================================")
+                result = supabase.table(table_name).insert(item_data).execute()
+                logger.error(f"SUPABASE RETURNED DATA: {result.data}")
+                
+                if result.data and len(result.data) > 0:
+                    supabase_saved_id = result.data[0].get("id")
+                    logger.info(f"✓ Saved to Supabase ({table_name}): id={supabase_saved_id}")
                     
-                    # Note: image_path is still valid here (cleanup scheduled later)
-                    supabase_id_saved, sup_image_url = sm.save_validated_item(
-                        intention=intent,
-                        user_id=user_id,
-                        user_email=user_email or "",
-                        item_data=item_data,
-                        image_path=image_path,  # SupabaseManager uploads then returns URL
-                        supabase_id=supabase_id,
-                    )
-                    if supabase_id_saved:
-                        response_data["supabase_id"] = supabase_id_saved
-                        if sup_image_url:
-                            response_data["image_url"] = sup_image_url
-                        logger.info(f"✓ Saved to Supabase ({intent}_items): id={supabase_id}")
-            except Exception as exc:
-                logger.error(f"Supabase save failed (non-fatal): {exc}")
+                    response_data["supabase_id"] = supabase_saved_id
+                    if image_url:
+                        response_data["image_url"] = image_url
+
+                    # Trigger AI backend processing after successful insert
+                    if image_url:  # Only trigger if image was uploaded
+                        try:
+                            AI_BACKEND_URL = "http://localhost:8001/items/process"
+
+                            ai_payload = {
+                                "item_id": supabase_saved_id,
+                                "item_type": intent,  # "lost" or "found"
+                                "image_url": image_url,
+                                "user_category": item_data.get("user_category") or None,
+                                "k": 5,
+                                "mc_T": 20
+                            }
+
+                            logger.info(f"🤖 Triggering AI backend for item {supabase_saved_id}")
+                            response = requests.post(
+                                AI_BACKEND_URL,
+                                json=ai_payload,
+                                timeout=30
+                            )
+                            
+                            if response.status_code == 200:
+                                logger.info(f"✓ AI processing completed for item {supabase_saved_id}")
+                                logger.info(f"  Response: {response.json()}")
+                            else:
+                                logger.warning(f"AI backend returned status {response.status_code}: {response.text}")
+
+                        except Exception as ai_err:
+                            logger.warning(f"AI processing trigger failed (non-fatal): {ai_err}")
+                else:
+                    logger.warning("Supabase insert returned no data")
+                    
+            except Exception as db_err:
+                logger.error(f"Supabase save failed (non-fatal): {db_err}")
+                # Don't crash - validation still succeeded
+        
+        elif not supabase:
+            logger.warning("Supabase not initialized - skipping database save")
+        elif not intent or not userId:
+            logger.info("No intent/userId provided - skipping Supabase save")
         
         return ValidationResponse(**response_data)
         
     except HTTPException:
-        raise # Re-raise HTTPException to be handled by FastAPI's exception handler
+        raise
     except Exception as e:
-        logger.error(f"Error in complete validation: {str(e)}")
+        logger.error(f"Critical error in validation: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error in complete validation: {str(e)}"
+            detail=f"Validation failed: {str(e)}"
         )
 
 @app.websocket("/ws/validation/{client_id}")
