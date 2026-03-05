@@ -2,13 +2,16 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const connectDB = require('./config/db');
+const { initSupabase } = require('./config/supabase');
 const env = require('./config/env');
 const { startScheduler } = require('./services/reminderScheduler');
 const pythonMLService = require('./services/pythonMLService');
 const path = require('path');
 const http = require('http');
 const wsService = require('./services/wsService');
+const voshanWebsocketService = require('./services/voshan/websocketService');
 const { ingestPing } = require('./services/pingIngestService');
 
 const authRoutes = require('./routes/authRoutes');
@@ -25,6 +28,7 @@ const locationRoutes = require('./routes/locationRoutes');
 const csvUploadRoutes = require('./routes/csvUploadRoutes');
 const zoneBookingRoutes = require('./routes/zoneBookingRoutes');
 const mlTrainingRoutes = require('./routes/mlTrainingRoutes');
+const voshanDetectionRoutes = require('./routes/voshan/detectionRoutes');
 
 const app = express();
 
@@ -48,7 +52,20 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json());
+app.use(compression({
+  filter: (req, res) => {
+    if (req.path && req.path.startsWith('/api/voshan/socket.io')) return false;
+    if (req.headers['x-no-compression']) return false;
+    return compression.filter(req, res);
+  },
+  level: 6
+}));
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ extended: true, limit: '500mb' }));
+app.use((req, res, next) => {
+  res.setHeader('Connection', 'keep-alive');
+  next();
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -65,6 +82,15 @@ app.use('/api/location', locationRoutes);
 app.use('/api/csv', csvUploadRoutes);
 app.use('/api/zone-bookings', zoneBookingRoutes);
 app.use('/api/ml-training', mlTrainingRoutes);
+
+// Voshan: Serve captured alert frames
+const alertFramesDir = path.resolve(__dirname, '../voshan/ml-service/outputs/alert_frames');
+app.use('/api/voshan/detection/alert-frames', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+  next();
+}, express.static(alertFramesDir));
+// Voshan: Suspicious Behavior Detection
+app.use('/api/voshan/detection', voshanDetectionRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -102,6 +128,9 @@ async function initializeMLModel() {
 // Start server (HTTP + WebSocket)
 const server = http.createServer(app);
 
+// Voshan: Socket.IO for real-time detection alerts (path: /api/voshan/socket.io)
+voshanWebsocketService.initialize(server);
+
 // WebSocket hub
 wsService.init(server, { path: '/ws' });
 wsService.setOnPing(async (payload) => {
@@ -122,6 +151,9 @@ server.listen(env.PORT, async () => {
   console.log(`✅ Server running on port ${env.PORT}`);
   console.log(`📡 Environment: ${env.NODE_ENV}`);
   console.log('═══════════════════════════════════════════════════════════');
+
+  // Voshan: init Supabase for alert storage (if SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY set)
+  await initSupabase().catch(() => {});
 
   // Start reminder scheduler
   startScheduler();
