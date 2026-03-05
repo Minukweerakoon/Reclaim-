@@ -476,9 +476,10 @@ function ValidationHub() {
                 imageFile: imageFile || undefined,
                 audioFile: audioFile || undefined,
                 language: 'en',
-                intent: intent || undefined,
-                userId: user?.id,
-                userEmail: user?.email ?? undefined,
+                // Omit intent and userId so the backend doesn't trigger a duplicate Supabase save
+                intent: undefined,
+                userId: undefined,
+                userEmail: undefined,
             });
 
             console.log('[ValidationHub] Context analysis response:', result);

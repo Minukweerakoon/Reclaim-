@@ -1786,7 +1786,19 @@ async def validate_complete(
                     "degraded": True,
                     "degradation_reason": str(e)
                 }
-        
+        # ============ CROSS-MODAL ============
+        if image_path and text:
+            try:
+                cv = get_clip_validator()
+                if cv is not None:
+                    clip_text = visualText if visualText else text
+                    logger.info(f"[CLIP] Using text for validation: '{clip_text}' (visual_only={bool(visualText)})")
+                    clip_image_text_result = cached()(cv.validate_image_text_alignment)(image_path, clip_text)
+                    cross_modal_results["image_text"] = clip_image_text_result
+                    logger.info("✓ CLIP cross-modal validation successful")
+            except Exception as e:
+                logger.warning(f"CLIP cross-modal validation failed: {e}")
+
         # ============ CALCULATE CONFIDENCE ============
         try:
             ce = get_consistency_engine()
