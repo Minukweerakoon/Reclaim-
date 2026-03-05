@@ -342,6 +342,9 @@ export interface XAIExplainRequest {
     text?: string;
     image_path?: string;
     transcription?: string;
+    cross_modal_results?: Record<string, unknown>;
+    text_result?: Record<string, unknown>;
+    image_result?: Record<string, unknown>;
 }
 
 export interface XAIExplainResponse {

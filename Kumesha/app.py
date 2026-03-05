@@ -1280,6 +1280,10 @@ class XAIExplainRequest(BaseModel):
     text: Optional[str] = None
     image_path: Optional[str] = None
     transcription: Optional[str] = None
+    # Rich validation result data passed from the frontend
+    cross_modal_results: Optional[Dict[str, Any]] = None
+    text_result: Optional[Dict[str, Any]] = None
+    image_result: Optional[Dict[str, Any]] = None
 
 @app.post("/api/xai/explain-enhanced")
 async def get_enhanced_xai_explanation(
@@ -1303,16 +1307,19 @@ async def get_enhanced_xai_explanation(
         
         explainer = XAIExplainer()
         
-        # Build mock result dicts from the frontend request to pass to the explainer and checkers
-        image_result = {"image_path": request.image_path} if request.image_path else None
-        text_result = {"text": request.text} if request.text else None
+        # Use rich result data if provided by the frontend, otherwise build minimal mock dicts
+        image_result = request.image_result or ({"image_path": request.image_path} if request.image_path else None)
+        text_result = request.text_result or ({"text": request.text} if request.text else None)
         voice_result = {"transcription": request.transcription} if request.transcription else None
+        cross_modal_results = request.cross_modal_results
         
-        # Get basic explanation
+        # Get basic explanation — pass all available data
         base_explanation = explainer.generate_explanation(
             image_result=image_result,
             text_result=text_result,
-            voice_result=voice_result
+            voice_result=voice_result,
+            cross_modal_results=cross_modal_results,
+            description=request.text,
         )
         
         # Add enhanced discrepancy checks if requested
