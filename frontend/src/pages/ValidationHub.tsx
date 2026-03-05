@@ -5,6 +5,7 @@ import { validationApi } from '../api/validation';
 import { reportsApi } from '../api/reports';
 import { xaiApi } from '../api/xai';
 import { feedbackApi } from '../api/feedback';
+import { contextApi } from '../api/context';
 import { useValidationStore } from '../store/useValidationStore';
 import { useChatStore } from '../store/useChatStore';
 import { useAuth } from '../contexts/AuthContext';
@@ -428,8 +429,8 @@ function ValidationHub() {
     };
 
     const handleAnalyzeContext = async () => {
-        // Prevent re-triggering if already validating or if we already have results
-        if (analysisLoading || isLoading) {
+        // Prevent re-triggering if already validating
+        if (analysisLoading) {
             console.log('[ValidationHub] Context analysis already in progress, skipping');
             return;
         }
@@ -443,47 +444,48 @@ function ValidationHub() {
         setAnalysisLoading(true);
 
         try {
-            console.log('[ValidationHub] Running context analysis with existing data');
+            console.log('[ValidationHub] Running context analysis');
 
-            // If we already have a validation result, just use it
-            if (currentResult) {
-                console.log('[ValidationHub] Using existing validation result');
-                setAnalysisLoading(false);
-                return;
-            }
-
-            // Extract entity data from text input
+            // Extract entity data from text input if localExtractedInfo is sparse
             const extractedEntities: Record<string, string> = {};
-            textInput.split(',').forEach((segment) => {
-                const colonIdx = segment.indexOf(':');
-                if (colonIdx > 0) {
-                    const key = segment.slice(0, colonIdx).trim().toLowerCase().replace(/\s+/g, '_');
-                    const val = segment.slice(colonIdx + 1).trim();
-                    if (val && key !== 'intent') extractedEntities[key] = val;
-                }
-            });
+            if (textInput) {
+                textInput.split(',').forEach((segment) => {
+                    const colonIdx = segment.indexOf(':');
+                    if (colonIdx > 0) {
+                        const key = segment.slice(0, colonIdx).trim().toLowerCase().replace(/\s+/g, '_');
+                        const val = segment.slice(colonIdx + 1).trim();
+                        if (val && key !== 'intent') extractedEntities[key] = val;
+                    }
+                });
+            }
 
             // Merge with localExtractedInfo if available
             const merged = { ...extractedEntities, ...localExtractedInfo };
 
-            console.log('[ValidationHub] Extracted entities:', merged);
-            console.log('[ValidationHub] Calling validateComplete with FormData');
+            // Try to extract from text result entities as well
+            if (currentResult?.text?.entities) {
+                const ents = currentResult.text.entities;
+                if (!merged.item_type && ents.item_mentions?.length) merged.item_type = ents.item_mentions[0];
+                if (!merged.location && ents.location_mentions?.length) merged.location = ents.location_mentions[0];
+            }
 
-            // Use the existing validation API that properly formats the request
-            const result = await validationApi.validateComplete({
-                text: textInput || undefined,
-                visualText: visualText || undefined,
-                imageFile: imageFile || undefined,
-                audioFile: audioFile || undefined,
-                language: 'en',
-                // Omit intent and userId so the backend doesn't trigger a duplicate Supabase save
-                intent: undefined,
-                userId: undefined,
-                userEmail: undefined,
+            console.log('[ValidationHub] Combined entities for context:', merged);
+
+            // Item type is required for context analysis, location is highly recommended
+            if (!merged.item_type) {
+                setAnalysisError('Item type could not be determined for context analysis.');
+                setAnalysisLoading(false);
+                return;
+            }
+
+            const response = await contextApi.validateContext({
+                item_type: merged.item_type || 'item',
+                location: merged.location || 'unknown location',
+                time: merged.time || new Date().toISOString(),
             });
 
-            console.log('[ValidationHub] Context analysis response:', result);
-            setResult(result);
+            console.log('[ValidationHub] Context analysis response:', response);
+            setContextResult(response);
             setAnalysisError(null);
         } catch (err) {
             const message = formatErrorMessage(err);

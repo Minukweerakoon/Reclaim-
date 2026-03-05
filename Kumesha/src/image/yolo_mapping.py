@@ -16,6 +16,8 @@ YOLO_TO_LOSTFOUND_MAPPING = {
     "suitcase": "luggage",
     "umbrella": "umbrella",
     "tie": "clothing",
+    "jacket": "clothing",
+    "coat": "clothing",
     
     # Small Personal Items
     "book": "book",
