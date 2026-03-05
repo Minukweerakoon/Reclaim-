@@ -6,7 +6,9 @@ Minuk's AI matching engine can query and process them directly.
 """
 
 import logging
+import json
 import os
+import re
 import uuid as _uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -193,6 +195,13 @@ class SupabaseManager:
         # Map Kumesha fields → shared items table columns
         # item_type in items = "lost"/"found" (the intention)
         # user_category in items = what the user says the item category is (e.g. "jacket")
+        # Serialize validation_summary to JSON string if it's a dict
+        validation_summary = item_data.get("validation_summary", {})
+        if isinstance(validation_summary, dict):
+            validation_summary = json.dumps(validation_summary)
+        elif validation_summary is None:
+            validation_summary = "{}"
+
         record = {
             "user_id": user_id,
             "user_email": user_email,
@@ -200,14 +209,13 @@ class SupabaseManager:
             "user_category": item_data.get("user_category") or item_data.get("item_type", ""),
             "description": item_data.get("description", ""),
             "location": item_data.get("location", ""),
-            "time_of_incident": _parse_time_for_db(item_data.get("time", "")),
             "status": "active",
             # Additional Kumesha tracking fields
             "color": item_data.get("color", ""),
             "confidence_score": item_data.get("confidence_score"),
             "routing": item_data.get("routing", "manual"),
             "action": item_data.get("action", "review"),
-            "validation_summary": item_data.get("validation_summary", {}),
+            "validation_summary": validation_summary,
         }
         
         # Only update image_url if it's provided (so we don't overwrite an existing image with None on update)
@@ -240,7 +248,8 @@ class SupabaseManager:
             logger.warning("%s to %s returned no data", action_str, self.TABLE)
             return None, None
         except Exception as exc:
-            logger.error("Failed to save to %s: %s", self.TABLE, exc)
+            import traceback
+            logger.error("Failed to save to %s: %s\n%s", self.TABLE, exc, traceback.format_exc())
             return None, None
 
     # -------------------- Read -------------------- #

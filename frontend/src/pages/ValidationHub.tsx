@@ -6,6 +6,7 @@ import { reportsApi } from '../api/reports';
 import { xaiApi } from '../api/xai';
 import { contextApi } from '../api/context';
 import { feedbackApi } from '../api/feedback';
+import { contextApi } from '../api/context';
 import { useValidationStore } from '../store/useValidationStore';
 import { useChatStore } from '../store/useChatStore';
 import { useAuth } from '../contexts/AuthContext';
@@ -45,6 +46,7 @@ function ValidationHub() {
     const [isWebcamActive, setIsWebcamActive] = useState(false);
     const [localExtractedInfo, setLocalExtractedInfo] = useState<Record<string, string>>({});
     const [webcamError, setWebcamError] = useState<string | null>(null);
+
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
     const [_entityResult, setEntityResult] = useState<EntityDetectionResponse | null>(null);
     const [contextResult, setContextResult] = useState<SpatialTemporalResponse | null>(null);
@@ -446,58 +448,9 @@ function ValidationHub() {
                 console.warn('[ValidationHub] Auto XAI explanation failed:', formatErrorMessage(xaiErr));
             }
 
-            // ── Save to shared items table (background, non-blocking) ──
-            if (user?.id && (effectiveIntent === 'lost' || effectiveIntent === 'found')) {
-                const overallConfidence = result?.confidence?.overall_confidence ?? null;
 
-                // Use local preserved structured chat data if available
-                const extracted = localExtractedInfo || {};
-                const itemCategory = extracted['item_type'] || visualText?.split(' ').slice(-1)[0] || '';
-                const locationValue = (() => {
-                    // Priority 1: structured extracted info from chat (most reliable)
-                    if (extracted['location'] && extracted['location'].trim()) {
-                        return extracted['location'].trim();
-                    }
-                    // Priority 2: parse "location: X" key-value from the summaryText
-                    // e.g. "intent: found, item type: keyboard, location: 4th floor of computing faculty building"
-                    const locKv = textInput?.match(/\blocation:\s*([^,]+)/i);
-                    if (locKv) return locKv[1].trim();
-                    // Priority 3: simple "at the X" regex as last resort
-                    const locAt = textInput?.match(/\bat\s+(?:the\s+)?([a-zA-Z\s]{2,40})/i);
-                    return locAt ? locAt[1].trim() : '';
-                })();
-                const colorValue = extracted['color'] || '';
-                // description = human-readable summary, not the full structured blob
-                const descriptionValue = extracted['description'] || textInput || '';
-
-                if (!result?.supabase_id) {
-                    reportsApi.saveReport({
-                        item_type: itemCategory,
-                        user_category: itemCategory,
-                        description: descriptionValue,
-                        color: colorValue,
-                        location: locationValue,
-                        intention: effectiveIntent as 'lost' | 'found',
-                        confidence_score: overallConfidence,
-                        routing: overallConfidence != null && overallConfidence >= 0.7 ? 'auto' : 'manual',
-                        action: 'review',
-                        validation_results: {
-                            cross_modal: result?.cross_modal ?? {},
-                            individual_scores: result?.confidence?.individual_scores ?? {},
-                            supabase_id: result?.supabase_id,
-                        },
-                    }).then((saved) => {
-                        console.info('[Reclaim] Report saved to items table fallback:', saved.report_id);
-                    }).catch((err) => {
-                        console.warn('[Reclaim] Report save fallback failed:', err);
-                    });
-                } else {
-                    console.info('[Reclaim] Report already saved by backend to items table with ID:', result.supabase_id);
-                }
-            }
-
-            // Note: Context analysis auto-run removed to prevent loops
-            // User can manually click "Run context analysis" button if needed
+            // Auto-run context analysis so Plausibility Matrix populates
+            setTimeout(() => handleAnalyzeContext(), 500);
         } catch (err: unknown) {
             let errorMsg = formatErrorMessage(err);
             if (err && typeof err === 'object' && 'message' in err) {
@@ -528,8 +481,8 @@ function ValidationHub() {
     };
 
     const handleAnalyzeContext = async () => {
-        // Prevent re-triggering if already validating or if we already have results
-        if (analysisLoading || isLoading) {
+        // Prevent re-triggering if already validating
+        if (analysisLoading) {
             console.log('[ValidationHub] Context analysis already in progress, skipping');
             return;
         }
@@ -541,38 +494,46 @@ function ValidationHub() {
 
         setAnalysisError(null);
         setAnalysisLoading(true);
-        
+
         try {
             console.log('[ValidationHub] Running context analysis with existing data');
             
+            // If we already have a validation result, just use it
+            if (currentResult) {
+                console.log('[ValidationHub] Using existing validation result');
+                setAnalysisLoading(false);
+                return;
+            }
+
             // Extract entity data from text input
             const extractedEntities: Record<string, string> = {};
-            textInput.split(',').forEach((segment) => {
-                const colonIdx = segment.indexOf(':');
-                if (colonIdx > 0) {
-                    const key = segment.slice(0, colonIdx).trim().toLowerCase().replace(/\s+/g, '_');
-                    const val = segment.slice(colonIdx + 1).trim();
-                    if (val && key !== 'intent') extractedEntities[key] = val;
-                }
-            });
+            if (textInput) {
+                textInput.split(',').forEach((segment) => {
+                    const colonIdx = segment.indexOf(':');
+                    if (colonIdx > 0) {
+                        const key = segment.slice(0, colonIdx).trim().toLowerCase().replace(/\s+/g, '_');
+                        const val = segment.slice(colonIdx + 1).trim();
+                        if (val && key !== 'intent') extractedEntities[key] = val;
+                    }
+                });
+            }
 
             // Merge with localExtractedInfo if available
             const merged = { ...extractedEntities, ...localExtractedInfo };
 
             console.log('[ValidationHub] Extracted entities:', merged);
-            const itemType = merged.item_type || merged['item type'];
-            const locationValue = merged.location;
-            const timeValue = merged.time;
+            console.log('[ValidationHub] Calling validateComplete with FormData');
 
-            if (!itemType || !locationValue) {
-                setAnalysisError('Need at least item type and location to run context analysis.');
-                return;
-            }
-
-            const response = await contextApi.validateContext({
-                item_type: itemType,
-                location: locationValue,
-                time: timeValue || undefined,
+            // Use the existing validation API that properly formats the request
+            const result = await validationApi.validateComplete({
+                text: textInput || undefined,
+                visualText: visualText || undefined,
+                imageFile: imageFile || undefined,
+                audioFile: audioFile || undefined,
+                language: 'en',
+                intent: intent || undefined,
+                userId: user?.id,
+                userEmail: user?.email ?? undefined,
             });
 
             console.log('[ValidationHub] Context analysis response:', response);
@@ -596,6 +557,11 @@ function ValidationHub() {
                 text: textInput || undefined,
                 image_path: currentResult.image?.image_path,
                 transcription: currentResult.voice?.transcription,
+                // Pass the full cross-modal and text analysis results so the explainer
+                // has actual similarity scores, entity data, and detected objects to work with
+                cross_modal_results: currentResult.cross_modal as Record<string, unknown> | undefined,
+                text_result: currentResult.text as Record<string, unknown> | undefined,
+                image_result: currentResult.image as Record<string, unknown> | undefined,
             });
             setXaiExplain(response);
         } catch (err) {

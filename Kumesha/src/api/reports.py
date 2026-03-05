@@ -37,21 +37,25 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[
             raise HTTPException(status_code=503, detail="Supabase not configured")
 
         sb = create_client(supabase_url, supabase_key)
+        logger.info(f"[get_current_user] Verifying token (length: {len(access_token)})")
         response = sb.auth.get_user(access_token)
         user = response.user
         if user is None:
+            logger.warning("[get_current_user] get_user returned None for token")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired access token",
             )
+        logger.info(f"[get_current_user] Verified user: {user.email}")
         return {"id": user.id, "email": user.email, "uid": user.id}
     except HTTPException:
         raise
     except Exception as exc:
-        logger.warning("Supabase token verification failed: %s", exc)
+        import traceback
+        logger.warning("Supabase token verification failed: %s\n%s", exc, traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired access token",
+            detail=f"Token verification failed: {str(exc)}",
         )
 
 
@@ -123,6 +127,9 @@ async def save_report(
         "validation_summary": body.validation_results,
     }
 
+    logger.info(f"[save_report] Attempting to save report: intention={body.intention}, item_type={body.item_type}, "
+                f"location={body.location}, color={body.color}, brand={body.brand}, image_url={body.image_url}")
+
     report_id, _ = sb.save_validated_item(
         intention=body.intention,
         user_id=user["id"],
@@ -131,6 +138,7 @@ async def save_report(
     )
 
     if report_id is None:
+        logger.error(f"[save_report] save_validated_item returned None. item_data={item_data}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save report",
