@@ -22,6 +22,14 @@ websocketService.initialize(server);
 
 // Connect to database first, then start listening so alerts/DB routes don't buffer timeout
 function startServer() {
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`\n❌ Port ${PORT} is still in use. Close the other process or run: node scripts/kill-port-5000.js\n`);
+    } else {
+      console.error('Server error:', err);
+    }
+    process.exit(1);
+  });
   server.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📡 WebSocket available at ws://localhost:${PORT}/api/voshan/socket.io`);

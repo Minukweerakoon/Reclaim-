@@ -211,7 +211,7 @@ exports.processVideo = async (req, res) => {
     const alerts = result.data?.alerts || [];
     const cameraId = req.body.cameraId || null;
 
-    // Ensure each alert has frame_image for frontend (exact frame capture)
+    // Ensure each alert has frame_image for frontend
     const alertsForClient = alerts.map((a) => ({
       ...a,
       frame_image: a.frame_image ?? a.frameImage ?? null

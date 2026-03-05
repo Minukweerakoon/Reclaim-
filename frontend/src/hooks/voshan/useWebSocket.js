@@ -6,12 +6,9 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
-// Construct WebSocket URL: in dev use same origin so Vite proxy can forward to backend
+// In dev connect directly to backend to avoid Vite proxy WebSocket errors (ECONNABORTED/ECONNRESET)
 const getSocketUrl = () => {
   const apiUrl = import.meta.env.VITE_API_URL || '';
-  if (import.meta.env.DEV && !apiUrl) {
-    return ''; // same origin → Vite proxy forwards /api to backend
-  }
   if (apiUrl && apiUrl.endsWith('/api')) {
     return apiUrl.replace(/\/api\/?$/, '');
   }

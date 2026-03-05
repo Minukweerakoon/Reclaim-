@@ -40,7 +40,6 @@ const getRandomPlaceholder = (alertId, frameNumber) => {
 };
 
 const AlertCard = ({ alert, onViewDetails, onDelete, frameSnapshot }) => {
-  // Image to show: 1) captured frame from backend (exact frame when alert triggered), 2) client-extracted frameSnapshot, 3) placeholder
   const frameFilename = alert.frame_image || alert.frameImage;
   const imageSrc = useMemo(() => {
     if (frameFilename) {
@@ -120,7 +119,7 @@ const AlertCard = ({ alert, onViewDetails, onDelete, frameSnapshot }) => {
         </div>
       </div>
       <div className="alert-card-body">
-        {/* Frame image: captured exact frame from backend, or client-extracted snapshot, or placeholder */}
+        {/* Show frame image or placeholder */}
         <div className="alert-snapshot">
           <img
             key={frameFilename ? `frame-${frameFilename}` : 'placeholder'}

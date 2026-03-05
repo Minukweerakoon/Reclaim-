@@ -507,7 +507,7 @@ def process_video():
         cap.release()
         logger.info(f"Processing complete. Generated {len(all_alerts)} alerts from {frame_count} frames")
         logger.info(f"Preparing response with {len(all_alerts)} alerts...")
-        
+
         # Save annotated video if requested
         output_video_path = None
         
@@ -524,19 +524,15 @@ def process_video():
         os.makedirs(alerts_dir, exist_ok=True)
         alerts_json_path = os.path.join(alerts_dir, f"alerts_{filename}.json")
         alerts_csv_path = os.path.join(alerts_dir, f"alerts_{filename}.csv")
-        
+
         AlertManager.save_alerts_to_json(all_alerts, alerts_json_path)
         AlertManager.save_alerts_to_csv(all_alerts, alerts_csv_path)
-        
+
         # Format response
-        # Limit alerts in response to prevent connection resets (max 2000 alerts)
-        # Full alerts are saved to JSON/CSV files which can be downloaded separately
         MAX_ALERTS_IN_RESPONSE = 2000
         try:
             formatted_alerts = [AlertManager.format_alert(alert) for alert in all_alerts]
-            
-            # Limit alerts in response to prevent large response sizes
-            # Sort by severity (HIGH > MEDIUM > LOW > INFO) and timestamp (most recent first)
+
             if len(formatted_alerts) > MAX_ALERTS_IN_RESPONSE:
                 severity_order = {"HIGH": 3, "MEDIUM": 2, "LOW": 1, "INFO": 0, "UNKNOWN": 0}
                 formatted_alerts.sort(
