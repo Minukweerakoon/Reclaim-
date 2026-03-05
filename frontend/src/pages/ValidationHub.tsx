@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { validationApi } from '../api/validation';
 import { reportsApi } from '../api/reports';
 import { xaiApi } from '../api/xai';
+import { contextApi } from '../api/context';
 import { feedbackApi } from '../api/feedback';
 import { useValidationStore } from '../store/useValidationStore';
 import { useChatStore } from '../store/useChatStore';
@@ -356,6 +357,8 @@ function ValidationHub() {
 
         setLoading(true);
         setError(null);
+        setContextResult(null);
+        setXaiExplain(null);
         setProgress(0, 'Preparing validation request...');
 
         try {
@@ -384,6 +387,59 @@ function ValidationHub() {
             });
             setProgress(100, 'Complete!');
             setResult(result);
+
+            // Auto-populate context/XAI panels to match previous UX behavior.
+            // This keeps validation outputs visible without extra button clicks.
+            const extractedFromResult: Record<string, string> = {
+                ...localExtractedInfo,
+            };
+
+            const completenessEntities = result?.text?.completeness?.entities ?? {};
+            const textEntities = result?.text?.entities ?? {};
+
+            const pickFirst = (value: unknown): string => {
+                if (Array.isArray(value) && value.length) return String(value[0] ?? '').trim();
+                if (typeof value === 'string') return value.trim();
+                return '';
+            };
+
+            if (!extractedFromResult.item_type) extractedFromResult.item_type = pickFirst(completenessEntities?.item_type) || pickFirst(textEntities?.item_mentions);
+            if (!extractedFromResult.color) extractedFromResult.color = pickFirst(completenessEntities?.color) || pickFirst(textEntities?.color_mentions);
+            if (!extractedFromResult.brand) extractedFromResult.brand = pickFirst(completenessEntities?.brand) || pickFirst(textEntities?.brand_mentions);
+            if (!extractedFromResult.location) extractedFromResult.location = pickFirst(completenessEntities?.location) || pickFirst(textEntities?.location_mentions);
+            if (!extractedFromResult.time) extractedFromResult.time = pickFirst(completenessEntities?.time);
+
+            const contextItem = extractedFromResult.item_type;
+            const contextLocation = extractedFromResult.location;
+            const contextTime = extractedFromResult.time;
+
+            if (contextItem && contextLocation) {
+                try {
+                    const context = await contextApi.validateContext({
+                        item_type: contextItem,
+                        location: contextLocation,
+                        time: contextTime || undefined,
+                    });
+                    setContextResult(context);
+                } catch (ctxErr) {
+                    console.warn('[ValidationHub] Auto context analysis failed:', formatErrorMessage(ctxErr));
+                }
+            }
+
+            try {
+                const transcription = typeof result?.voice?.transcription === 'string'
+                    ? result.voice.transcription
+                    : result?.voice?.transcription?.transcription;
+
+                const xaiResponse = await xaiApi.explainEnhanced({
+                    text: textInput || undefined,
+                    image_path: result?.image?.image_path,
+                    transcription: transcription || undefined,
+                });
+                setXaiExplain(xaiResponse);
+            } catch (xaiErr) {
+                console.warn('[ValidationHub] Auto XAI explanation failed:', formatErrorMessage(xaiErr));
+            }
 
             // ── Save to shared items table (background, non-blocking) ──
             if (user?.id && (effectiveIntent === 'lost' || effectiveIntent === 'found')) {
@@ -493,13 +549,6 @@ function ValidationHub() {
         try {
             console.log('[ValidationHub] Running context analysis with existing data');
             
-            // If we already have a validation result, just use it
-            if (currentResult) {
-                console.log('[ValidationHub] Using existing validation result');
-                setAnalysisLoading(false);
-                return;
-            }
-
             // Extract entity data from text input
             const extractedEntities: Record<string, string> = {};
             textInput.split(',').forEach((segment) => {
@@ -515,22 +564,23 @@ function ValidationHub() {
             const merged = { ...extractedEntities, ...localExtractedInfo };
 
             console.log('[ValidationHub] Extracted entities:', merged);
-            console.log('[ValidationHub] Calling validateComplete with FormData');
+            const itemType = merged.item_type || merged['item type'];
+            const locationValue = merged.location;
+            const timeValue = merged.time;
 
-            // Use the existing validation API that properly formats the request
-            const result = await validationApi.validateComplete({
-                text: textInput || undefined,
-                visualText: visualText || undefined,
-                imageFile: imageFile || undefined,
-                audioFile: audioFile || undefined,
-                language: 'en',
-                intent: intent || undefined,
-                userId: user?.id,
-                userEmail: user?.email ?? undefined,
+            if (!itemType || !locationValue) {
+                setAnalysisError('Need at least item type and location to run context analysis.');
+                return;
+            }
+
+            const response = await contextApi.validateContext({
+                item_type: itemType,
+                location: locationValue,
+                time: timeValue || undefined,
             });
 
-            console.log('[ValidationHub] Context analysis response:', result);
-            setResult(result);
+            console.log('[ValidationHub] Context analysis response:', response);
+            setContextResult(response);
             setAnalysisError(null);
         } catch (err) {
             const message = formatErrorMessage(err);

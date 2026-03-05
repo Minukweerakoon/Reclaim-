@@ -1293,6 +1293,7 @@ async def get_enhanced_xai_explanation(
     Phase 2: Enhanced XAI with brand, location, and condition checks.
     """
     try:
+        from src.cross_modal.xai_explainer import XAIExplainer
         from src.cross_modal.enhanced_discrepancies import (
             check_brand_mismatch,
             check_location_consistency,
@@ -1690,14 +1691,52 @@ async def validate_complete(
                 logger.info("✓ Text validation successful")
             except Exception as e:
                 logger.warning(f"Text validation failed, using fallback: {e}")
-                # Fallback: Basic entity extraction
+                # Fallback: parse structured key:value text so entity cards still populate.
+                extracted_entities = {
+                    "item_type": [],
+                    "color": [],
+                    "brand": [],
+                    "location": [],
+                    "time": [],
+                }
+                key_aliases = {
+                    "item": "item_type",
+                    "item_type": "item_type",
+                    "item type": "item_type",
+                    "type": "item_type",
+                    "color": "color",
+                    "brand": "brand",
+                    "location": "location",
+                    "place": "location",
+                    "time": "time",
+                }
+                for segment in text.split(','):
+                    idx = segment.find(':')
+                    if idx <= 0:
+                        continue
+                    raw_key = segment[:idx].strip().lower()
+                    value = segment[idx + 1:].strip()
+                    canonical_key = key_aliases.get(raw_key)
+                    if canonical_key and value:
+                        extracted_entities[canonical_key].append(value)
+
                 text_result = {
                     "text": text,
                     "valid": True,
-                    "overall_score": 0.5,
-                    "completeness": {"valid": True, "score": 0.5, "entities": {}, "missing_info": []},
+                    "overall_score": 0.7 if any(extracted_entities.values()) else 0.5,
+                    "completeness": {
+                        "valid": True,
+                        "score": 0.7 if any(extracted_entities.values()) else 0.5,
+                        "entities": extracted_entities,
+                        "missing_info": [],
+                    },
                     "coherence": {"valid": True, "score": 0.5},
-                    "entities": {},
+                    "entities": {
+                        "item_mentions": extracted_entities.get("item_type", []),
+                        "color_mentions": extracted_entities.get("color", []),
+                        "brand_mentions": extracted_entities.get("brand", []),
+                        "location_mentions": extracted_entities.get("location", []),
+                    },
                     "timestamp": datetime.now().isoformat(),
                     "degraded": True,
                     "degradation_reason": str(e)
@@ -1778,6 +1817,36 @@ async def validate_complete(
                     "degraded": True,
                     "degradation_reason": str(e)
                 }
+
+        # ============ CROSS-MODAL CONSISTENCY CHECKS ============
+        if image_path and text:
+            try:
+                cv = get_clip_validator()
+                if cv is None:
+                    raise Exception("CLIP validator not available")
+                cross_modal_results["image_text"] = cv.validate_image_text_alignment(image_path, text)
+                logger.info("✓ Image-text consistency checked")
+            except Exception as e:
+                logger.warning(f"Image-text consistency check failed: {e}")
+
+        if voice_result and text_result:
+            try:
+                ce_context = get_consistency_engine()
+                if ce_context is None:
+                    raise Exception("Consistency engine not available")
+
+                transcription = ""
+                if isinstance(voice_result.get("transcription"), dict):
+                    transcription = voice_result.get("transcription", {}).get("transcription", "") or ""
+                elif isinstance(voice_result.get("transcription"), str):
+                    transcription = voice_result.get("transcription") or ""
+
+                if transcription:
+                    cross_modal_results["voice_text"] = ce_context.validate_voice_text_consistency(transcription, text)
+                cross_modal_results["context"] = ce_context.validate_context_consistency(text_result, voice_result)
+                logger.info("✓ Voice-text/context consistency checked")
+            except Exception as e:
+                logger.warning(f"Voice-text/context consistency check failed: {e}")
         
         # ============ CALCULATE CONFIDENCE ============
         try:
