@@ -91,6 +91,72 @@ def convert_numpy_types(obj):
         return [convert_numpy_types(i) for i in obj]
     return obj
 
+
+def build_clip_text(raw_text: Optional[str], text_result: Optional[Dict] = None, visual_text: Optional[str] = None) -> str:
+    """
+    Build a clean natural-language description for CLIP from structured chatbot text.
+
+    Chatbot text arrives as "Intent: lost, item type: camera, color: black, brand: Nikon, ..."
+    CLIP was trained on natural language, so direct injection of this format hurts similarity.
+    This helper extracts the visual attributes (item type, color, brand) and composes a short
+    sentence like "black Nikon camera" that CLIP understands much better.
+
+    Priority:
+      1. Explicit visualText provided by the user (best signal)
+      2. Extracted attributes from text_result entities / completeness
+      3. Parsed key:value pairs from raw_text
+      4. raw_text as fallback (truncated to 200 chars for safety)
+    """
+    # 1. User-provided visual description always wins
+    if visual_text and visual_text.strip():
+        return visual_text.strip()
+
+    color: Optional[str] = None
+    brand: Optional[str] = None
+    item_type: Optional[str] = None
+
+    # 2. Pull from text_result entities (most reliable)
+    if text_result:
+        ents = text_result.get("entities", {}) or {}
+        compl = text_result.get("completeness", {}).get("entities", {}) or {}
+
+        colors = ents.get("color_mentions", []) or compl.get("color", [])
+        brands = ents.get("brand_mentions", []) or compl.get("brand", [])
+        items  = ents.get("item_mentions",  []) or compl.get("item_type", [])
+
+        color     = colors[0] if colors else None
+        brand     = brands[0] if brands else None
+        item_type = items[0]  if items  else None
+
+    # 3. Fall back to parsing key:value pairs in raw_text
+    if raw_text and not (color and item_type):
+        for segment in raw_text.split(","):
+            idx = segment.find(":")
+            if idx < 0:
+                continue
+            key = segment[:idx].strip().lower().replace(" ", "_")
+            val = segment[idx + 1:].strip()
+            if not val or key == "intent":
+                continue
+            if key in ("item_type", "item type") and not item_type:
+                item_type = val
+            elif key == "color" and not color:
+                color = val
+            elif key == "brand" and not brand:
+                brand = val
+
+    # 4. Compose the natural-language query
+    parts = [p for p in [color, brand, item_type] if p]
+    if parts:
+        clip_text = " ".join(parts)
+        logger.info(f"[CLIP] Composed natural-language query: '{clip_text}' (color={color}, brand={brand}, item={item_type})")
+        return clip_text
+
+    # 5. Absolute fallback — truncate raw text to 200 chars (CLIP limit)
+    fallback = (raw_text or "").strip()[:200]
+    logger.info(f"[CLIP] Using raw text fallback (first 200 chars): '{fallback}'")
+    return fallback
+
 # Caching decorator
 def cached(ttl: int = 300):
     def decorator(func):
@@ -1823,8 +1889,16 @@ async def validate_complete(
             try:
                 cv = get_clip_validator()
                 if cv is not None:
-                    clip_text = visualText if visualText else text
-                    logger.info(f"[CLIP] Using text for validation: '{clip_text}' (visual_only={bool(visualText)})")
+                    # Build a clean natural-language query for CLIP.
+                    # Chatbot text ("Intent: lost, item type: camera, color: black, brand: Nikon")
+                    # is not understood well by CLIP. We extract visual attributes and compose
+                    # "black Nikon camera" instead, which CLIP handles much better.
+                    clip_text = build_clip_text(
+                        raw_text=text,
+                        text_result=text_result,
+                        visual_text=visualText
+                    )
+                    logger.info(f"[CLIP] Final query for CLIP: '{clip_text}'")
                     # Do NOT cache CLIP — each image path is unique (timestamped temp file)
                     # and a cached failure would permanently poison the result for that session.
                     clip_image_text_result = cv.validate_image_text_alignment(image_path, clip_text)

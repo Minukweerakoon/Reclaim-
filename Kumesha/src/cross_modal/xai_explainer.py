@@ -160,6 +160,12 @@ class XAIExplainer:
         YOLO_IGNORE_CLASSES = {              # classes that are almost certainly YOLO mis-fires for small items
             "shop sign", "sign", "banner", "billboard", "storefront",
             "advertisement", "poster", "label",
+            # Nonsensical / internal YOLO outputs
+            "big right", "big left", "big center", "big top", "big bottom",
+            "small right", "small left", "small center",
+            "right", "left", "center", "top", "bottom",
+            # Generic scene/background classes that are not lost items
+            "indoor", "outdoor", "scene", "background",
         }
 
         if image_result:
