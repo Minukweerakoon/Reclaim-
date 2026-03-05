@@ -27,10 +27,10 @@ class XAIExplainer:
         items: List[str] = []
         if text_result:
             entities = text_result.get("entities", {}) or {}
-            items.extend([item.lower() for item in entities.get("item_mentions", []) if item])
+            items.extend([item.lower() for item in entities.get("item_mentions", []) if item and item.lower() not in ["unknown", "none"]])
 
             completeness_entities = text_result.get("completeness", {}).get("entities", {}) or {}
-            items.extend([item.lower() for item in completeness_entities.get("item_type", []) if item])
+            items.extend([item.lower() for item in completeness_entities.get("item_type", []) if item and item.lower() not in ["unknown", "none"]])
 
         for item_type in [
             "backpack", "bag", "phone", "wallet", "laptop", "umbrella",
@@ -41,8 +41,15 @@ class XAIExplainer:
 
         deduped = []
         for item in items:
-            if item and item not in deduped:
+            if item and item not in deduped and item != "unknown":
                 deduped.append(item)
+        
+        # Fallback to the text's extracted item group if logic fails
+        if not deduped and text_result:
+             intent_obj = text_result.get("object", "")
+             if intent_obj and intent_obj.lower() not in ["unknown", "none"]:
+                 deduped.append(intent_obj.lower())
+                 
         return deduped
 
     def _extract_described_colors(self, text_result: Optional[Dict], description_lower: str) -> List[str]:
@@ -101,13 +108,13 @@ class XAIExplainer:
                            description: Optional[str] = None) -> Dict[str, Any]:
         """
         Generate a comprehensive explanation for validation failures.
-        
+
         Returns:
             {
                 "has_discrepancy": bool,
-                "discrepancy_type": str,  # "color", "object", "quantity", "context"
+                "discrepancy_type": str,
                 "explanation": str,
-                "severity": str,  # "low", "medium", "high"
+                "severity": str,
                 "suggestions": List[str]
             }
         """
@@ -118,131 +125,201 @@ class XAIExplainer:
             "severity": "low",
             "suggestions": []
         }
-        
-        # Get description from various sources
+
+        # ── collect described attributes ──────────────────────────────────────
         desc_text = description or ""
         if not desc_text and text_result:
             desc_text = text_result.get("text", "") or text_result.get("description", "")
-        if not desc_text and cross_modal_results:
-            # Try to get from image_text result
-            image_text = cross_modal_results.get("image_text", {})
-            desc_text = image_text.get("text", "") or image_text.get("description", "")
-        
         desc_lower = desc_text.lower()
 
-        described_items = self._extract_described_items(text_result, desc_lower)
+        described_items  = self._extract_described_items(text_result, desc_lower)
         mentioned_colors = self._extract_described_colors(text_result, desc_lower)
-        detected_object = self._get_detected_object(image_result)
 
-        # Check for object type mismatch using detected object vs described entities
-        if detected_object and described_items:
-            if not self._is_item_compatible(detected_object, described_items):
-                described_item = described_items[0]
-                return {
-                    "has_discrepancy": True,
-                    "discrepancy_type": "object_mismatch",
-                    "severity": "high",
-                    "explanation": (
-                        f"Object mismatch: You described a '{described_item}' but the image "
-                        f"appears to show '{detected_object}'."
-                    ),
-                    "suggestions": [
-                        f"Update your description to match '{detected_object}'",
-                        f"Upload a photo of your {described_item}",
-                        "Double-check you're describing the correct item"
-                    ]
-                }
+        # Extract brand mentions from text entities
+        described_brands: List[str] = []
+        if text_result:
+            ents = text_result.get("entities", {}) or {}
+            described_brands = [b.lower() for b in ents.get("brand_mentions", []) if b]
+            if not described_brands:
+                compl = text_result.get("completeness", {}).get("entities", {}) or {}
+                described_brands = [b.lower() for b in compl.get("brand", []) if b]
 
-        # Check for color mismatch using detected dominant color vs described colors
-        image_color = None
+        # ── CLIP similarity (primary signal) ──────────────────────────────────
+        clip_similarity:  float = 1.0
+        clip_valid:       bool  = True
+        clip_result:      Dict  = {}
+        if cross_modal_results and "image_text" in cross_modal_results:
+            clip_result      = cross_modal_results["image_text"] or {}
+            clip_similarity  = clip_result.get("similarity", 1.0)
+            clip_valid       = clip_result.get("valid", True)
+
+        # ── YOLO object detection (supporting signal — low confidence = ignore) ──
+        detected_object:     Optional[str]   = None
+        detected_confidence: float           = 0.0
+        YOLO_CONFIDENCE_MIN = 0.45           # below this, YOLO result is too uncertain to report
+        YOLO_IGNORE_CLASSES = {              # classes that are almost certainly YOLO mis-fires for small items
+            "shop sign", "sign", "banner", "billboard", "storefront",
+            "advertisement", "poster", "label",
+        }
+
+        if image_result:
+            objects   = image_result.get("objects", {}) or {}
+            detections = objects.get("detections", [])
+            if detections:
+                top = detections[0]
+                detected_object     = top.get("class") or top.get("label")
+                detected_confidence = float(top.get("confidence", 0.0))
+
+        # Filter out low-confidence / known-bad YOLO classes
+        yolo_reliable = (
+            detected_object is not None
+            and detected_confidence >= YOLO_CONFIDENCE_MIN
+            and detected_object.lower() not in YOLO_IGNORE_CLASSES
+        )
+
+        # ── image color (if available) ────────────────────────────────────────
+        image_color: Optional[str] = None
         if image_result:
             image_color = image_result.get("dominant_color")
             if not image_color and "quality" in image_result:
                 image_color = image_result["quality"].get("dominant_color")
 
+        # ═════════════════════════════════════════════════════════════════════
+        # DECISION TREE  (CLIP → Object → Color → Brand → Voice)
+        # ═════════════════════════════════════════════════════════════════════
+
+        # 1) CLIP-driven mismatch  (primary gate)
+        if not clip_valid or clip_similarity < 0.55:
+            severity   = "high" if clip_similarity < 0.35 else "medium"
+            sim_pct    = f"{clip_similarity:.0%}"
+            findings:  List[str] = []
+            suggestions: List[str] = []
+
+            # Sub-finding: YOLO object mismatch (only if reliable)
+            if yolo_reliable and described_items:
+                if not self._is_item_compatible(detected_object, described_items):
+                    findings.append(
+                        f"The image appears to contain a '{detected_object}' "
+                        f"(detected with {detected_confidence:.0%} confidence), "
+                        f"but you described a '{described_items[0]}'"
+                    )
+                    suggestions.append(f"Upload a clear photo of your {described_items[0]}.")
+            elif described_items and not yolo_reliable:
+                # YOLO was unreliable — mention CLIP instead
+                findings.append(
+                    f"The image content does not closely match the described '{described_items[0]}' "
+                    f"(AI semantic similarity: {sim_pct})"
+                )
+                suggestions.append(f"Make sure the photo clearly shows your {described_items[0]}.")
+
+            # Sub-finding: color mismatch
+            if image_color and mentioned_colors:
+                if image_color.lower() not in [c.lower() for c in mentioned_colors]:
+                    findings.append(
+                        f"Color mismatch — you described '{', '.join(mentioned_colors)}' "
+                        f"but the image appears to be '{image_color}'"
+                    )
+                    suggestions.append(
+                        f"Update your description: the image suggests the color is '{image_color}'."
+                    )
+            elif mentioned_colors and not image_color:
+                # Can't read image color, flag that CLIP disagrees
+                findings.append(
+                    f"The image does not correlate well with the described color "
+                    f"'{', '.join(mentioned_colors)}' (similarity {sim_pct})"
+                )
+
+            # Sub-finding: brand not apparent
+            if described_brands:
+                findings.append(
+                    f"Described brand '{described_brands[0]}' could not be verified in the image"
+                )
+
+            if not findings:
+                findings.append(
+                    f"The image content doesn't closely match the text description "
+                    f"(cross-modal similarity: {sim_pct})"
+                )
+
+            suggestions.append("Retake the photo so the item is clearly visible and well-lit.")
+
+            explanation = f"Found {len(findings)} cross-modal mismatch{'es' if len(findings) > 1 else ''}. " \
+                          + " | ".join(findings) + "."
+
+            return {
+                "has_discrepancy": True,
+                "discrepancy_type": "cross_modal_mismatch",
+                "severity": severity,
+                "explanation": explanation,
+                "suggestions": suggestions
+            }
+
+        # 2) Object type mismatch even at higher CLIP scores
+        if yolo_reliable and described_items:
+            if not self._is_item_compatible(detected_object, described_items):
+                return {
+                    "has_discrepancy": True,
+                    "discrepancy_type": "object_mismatch",
+                    "severity": "high",
+                    "explanation": (
+                        f"Object mismatch: You described a '{described_items[0]}' but the image "
+                        f"appears to show a '{detected_object}' "
+                        f"(confidence: {detected_confidence:.0%})."
+                    ),
+                    "suggestions": [
+                        f"Upload a photo of your {described_items[0]}.",
+                        f"Update your description if '{detected_object}' is correct.",
+                        "Double-check you are describing the correct item."
+                    ]
+                }
+
+        # 3) Color mismatch (standalone)
         if image_color and mentioned_colors:
-            image_color_lower = image_color.lower()
-            if image_color_lower not in [c.lower() for c in mentioned_colors]:
+            if image_color.lower() not in [c.lower() for c in mentioned_colors]:
                 return {
                     "has_discrepancy": True,
                     "discrepancy_type": "color_mismatch",
                     "severity": "medium",
                     "explanation": (
                         f"Color mismatch: You described '{', '.join(mentioned_colors)}' "
-                        f"but the image appears to be {image_color}."
+                        f"but the image appears to be '{image_color}'."
                     ),
                     "suggestions": [
-                        f"Update your description to mention '{image_color}'",
-                        "Verify the photo shows the correct item",
-                        "Retake the photo in better lighting if the color looks off"
+                        f"Update your description to mention '{image_color}'.",
+                        "Verify the photo shows the correct item.",
+                        "Retake the photo in better lighting if the color looks off."
                     ]
                 }
 
-        if image_color and not mentioned_colors:
+        # 4) No image color but CLIP is borderline → suggest colour
+        if mentioned_colors and not image_color:
             result["suggestions"].append(
-                f"Consider adding the color '{image_color}' to your description."
+                f"Consider adding the color '{mentioned_colors[0]}' explicitly to help matching."
             )
-            
-        # Check for CLIP similarity issues (semantic mismatch)
-        if cross_modal_results and "image_text" in cross_modal_results:
-            clip_result = cross_modal_results["image_text"]
-            similarity = clip_result.get("similarity", 1.0)
-            if not clip_result.get("valid", True) or similarity < 0.85:
-                # Create smart explanation based on what we know
-                explanation_parts = []
-                
-                if detected_object and detected_object.lower() not in desc_lower:
-                    explanation_parts.append(
-                        f"The image shows '{detected_object}' which may not match your description"
-                    )
-                
-                if mentioned_colors:
-                    explanation_parts.append(
-                        f"You mentioned '{', '.join(mentioned_colors)}' colors"
-                    )
-                
-                if not explanation_parts:
-                    explanation_parts.append(
-                        "The image content doesn't match the description well"
-                    )
-                
-                result["has_discrepancy"] = True
-                result["discrepancy_type"] = "semantic_mismatch"
-                result["severity"] = "high" if similarity < 0.5 else "medium"
-                result["explanation"] = (
-                    f"Low similarity ({similarity:.0%}): {'. '.join(explanation_parts)}. "
-                    f"Please verify the photo matches your description."
-                )
-                suggestions = []
-                if detected_object:
-                    suggestions.append(f"If this is a '{detected_object}', update your description accordingly.")
-                if image_color and not mentioned_colors:
-                    suggestions.append(f"Add the color '{image_color}' to help matching.")
-                suggestions.append("Ensure the photo clearly shows the item you described.")
-                suggestions.append("Take a clearer, well-lit photo of the item.")
-                result["suggestions"] = suggestions
-                return result
-        
-        # Check voice-text consistency
+
+        # 5) Voice-text mismatch
         if cross_modal_results and "voice_text" in cross_modal_results:
             voice_text = cross_modal_results["voice_text"]
             if not voice_text.get("valid", True):
-                result["has_discrepancy"] = True
-                result["discrepancy_type"] = "voice_text_mismatch"
-                result["severity"] = "medium"
-                result["explanation"] = (
-                    "Your voice description doesn't match your written description. "
-                    "They should describe the same item."
-                )
-                result["suggestions"] = [
-                    "Re-record your voice description",
-                    "Update your text to match what you said",
-                    "Speak more clearly when recording"
-                ]
-                return result
-        
+                return {
+                    "has_discrepancy": True,
+                    "discrepancy_type": "voice_text_mismatch",
+                    "severity": "medium",
+                    "explanation": (
+                        "Your voice description doesn't match your written description. "
+                        "They should describe the same item."
+                    ),
+                    "suggestions": [
+                        "Re-record your voice description.",
+                        "Update your text to match what you said.",
+                        "Speak more clearly when recording."
+                    ]
+                }
+
         return result
-    
+
+
+
     def _check_object_type_mismatch(self, detected_object: Optional[str], description_lower: str) -> Optional[Dict]:
         """
         Check if detected object type doesn't match what user described.
@@ -332,7 +409,7 @@ class XAIExplainer:
         # Extract described object from text
         text_body = text_result.get("text", "").lower()
         entities = text_result.get("entities", {})
-        item_mentions = entities.get("item_mentions", [])
+        item_mentions = [item for item in entities.get("item_mentions", []) if item and item.lower() not in ["unknown", "none"]]
         
         # Simple object comparison
         detected_lower = detected_class.lower()
@@ -345,7 +422,7 @@ class XAIExplainer:
         
         if not is_mentioned and item_mentions:
             # Found mismatch
-            described_item = item_mentions[0] if item_mentions else "unknown"
+            described_item = item_mentions[0]
             return {
                 "has_discrepancy": True,
                 "discrepancy_type": "object_mismatch",

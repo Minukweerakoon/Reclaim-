@@ -710,6 +710,8 @@ class ImageValidator:
             "suitcase": "bag",  # YOLO often detects purses/clutches as suitcase
             "umbrella": "umbrella",
             "tie": "clothing",
+            "jacket": "clothing",
+            "coat": "clothing",
             
             # Common Lost Items
             "book": "book",

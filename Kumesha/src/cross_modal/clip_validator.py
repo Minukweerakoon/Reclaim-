@@ -219,7 +219,8 @@ class CLIPValidator:
                 "message": str  # Overall validation message
             }
         """
-        start_time = time.time()
+        if self.enable_logging:
+            logger.info(f"Validating alignment: image_path={image_path}, text='{text[:50]}...'")
         
         # Initialize result structure
         result = {
@@ -230,6 +231,14 @@ class CLIPValidator:
             "mismatch_detection": {"mismatches": [], "attribute_scores": {}},
             "suggestions": []
         }
+
+        if not text or not text.strip():
+            result["feedback"] = "Alignment failed: Empty text provided"
+            return result
+        
+        if not image_path:
+            result["feedback"] = "Alignment failed: No image path provided"
+            return result
         
         try:
             # Step 1: Validate file format and size (internal check, not returned)

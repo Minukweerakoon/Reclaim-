@@ -28,6 +28,8 @@ from supabase import create_client, Client
 import time
 import json
 import uuid
+import inspect
+import asyncio
 import requests  # For AI backend HTTP requests
 from typing import Dict, List, Optional, Any, Union
 from functools import wraps
@@ -72,13 +74,31 @@ else:
     logger.warning("Supabase credentials missing - database features disabled")
     supabase = None
 
+# Helper to convert numpy types to native Python types for JSON serialization
+def convert_numpy_types(obj):
+    import numpy as np
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+    if isinstance(obj, (np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64)):
+        return int(obj)
+    if isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return convert_numpy_types(obj.tolist())
+    if isinstance(obj, dict):
+        return {k: convert_numpy_types(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [convert_numpy_types(i) for i in obj]
+    return obj
+
 # Caching decorator
 def cached(ttl: int = 300):
     def decorator(func):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
-            # Generate cache key from function name and arguments
-            cache_key_parts = [func.__name__]
+            # Generate cache key from function name, version, and arguments
+            CACHE_VERSION = "v2"
+            cache_key_parts = [func.__name__, CACHE_VERSION]
             for arg in args:
                 cache_key_parts.append(str(arg))
             for k, v in kwargs.items():
@@ -103,7 +123,7 @@ def cached(ttl: int = 300):
             result = await func(*args, **kwargs)
             if _redis_available:
                 try:
-                    redis_client.setex(cache_key, ttl, json.dumps(result))
+                    redis_client.setex(cache_key, ttl, json.dumps(convert_numpy_types(result)))
                 except RedisError as redis_error:
                     logger.warning(f"Redis unavailable while setting cache (async path): {redis_error}")
                     _redis_available = False
@@ -111,8 +131,9 @@ def cached(ttl: int = 300):
 
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
-            # Generate cache key from function name and arguments
-            cache_key_parts = [func.__name__]
+            # Generate cache key from function name, version, and arguments
+            CACHE_VERSION = "v2"
+            cache_key_parts = [func.__name__, CACHE_VERSION]
             for arg in args:
                 cache_key_parts.append(str(arg))
             for k, v in kwargs.items():
@@ -137,13 +158,13 @@ def cached(ttl: int = 300):
             result = func(*args, **kwargs)
             if _redis_available:
                 try:
-                    redis_client.setex(cache_key, ttl, json.dumps(result))
+                    redis_client.setex(cache_key, ttl, json.dumps(convert_numpy_types(result)))
                 except RedisError as redis_error:
                     logger.warning(f"Redis unavailable while setting cache: {redis_error}")
                     _redis_available = False
             return result
 
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             return async_wrapper
         else:
             return sync_wrapper
@@ -217,7 +238,7 @@ _database_manager = None
 
 def get_text_validator():
     global _text_validator
-    if _text_validator is None:
+    if _text_validator is None or _text_validator is False:
         try:
             mod = importlib.import_module('src.text.validator')
             _text_validator = mod.TextValidator(enable_logging=True)
@@ -228,7 +249,7 @@ def get_text_validator():
 
 def get_voice_validator():
     global _voice_validator
-    if _voice_validator is None:
+    if _voice_validator is None or _voice_validator is False:
         try:
             mod = importlib.import_module('src.voice.validator')
             _voice_validator = mod.VoiceValidator(enable_logging=True)
@@ -239,7 +260,7 @@ def get_voice_validator():
 
 def get_image_validator():
     global _image_validator
-    if _image_validator is None:
+    if _image_validator is None or _image_validator is False:
         try:
             mod = importlib.import_module('src.image.validator')
             _image_validator = mod.ImageValidator(enable_logging=True)
@@ -250,7 +271,7 @@ def get_image_validator():
 
 def get_clip_validator():
     global _clip_validator
-    if _clip_validator is None:
+    if _clip_validator is None or _clip_validator is False:
         try:
             logger.info("[DEBUG] Attempting to import src.cross_modal.clip_validator")
             mod = importlib.import_module('src.cross_modal.clip_validator')
@@ -266,7 +287,7 @@ def get_clip_validator():
 
 def get_consistency_engine():
     global _consistency_engine
-    if _consistency_engine is None:
+    if _consistency_engine is None or _consistency_engine is False:
         try:
             import importlib
             import sys
@@ -1313,6 +1334,11 @@ async def get_enhanced_xai_explanation(
         voice_result = {"transcription": request.transcription} if request.transcription else None
         cross_modal_results = request.cross_modal_results
         
+        logger.error("========== XAI EXPLAINER RECEIVED DATA ==========")
+        logger.error(f"IMAGE RESULT: {json.dumps(image_result)}")
+        logger.error(f"TEXT RESULT: {json.dumps(text_result)}")
+        logger.error("=================================================")
+        
         # Get basic explanation — pass all available data
         base_explanation = explainer.generate_explanation(
             image_result=image_result,
@@ -1675,6 +1701,12 @@ async def validate_complete(
     image_path = None
     audio_path = None
     
+    logger.error("========== VALIDATE COMPLETE START ==========")
+    logger.error(f"TEXT: {bool(text)}")
+    logger.error(f"IMAGE: {bool(image_file)}")
+    logger.error(f"INTENT: {intent}")
+    logger.error("===========================================")
+    
     # Log received data
     logger.info(f"[VALIDATE] Received - Text: {bool(text)}, Image: {bool(image_file)}, Audio: {bool(audio_file)}")
     logger.info(f"[VALIDATE] Intent: {intent}, UserID: {userId}")
@@ -1793,11 +1825,17 @@ async def validate_complete(
                 if cv is not None:
                     clip_text = visualText if visualText else text
                     logger.info(f"[CLIP] Using text for validation: '{clip_text}' (visual_only={bool(visualText)})")
-                    clip_image_text_result = cached()(cv.validate_image_text_alignment)(image_path, clip_text)
+                    # Do NOT cache CLIP — each image path is unique (timestamped temp file)
+                    # and a cached failure would permanently poison the result for that session.
+                    clip_image_text_result = cv.validate_image_text_alignment(image_path, clip_text)
+                    logger.info(f"[CLIP] Raw result similarity: {clip_image_text_result.get('similarity')}, valid: {clip_image_text_result.get('valid')}")
+                    logger.info(f"[CLIP] Full result: {clip_image_text_result}")
                     cross_modal_results["image_text"] = clip_image_text_result
                     logger.info("✓ CLIP cross-modal validation successful")
+                else:
+                    logger.warning("[CLIP] Validator is None, skipping CLIP validation")
             except Exception as e:
-                logger.warning(f"CLIP cross-modal validation failed: {e}")
+                logger.warning(f"CLIP cross-modal validation failed: {e}", exc_info=True)
 
         # ============ CALCULATE CONFIDENCE ============
         try:
@@ -1850,6 +1888,9 @@ async def validate_complete(
             }
         }
         
+        
+        response_data = convert_numpy_types(response_data)
+        
         # ============ SAVE TO SUPABASE (ALWAYS ATTEMPT) ============
         supabase_saved_id = None
         image_url = None
@@ -1867,12 +1908,17 @@ async def validate_complete(
                         "individual_scores": confidence_results.get("individual_scores", {}),
                         "request_id": request_id,
                     },
+                    "cross_modal": cross_modal_results,
+                    "image_result": image_result,
                     "item_type": intent,
                     "user_id": userId,
                     "user_email": userEmail or "",
                     "status": "pending",
                     "created_at": datetime.utcnow().isoformat(),
                 }
+                
+                # Convert any numpy types that may have snuck in (e.g. in validation_summary)
+                item_data = convert_numpy_types(item_data)
                 
                 # Extract entities from text if available
                 if text_result and not text_result.get("degraded"):
