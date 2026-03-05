@@ -2,6 +2,7 @@ import os
 import io
 from typing import Optional, Literal
 from datetime import datetime
+import time
 
 import numpy as np
 import requests
@@ -203,13 +204,24 @@ def rebuild_faiss():
 # =========================================================
 
 def download_image(url: str) -> Image.Image:
-    try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, timeout=20, headers=headers)
-        r.raise_for_status()
-        return Image.open(io.BytesIO(r.content)).convert("RGB")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    headers = {"User-Agent": "Mozilla/5.0"}
+    last_error: Optional[Exception] = None
+
+    # Transient network errors to Supabase/CDN do happen; retry before failing.
+    for attempt in range(1, 4):
+        try:
+            r = requests.get(url, timeout=20, headers=headers)
+            r.raise_for_status()
+            return Image.open(io.BytesIO(r.content)).convert("RGB")
+        except Exception as e:
+            last_error = e
+            if attempt < 3:
+                time.sleep(0.5 * attempt)
+
+    raise HTTPException(
+        status_code=400,
+        detail=f"Failed to download image after retries: {last_error}"
+    )
 
 @torch.no_grad()
 def mc_predict(x, T=20):

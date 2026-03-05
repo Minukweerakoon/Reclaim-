@@ -53,7 +53,6 @@ function ValidationHub() {
     const [feedbackNote, setFeedbackNote] = useState('');
     const [feedbackStatus, setFeedbackStatus] = useState<string | null>(null);
     const [analysisLoading, setAnalysisLoading] = useState(false);
-    const autoSubmitRef = useRef(false);
     const recorderRef = useRef<MediaRecorder | null>(null);
     const recordingChunksRef = useRef<Blob[]>([]);
     const recordingStreamRef = useRef<MediaStream | null>(null);
@@ -78,7 +77,8 @@ function ValidationHub() {
         pendingImageFile,
         pendingAudioFile,
         pendingExtractedInfo,
-        clearPending,
+        setPendingInputs,
+        setPendingMedia,
         reset,
         intent,
     } = useValidationStore();
@@ -333,21 +333,26 @@ function ValidationHub() {
         if (pendingAudioFile) {
             setAudioFile(pendingAudioFile);
         }
-        if (pendingText || pendingVisualText || pendingImageFile || pendingAudioFile) {
-            autoSubmitRef.current = true;
-            clearPending();
-        }
     }, [
         pendingText,
         pendingVisualText,
         pendingImageFile,
         pendingAudioFile,
         pendingExtractedInfo,
-        clearPending,
         chatImage,
         chatImagePreview,
         setPendingImage
     ]);
+
+    // Persist current ValidationHub draft so route changes do not wipe session inputs.
+    useEffect(() => {
+        setPendingInputs(textInput, visualText);
+    }, [textInput, visualText, setPendingInputs]);
+
+    // Persist selected media in the same session store.
+    useEffect(() => {
+        setPendingMedia(imageFile, audioFile);
+    }, [imageFile, audioFile, setPendingMedia]);
 
     const handleSubmit = async () => {
         if (!textInput && !imageFile && !audioFile) {
@@ -504,15 +509,6 @@ function ValidationHub() {
             setProgress(0);
         }
     };
-
-    // Auto-submit when arriving from chat with pre-filled data
-    useEffect(() => {
-        if (autoSubmitRef.current && (textInput || imageFile || audioFile) && !isLoading && !currentResult) {
-            autoSubmitRef.current = false;
-            handleSubmit();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [textInput, imageFile, audioFile]);
 
     const handleReset = () => {
         setTextInput('');

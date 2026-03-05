@@ -16,6 +16,8 @@ export interface ValidationResponse {
     xai_heatmap_url?: string;
     /** Set when the item was successfully saved to Supabase (lost_items or found_items) */
     supabase_id?: string;
+    /** Public/signed URL of uploaded image returned by /validate/complete */
+    image_url?: string;
 }
 
 /* ---------- Text ---------- */
@@ -182,9 +184,26 @@ export interface MissionReport {
 // ============================================================================
 
 export interface ChatMessage {
+    id?: string;
     role: 'user' | 'bot';
     content: string;
     timestamp?: string | Date;
+    loading?: boolean;
+    matchResults?: Array<{
+        id?: string;
+        rank?: number;
+        category?: string;
+        final_category?: string;
+        image_url?: string;
+        score?: number;
+        location?: string;
+        reported_time?: string;
+    }>;
+    retryMatch?: {
+        item_id: string;
+        image_url: string;
+        user_category?: string;
+    };
 }
 
 export interface ChatRequest {

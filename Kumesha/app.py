@@ -1691,7 +1691,6 @@ async def validate_complete(
                 logger.info("✓ Text validation successful")
             except Exception as e:
                 logger.warning(f"Text validation failed, using fallback: {e}")
-                # Fallback: parse structured key:value text so entity cards still populate.
                 extracted_entities = {
                     "item_type": [],
                     "color": [],
@@ -1774,6 +1773,23 @@ async def validate_complete(
                 logger.warning(f"Image validation failed, using fallback: {e}")
                 image_result = {
                     "image_path": image_path or "",
+                    "sharpness": {
+                        "valid": False,
+                        "score": 0.0,
+                        "threshold": 0.0,
+                        "feedback": "Image sharpness unavailable"
+                    },
+                    "objects": {
+                        "valid": False,
+                        "detections": [],
+                        "feedback": "Object detection unavailable"
+                    },
+                    "privacy": {
+                        "faces_detected": 0,
+                        "privacy_protected": False,
+                        "processed_image": None,
+                        "feedback": "Privacy scan unavailable"
+                    },
                     "valid": True,
                     "overall_score": 0.5,
                     "timestamp": datetime.now().isoformat(),
@@ -1811,6 +1827,21 @@ async def validate_complete(
                 logger.warning(f"Voice validation failed, using fallback: {e}")
                 voice_result = {
                     "audio_path": audio_path or "",
+                    "quality": {
+                        "valid": False,
+                        "duration": 0.0,
+                        "snr": 0.0,
+                        "duration_valid": False,
+                        "quality_valid": False,
+                        "feedback": "Voice quality analysis unavailable"
+                    },
+                    "transcription": {
+                        "valid": False,
+                        "transcription": "",
+                        "confidence": 0.0,
+                        "language": language,
+                        "feedback": "Transcription unavailable"
+                    },
                     "valid": True,
                     "overall_score": 0.5,
                     "timestamp": datetime.now().isoformat(),
@@ -2008,8 +2039,10 @@ async def validate_complete(
                     if image_url:
                         response_data["image_url"] = image_url
 
-                    # Trigger AI backend processing after successful insert
-                    if image_url:  # Only trigger if image was uploaded
+                    # Trigger AI backend processing after successful insert.
+                    # ONLY for found items - indexes immediately so they're searchable.
+                    # Lost items skip this to avoid timeout; retrieval happens separately in chat.
+                    if image_url and intent == "found":
                         try:
                             AI_BACKEND_URL = "http://localhost:8001/items/process"
 
@@ -2022,7 +2055,7 @@ async def validate_complete(
                                 "mc_T": 20
                             }
 
-                            logger.info(f"🤖 Triggering AI backend for item {supabase_saved_id}")
+                            logger.info(f"🤖 Triggering AI backend for found item {supabase_saved_id}")
                             response = requests.post(
                                 AI_BACKEND_URL,
                                 json=ai_payload,
@@ -2030,13 +2063,16 @@ async def validate_complete(
                             )
                             
                             if response.status_code == 200:
-                                logger.info(f"✓ AI processing completed for item {supabase_saved_id}")
-                                logger.info(f"  Response: {response.json()}")
+                                logger.info(f"✓ AI indexing completed for item {supabase_saved_id}")
                             else:
                                 logger.warning(f"AI backend returned status {response.status_code}: {response.text}")
 
                         except Exception as ai_err:
-                            logger.warning(f"AI processing trigger failed (non-fatal): {ai_err}")
+                            logger.warning(f"AI indexing failed (non-fatal): {ai_err}")
+                    elif image_url and intent == "lost":
+                        logger.info(
+                            f"✓ Lost item {supabase_saved_id} saved - retrieval will be triggered by frontend"
+                        )
                 else:
                     logger.warning("Supabase insert returned no data")
                     

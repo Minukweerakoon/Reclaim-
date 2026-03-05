@@ -11,6 +11,7 @@ const validationClient = axios.create({
     headers: {
         'X-API-Key': API_KEY,
     },
+    timeout: 600000, // 10 minutes - validation can be slow with ML models
 });
 
 // Request interceptor for logging

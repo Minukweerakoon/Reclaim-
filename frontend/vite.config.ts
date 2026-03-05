@@ -37,7 +37,7 @@ export default defineConfig({
         ws: true,
       },
       '/items/process': {
-        target: 'http://127.0.0.1:5001',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
       },
       '/items': {

@@ -3,6 +3,7 @@ import re
 import time
 import logging
 import json
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Dict, List, Optional, Any, Union, Tuple
 import spacy
 from spacy.cli import download as spacy_download
@@ -327,7 +328,19 @@ class TextValidator:
             }
         
         try:
-            return self.llm_client.analyze_text(text)
+            # LLM enrichment is optional; never block core validation flow.
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(self.llm_client.analyze_text, text)
+                return future.result(timeout=8)
+        except FuturesTimeoutError:
+            if self.enable_logging:
+                logger.warning("LLM analysis timed out after 8s; continuing with base validation")
+            return {
+                "analysis": "Basic validation (LLM timeout)",
+                "confidence": 0.5,
+                "suggestions": [],
+                "interpretations": []
+            }
         except Exception as e:
             if self.enable_logging:
                 logger.error(f"LLM analysis failed: {str(e)}")
@@ -700,21 +713,10 @@ class TextValidator:
             # Calculate average similarity score
             avg_similarity = sum(similarity_scores) / len(similarity_scores)
             
-            # Auxiliary BERT attention-based signal (lightweight proxy)
-            aux_signal = 1.0
-            try:
-                tokens = self.tokenizer(text, return_tensors='pt', truncation=True, max_length=256)
-                outputs = self.bert_model(**tokens, output_attentions=True)
-                if outputs.attentions:
-                    last_layer = outputs.attentions[-1]  # (batch, heads, seq, seq)
-                    attn = last_layer.mean(dim=1).squeeze(0).detach().numpy()  # (seq, seq)
-                    # concentration: average of max attention per token
-                    conc = float(np.mean(attn.max(axis=1)))
-                    aux_signal = max(0.0, min(1.0, conc))
-            except Exception:
-                aux_signal = 1.0  # fallback neutral
-            # Blend similarity with aux signal
-            blended = 0.8 * avg_similarity + 0.2 * aux_signal
+            # Keep coherence scoring deterministic and non-blocking.
+            # The previous attention-based auxiliary signal occasionally stalled
+            # on some transformer backends and blocked request completion.
+            blended = float(avg_similarity)
             result["score"] = blended
             
             # Determine validity based on threshold

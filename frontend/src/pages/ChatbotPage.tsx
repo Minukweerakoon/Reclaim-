@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { chatApi } from '../api/chat';
+import { validationApi } from '../api/validation';
 import { formatErrorMessage } from '../components/ErrorMessage';
 import type { ChatMessage } from '../types/api';
 import { useValidationStore } from '../store/useValidationStore';
 import { useChatStore } from '../store/useChatStore';
+import { useAuth } from '../contexts/AuthContext';
+import { MatchResultCard } from '../reclaim/components/MatchResultCard';
 
 const summarizeExtractedInfo = (info: Record<string, any>, intentValue: string) => {
     const parts: string[] = [];
@@ -21,12 +24,29 @@ const buildVisualSeed = (info: Record<string, any>) => {
     return values.join(' ');
 };
 
+const buildValidationNarrative = (info: Record<string, any>, intentValue: string) => {
+    const item = info?.item_type || 'item';
+    const color = info?.color ? `${info.color} ` : '';
+    const brand = info?.brand ? `${info.brand} ` : '';
+    const location = info?.location || 'unknown location';
+    const time = info?.time || 'unknown time';
+
+    if (intentValue === 'lost') {
+        return `I lost a ${color}${brand}${item}. Last seen at ${location} around ${time}.`;
+    }
+
+    return `I found a ${color}${brand}${item} at ${location} around ${time}.`;
+};
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function ChatbotPage() {
-    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const initialIntent = searchParams.get('intent') || '';
+    const { user } = useAuth();
 
     const [input, setInput] = useState('');
+    const [isProcessingReport, setIsProcessingReport] = useState(false);
     const {
         messages, setMessages,
         isTyping, setIsTyping,
@@ -65,7 +85,120 @@ function ChatbotPage() {
     }, [initialIntent, intent, resetChat, setIntent]);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const { currentResult, setPendingInputs, setPendingMedia, setPendingExtractedInfo, setIntent: setStoreIntent } = useValidationStore();
+    const confirmInFlightRef = useRef(false);
+    const {
+        currentResult,
+        setResult,
+        setIntent: setStoreIntent,
+        setPendingInputs,
+        setPendingMedia,
+        setPendingExtractedInfo,
+    } = useValidationStore();
+
+    // Prefer Vite proxy for consistency with dev server/backends.
+    const processEndpoint = import.meta.env.VITE_AI_PROCESS_URL || '/items/process';
+
+    const runLostRetrieval = async (payload: {
+        item_id: string;
+        image_url: string;
+        user_category?: string;
+    }) => {
+        if (!payload.item_id || !payload.image_url) {
+            throw new Error('Missing retrieval metadata (item_id/image_url)');
+        }
+
+        let processData: any = null;
+        let lastError: unknown = null;
+
+        for (let attempt = 1; attempt <= 2; attempt += 1) {
+            const controller = new AbortController();
+            const timeout = window.setTimeout(() => controller.abort(), 20000);
+
+            try {
+                const processResponse = await fetch(processEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        item_id: payload.item_id,
+                        item_type: 'lost',
+                        image_url: payload.image_url,
+                        user_category: payload.user_category || undefined,
+                        k: 5,
+                    }),
+                    signal: controller.signal,
+                });
+
+                if (!processResponse.ok) {
+                    const errorBody = await processResponse.text();
+                    throw new Error(`AI search failed (${processResponse.status}): ${errorBody || 'no error body'}`);
+                }
+
+                processData = await processResponse.json();
+                window.clearTimeout(timeout);
+                lastError = null;
+                break;
+            } catch (e) {
+                window.clearTimeout(timeout);
+                lastError = e;
+                if (attempt < 2) {
+                    await delay(1000);
+                }
+            }
+        }
+
+        if (!processData) {
+            throw lastError instanceof Error ? lastError : new Error('AI search temporarily unavailable');
+        }
+
+        return processData;
+    };
+
+    const handleRetryMatch = async (messageId: string, retryMatch: { item_id: string; image_url: string; user_category?: string }) => {
+        setMessages((prev) => prev.map((msg) => {
+            if (msg.id !== messageId) return msg;
+            return {
+                ...msg,
+                loading: true,
+                content: 'Retrying matching for your lost item...',
+            };
+        }));
+
+        try {
+            const processData = await runLostRetrieval(retryMatch);
+            const results = Array.isArray(processData?.results) ? processData.results : [];
+
+            setMessages((prev) => prev.map((msg) => {
+                if (msg.id !== messageId) return msg;
+                if (!results.length) {
+                    return {
+                        ...msg,
+                        loading: false,
+                        content: 'No matching items were found yet, but we will notify you if something similar appears.',
+                        matchResults: [],
+                    };
+                }
+                return {
+                    ...msg,
+                    loading: false,
+                    content: 'We found possible matches for your lost item:',
+                    matchResults: results,
+                    retryMatch: undefined,
+                };
+            }));
+        } catch (err) {
+            const errorText = formatErrorMessage(err);
+            console.error('[ChatbotPage] Retry retrieval failed:', errorText);
+            setMessages((prev) => prev.map((msg) => {
+                if (msg.id !== messageId) return msg;
+                return {
+                    ...msg,
+                    loading: false,
+                    content: 'Matching is still delayed. Please retry in a few seconds.',
+                    retryMatch,
+                };
+            }));
+        }
+    };
 
     useEffect(() => {
         if (messages.length === 0) {
@@ -153,22 +286,154 @@ function ChatbotPage() {
         }
     };
 
-    const handleConfirm = () => {
-        setStoreIntent(intent);
-        setPendingInputs(
-            summarizeExtractedInfo(extractedInfo, intent), // The structured facts
-            buildVisualSeed(extractedInfo)                 // The visual hint for CLIP
-        );
-        setPendingExtractedInfo(extractedInfo);
-        if (pendingImage) {
-            setPendingMedia(pendingImage, null);
+    const handleConfirm = async () => {
+        if (!summaryText || !pendingImage || !intent || (intent !== 'lost' && intent !== 'found')) {
+            return;
         }
-        navigate('/validation', {
-            state: {
-                prefillText: summarizeExtractedInfo(extractedInfo, intent),
-                prefillVisualText: buildVisualSeed(extractedInfo)
+        if (confirmInFlightRef.current) {
+            return;
+        }
+
+        confirmInFlightRef.current = true;
+        setIsProcessingReport(true);
+        setSummaryConfirmed(true);
+        setStoreIntent(intent);
+
+        const validationText = buildValidationNarrative(extractedInfo, intent);
+        const visualSeed = buildVisualSeed(extractedInfo);
+        setPendingInputs(validationText, visualSeed);
+        setPendingExtractedInfo(extractedInfo as Record<string, string>);
+        setPendingMedia(pendingImage, null);
+
+        const loadingMessageId = `processing-${Date.now()}`;
+        const processingText = intent === 'lost'
+            ? 'Validating and searching for possible matches...'
+            : 'Validating and saving your found item...';
+        setMessages((prev) => [
+            ...prev,
+            {
+                id: loadingMessageId,
+                role: 'bot',
+                content: processingText,
+                loading: true,
+                timestamp: new Date(),
+            },
+        ]);
+
+        try {
+            const validationResult = await validationApi.validateComplete({
+                text: validationText || undefined,
+                visualText: visualSeed || undefined,
+                imageFile: pendingImage,
+                language: 'en',
+                intent,
+                userId: user?.id,
+                userEmail: user?.email ?? undefined,
+            });
+
+            // Keep ValidationHub in sync with chat-side processing.
+            setResult(validationResult);
+
+            const itemId = validationResult.supabase_id;
+            const imageUrl = validationResult.image_url;
+            const userCategory = extractedInfo?.item_type || '';
+
+            if (!itemId || !imageUrl) {
+                setMessages((prev) => prev.map((msg) => {
+                    if (msg.id !== loadingMessageId) return msg;
+                    return {
+                        ...msg,
+                        loading: false,
+                        content: 'Validation completed, but search metadata is incomplete. Please try again.',
+                    };
+                }));
+                return;
             }
-        });
+
+            if (intent === 'found') {
+                setMessages((prev) => prev.map((msg) => {
+                    if (msg.id !== loadingMessageId) return msg;
+                    return {
+                        ...msg,
+                        loading: false,
+                        content: 'Your found item has been validated and indexed successfully.',
+                    };
+                }));
+                return;
+            }
+
+            setMessages((prev) => prev.map((msg) => {
+                if (msg.id !== loadingMessageId) return msg;
+                return {
+                    ...msg,
+                    loading: true,
+                    content: 'Validation complete. Searching for possible matches...',
+                };
+            }));
+
+            const retrievalPayload = {
+                item_id: itemId,
+                image_url: imageUrl,
+                user_category: userCategory || undefined,
+            };
+
+            // Run retrieval asynchronously so the UI does not appear frozen.
+            void (async () => {
+                let processData: any = null;
+                try {
+                    processData = await runLostRetrieval(retrievalPayload);
+                } catch (err) {
+                    const errorText = formatErrorMessage(err);
+                    console.error('[ChatbotPage] Retrieval flow failed:', errorText);
+                    setMessages((prev) => prev.map((msg) => {
+                        if (msg.id !== loadingMessageId) return msg;
+                        return {
+                            ...msg,
+                            loading: false,
+                            content: 'Validation completed. Matching is taking longer than expected, please check again shortly.',
+                            retryMatch: retrievalPayload,
+                        };
+                    }));
+                    return;
+                }
+
+                const results = Array.isArray(processData?.results) ? processData.results : [];
+
+                setMessages((prev) => prev.map((msg) => {
+                    if (msg.id !== loadingMessageId) return msg;
+                    if (!results.length) {
+                        return {
+                            ...msg,
+                            loading: false,
+                            content: 'No matching items were found yet, but we will notify you if something similar appears.',
+                            matchResults: [],
+                        };
+                    }
+                    return {
+                        ...msg,
+                        loading: false,
+                        content: 'We found possible matches for your lost item:',
+                        matchResults: results,
+                        retryMatch: undefined,
+                    };
+                }));
+            })();
+        } catch (err) {
+            const errorText = formatErrorMessage(err);
+            console.error('[ChatbotPage] Retrieval flow failed:', errorText);
+            setSummaryConfirmed(false);
+            setMessages((prev) => prev.map((msg) => {
+                if (msg.id !== loadingMessageId) return msg;
+                return {
+                    ...msg,
+                    loading: false,
+                    content: 'Validation completed, but matching is temporarily delayed. Please try again in a moment.',
+                };
+            }));
+        } finally {
+            confirmInFlightRef.current = false;
+            setIsProcessingReport(false);
+        }
     };
 
     return (
@@ -209,7 +474,7 @@ function ChatbotPage() {
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto space-y-4 pr-1">
                     {messages.map((message, index) => (
-                        <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
+                        <div key={message.id || index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
                             <div
                                 className={`max-w-[72%] rounded-2xl px-4 py-3 ${message.role === 'user'
                                     ? 'text-white rounded-br-none'
@@ -220,6 +485,37 @@ function ChatbotPage() {
                                     : { background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.07)' }}
                             >
                                 <div className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</div>
+                                {message.loading && (
+                                    <div className="mt-3 flex gap-1.5 items-center h-4">
+                                        <div className="typing-dot w-2 h-2 rounded-full" style={{ background: 'rgba(255,255,255,0.4)' }} />
+                                        <div className="typing-dot w-2 h-2 rounded-full" style={{ background: 'rgba(255,255,255,0.4)' }} />
+                                        <div className="typing-dot w-2 h-2 rounded-full" style={{ background: 'rgba(255,255,255,0.4)' }} />
+                                    </div>
+                                )}
+                                {Array.isArray(message.matchResults) && message.matchResults.length > 0 && (
+                                    <div className="mt-3 space-y-3">
+                                        {message.matchResults.map((match, matchIndex) => (
+                                            <MatchResultCard
+                                                key={match.id || `${match.rank || matchIndex}`}
+                                                image_url={match.image_url}
+                                                final_category={match.final_category || match.category}
+                                                score={match.score}
+                                                location={match.location || 'Location not provided'}
+                                                reported_time={match.reported_time || 'Recently reported'}
+                                                isBestMatch={matchIndex === 0}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                                {message.retryMatch && !message.loading && (!message.matchResults || message.matchResults.length === 0) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRetryMatch(message.id || '', message.retryMatch!)}
+                                        className="mt-3 text-xs font-semibold uppercase tracking-wider px-3 py-2 rounded-lg border border-indigo-400/50 text-indigo-300 hover:bg-indigo-500/20 transition-colors"
+                                    >
+                                        Retry Matching
+                                    </button>
+                                )}
                                 <div className={`text-[9px] mt-2 opacity-50 flex items-center gap-1 ${message.role === 'user' ? 'text-white' : 'text-slate-400'}`}>
                                     <span>{message.role === 'user' ? 'You' : 'Assistant'}</span>
                                     <span>•</span>
@@ -346,14 +642,17 @@ function ChatbotPage() {
                 <button
                     type="button"
                     onClick={handleConfirm}
-                    disabled={!summaryText || summaryConfirmed}
+                    disabled={isProcessingReport || !summaryText || summaryConfirmed || !pendingImage || (intent !== 'lost' && intent !== 'found')}
                     className="w-full text-[10px] uppercase tracking-widest py-3 rounded-lg font-semibold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{ border: '1px solid rgba(99,102,241,0.45)', color: '#a5b4fc' }}
                     onMouseEnter={e => !summaryConfirmed && ((e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.15)')}
                     onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = 'transparent')}
                 >
-                    {summaryConfirmed ? '✓ Confirmed' : 'Confirm and Continue'}
+                    {isProcessingReport ? 'Processing...' : summaryConfirmed ? '✓ Confirmed' : 'Confirm and Process'}
                 </button>
+                {!pendingImage && (
+                    <p className="text-[10px] text-slate-500">Attach an image to run validation and matching.</p>
+                )}
             </aside>
             </div>
         </div>

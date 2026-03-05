@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useChatStore } from '../store/useChatStore';
+import { useValidationStore } from '../store/useValidationStore';
 
 function IntentSelectionPage() {
     const navigate = useNavigate();
@@ -32,6 +33,7 @@ function IntentSelectionPage() {
                         type="button"
                         onClick={() => {
                             useChatStore.getState().resetChat();
+                            useValidationStore.getState().reset();
                             navigate('/chatbot?intent=lost');
                         }}
                         className="glass-panel rounded-2xl p-8 text-left transition-all duration-300 group border border-red-500/25 hover:border-red-500/55 hover:shadow-[0_0_24px_rgba(239,68,68,0.1)]"
@@ -48,6 +50,7 @@ function IntentSelectionPage() {
                         type="button"
                         onClick={() => {
                             useChatStore.getState().resetChat();
+                            useValidationStore.getState().reset();
                             navigate('/chatbot?intent=found');
                         }}
                         className="glass-panel rounded-2xl p-8 text-left transition-all duration-300 group border border-indigo-500/25 hover:border-indigo-500/55 hover:shadow-[0_0_24px_rgba(99,102,241,0.12)]"
