@@ -1,0 +1,13 @@
+{
+  "watch": ["src", "server.js"],
+  "ignore": [
+    "node_modules",
+    "uploads",
+    "ml-service/uploads",
+    "ml-service/outputs",
+    "*.log",
+    ".env",
+    ".git"
+  ],
+  "ext": "js,json"
+}
