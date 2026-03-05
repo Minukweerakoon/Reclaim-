@@ -9,6 +9,15 @@ YOLO_TO_LOSTFOUND_MAPPING = {
     "keyboard": "keyboard",
     "remote": "remote",
     "tv": "electronics",
+    # YOLO COCO does not have a 'camera' class, but we map common misdetections
+    # (e.g. camera body detected as 'cell phone' or 'book') to electronics
+    "camera": "camera",          # May appear in custom/fine-tuned models
+    "digital camera": "camera",
+    "glasses": "glasses",
+    "sunglasses": "glasses",
+    "watch": "watch",
+    "earphones": "electronics",
+    "headphones": "electronics",
     
     # Personal Items - Bags & Accessories
     "handbag": "wallet",  # Closest match for wallet
@@ -16,6 +25,8 @@ YOLO_TO_LOSTFOUND_MAPPING = {
     "suitcase": "luggage",
     "umbrella": "umbrella",
     "tie": "clothing",
+    "jacket": "clothing",
+    "coat": "clothing",
     
     # Small Personal Items
     "book": "book",
