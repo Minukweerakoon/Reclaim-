@@ -42,7 +42,7 @@ function ValidationHub() {
     const [recordingError, setRecordingError] = useState<string | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [isWebcamActive, setIsWebcamActive] = useState(false);
-    const [_localExtractedInfo, setLocalExtractedInfo] = useState<Record<string, string>>({});
+    const [localExtractedInfo, setLocalExtractedInfo] = useState<Record<string, string>>({});
     const [webcamError, setWebcamError] = useState<string | null>(null);
 
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
