@@ -1916,7 +1916,7 @@ async def validate_complete(
                                 
                     parts = [p for p in [color, brand, item_type] if p]
                     if parts:
-                        clip_text = " ".join(parts)
+                        clip_text = f"a photo of a {' '.join(parts)}"
                 
                 logger.info(f"[CLIP] Final query for CLIP: '{clip_text}'")
                 cross_modal_results["image_text"] = cv.validate_image_text_alignment(image_path, clip_text)
