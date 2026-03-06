@@ -1,0 +1,17 @@
+\begin{table}[t]
+\centering
+\caption{Ablation Study Results. $\Delta$ shows change vs. Full System. Significance: *** $p<0.001$, ** $p<0.01$, * $p<0.05$.}
+\label{tab:ablation}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Configuration} & \textbf{Accuracy} & \textbf{F1} & \textbf{Latency} & \textbf{$\Delta$ Accuracy} \\
+\midrule
+Full System & 100.0% & 1.00 & 1.64s & — \\
+w/o CLIP Alignment & 100.0% & 1.00 & 1.11s & $+0.0%^{ns}$ \\
+w/o Spatial-Temporal & 100.0% & 1.00 & 1.57s & $+0.0%^{ns}$ \\
+w/o XAI Explanations & 100.0% & 1.00 & 1.59s & $+0.0%^{ns}$ \\
+w/o Voice Modality & 100.0% & 1.00 & 0.93s & $+0.0%^{ns}$ \\
+Image + Text Only & 100.0% & 1.00 & 0.83s & $+0.0%^{ns}$ \\
+\bottomrule
+\end{tabular}
+\end{table}

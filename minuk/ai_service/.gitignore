@@ -1,0 +1,27 @@
+# Large AI model files
+backend/minuk/ai_service/assets/embeddings_mobilenetv3.npy
+backend/minuk/ai_service/assets/faiss_mobilenetv3.index
+backend/minuk/ai_service/assets/mobilenetv3.pt
+
+# Python virtual environment
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# ML models
+*.pt
+*.pth
+
+# FAISS indexes
+*.index
+
+# Embeddings
+*.npy
+
+# Temp/cache
+.cache/
+
+.env

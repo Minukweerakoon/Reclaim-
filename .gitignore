@@ -1,0 +1,46 @@
+# Large datasets (should not be in Git — use Git LFS or store separately)
+Balanced_Dataset/
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+frontend/.vite/
+*.log
+npm-debug.log*
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+
+# IDE / OS
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Misc
+*.tmp
+*.bak

@@ -1,0 +1,117 @@
+{
+  "item_categories": {
+    "phone": "electronics",
+    "laptop": "electronics",
+    "keys": "personal",
+    "wallet": "personal",
+    "bag": "container",
+    "backpack": "container",
+    "book": "academic",
+    "notebook": "academic",
+    "pen": "academic",
+    "glasses": "personal",
+    "watch": "personal",
+    "umbrella": "accessories",
+    "water bottle": "accessories"
+  },
+  "location_types": {
+    "library": "academic",
+    "classroom": "academic",
+    "cafeteria": "dining",
+    "gym": "sports",
+    "parking": "outdoor",
+    "server room": "restricted",
+    "office": "professional",
+    "bathroom": "facility",
+    "lab": "academic"
+  },
+  "p_item_location": {
+    "laptop": {
+      "library": 0.16,
+      "classroom": 0.098,
+      "cafeteria": 0.089,
+      "gym": 0.167,
+      "server room": 0.05,
+      "office": 0.112,
+      "parking": 0.117
+    },
+    "phone": {
+      "library": 0.123,
+      "cafeteria": 0.063,
+      "gym": 0.071,
+      "classroom": 0.171,
+      "parking": 0.195,
+      "office": 0.071
+    },
+    "keys": {
+      "parking": 0.078,
+      "office": 0.163,
+      "classroom": 0.122,
+      "library": 0.148,
+      "cafeteria": 0.152,
+      "gym": 0.202
+    },
+    "book": {
+      "library": 0.111,
+      "classroom": 0.134,
+      "gym": 0.071,
+      "parking": 0.104,
+      "office": 0.112,
+      "cafeteria": 0.114
+    },
+    "swimsuit": {
+      "server room": 0.001
+    },
+    "surfboard": {
+      "library": 0.001
+    },
+    "watch": {
+      "gym": 0.095,
+      "cafeteria": 0.114,
+      "office": 0.173,
+      "classroom": 0.073,
+      "parking": 0.13,
+      "library": 0.148
+    },
+    "bag": {
+      "office": 0.122,
+      "classroom": 0.146,
+      "cafeteria": 0.152,
+      "library": 0.099,
+      "gym": 0.095,
+      "parking": 0.143
+    },
+    "glasses": {
+      "office": 0.122,
+      "gym": 0.131,
+      "library": 0.16,
+      "parking": 0.117,
+      "cafeteria": 0.127,
+      "classroom": 0.122
+    },
+    "wallet": {
+      "cafeteria": 0.19,
+      "classroom": 0.134,
+      "office": 0.122,
+      "parking": 0.117,
+      "gym": 0.167,
+      "library": 0.049
+    }
+  },
+  "p_item_time": {
+    "laptop": {
+      "morning": 0.85,
+      "afternoon": 0.9,
+      "evening": 0.6,
+      "night": 0.2
+    }
+  },
+  "p_location_time": {
+    "library": {
+      "morning": 0.8,
+      "afternoon": 0.9,
+      "evening": 0.5,
+      "night": 0.1
+    }
+  }
+}
