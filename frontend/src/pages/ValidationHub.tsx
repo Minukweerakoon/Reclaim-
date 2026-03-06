@@ -408,10 +408,11 @@ function ValidationHub() {
                 return '';
             };
 
-            if (!extractedFromResult.item_type) extractedFromResult.item_type = pickFirst(completenessEntities?.item_type) || pickFirst(textEntities?.item_mentions);
-            if (!extractedFromResult.color) extractedFromResult.color = pickFirst(completenessEntities?.color) || pickFirst(textEntities?.color_mentions);
-            if (!extractedFromResult.brand) extractedFromResult.brand = pickFirst(completenessEntities?.brand) || pickFirst(textEntities?.brand_mentions);
-            if (!extractedFromResult.location) extractedFromResult.location = pickFirst(completenessEntities?.location) || pickFirst(textEntities?.location_mentions);
+            const tEntities = textEntities as any;
+            if (!extractedFromResult.item_type) extractedFromResult.item_type = pickFirst(completenessEntities?.item_type) || pickFirst(tEntities?.item_mentions);
+            if (!extractedFromResult.color) extractedFromResult.color = pickFirst(completenessEntities?.color) || pickFirst(tEntities?.color_mentions);
+            if (!extractedFromResult.brand) extractedFromResult.brand = pickFirst(completenessEntities?.brand) || pickFirst(tEntities?.brand_mentions);
+            if (!extractedFromResult.location) extractedFromResult.location = pickFirst(completenessEntities?.location) || pickFirst(tEntities?.location_mentions);
             if (!extractedFromResult.time) extractedFromResult.time = pickFirst(completenessEntities?.time);
 
             const contextItem = extractedFromResult.item_type;
@@ -432,14 +433,16 @@ function ValidationHub() {
             }
 
             try {
-                const transcription = typeof result?.voice?.transcription === 'string'
-                    ? result.voice.transcription
-                    : result?.voice?.transcription?.transcription;
+                const voiceVal: any = result?.voice;
+                const transcription = typeof voiceVal?.transcription === 'string'
+                    ? voiceVal.transcription
+                    : voiceVal?.transcription?.transcription;
 
                 const xaiResponse = await xaiApi.explainEnhanced({
                     text: textInput || undefined,
                     image_path: result?.image?.image_path,
                     transcription: transcription || undefined,
+                    validation_result: result as any,
                 });
                 setXaiExplain(xaiResponse);
             } catch (xaiErr) {
@@ -541,10 +544,10 @@ function ValidationHub() {
 
         setAnalysisError(null);
         setAnalysisLoading(true);
-        
+
         try {
             console.log('[ValidationHub] Running context analysis with existing data');
-            
+
             // Extract entity data from text input
             const extractedEntities: Record<string, string> = {};
             textInput.split(',').forEach((segment) => {
@@ -592,10 +595,16 @@ function ValidationHub() {
         setAnalysisError(null);
         setAnalysisLoading(true);
         try {
+            const voiceVal: any = currentResult.voice;
+            const transcription = typeof voiceVal?.transcription === 'string'
+                ? voiceVal.transcription
+                : voiceVal?.transcription?.transcription;
+
             const response = await xaiApi.explainEnhanced({
                 text: textInput || undefined,
                 image_path: currentResult.image?.image_path,
-                transcription: currentResult.voice?.transcription,
+                transcription: transcription || undefined,
+                validation_result: currentResult as any,
             });
             setXaiExplain(response);
         } catch (err) {
@@ -854,598 +863,946 @@ function ValidationHub() {
 
             <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6">
                 <section className="glass-panel-heavy rounded-2xl overflow-hidden flex flex-col">
-                <div className="p-6 border-b border-white/10">
-                    <div className="flex justify-between items-center text-[10px] uppercase tracking-[0.2em] text-slate-500">
-                        <span>Sequence Progress</span>
-                        <span className="text-primary">Step {stepIndex}/4</span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-3">
-                        {[1, 2, 3, 4].map((step) => (
-                            <div
-                                key={step}
-                                className={`flex-1 h-1 rounded-full ${step <= stepIndex ? 'bg-primary shadow-neon-cyan' : 'bg-slate-700'}`}
-                            />
-                        ))}
-                    </div>
-                    <div className="flex justify-between mt-2 text-[10px] font-mono text-slate-400">
-                        <span className={stepIndex >= 1 ? 'text-primary' : ''}>DESC</span>
-                        <span className={stepIndex >= 2 ? 'text-primary' : ''}>IMG</span>
-                        <span className={stepIndex >= 3 ? 'text-primary' : ''}>VOICE</span>
-                        <span className={stepIndex >= 4 ? 'text-primary' : ''}>RSLT</span>
-                    </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                    <div className="flex items-start justify-between">
-                        <div>
-                            <h2 className="text-xl font-bold text-white">Validation Hub</h2>
-                            <p className="text-xs text-slate-400 mt-1">Proactive multimodal input validation</p>
+                    <div className="p-6 border-b border-white/10">
+                        <div className="flex justify-between items-center text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                            <span>Sequence Progress</span>
+                            <span className="text-primary">Step {stepIndex}/4</span>
                         </div>
-                        <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-slate-500">
-                            <span className={`h-1.5 w-1.5 rounded-full ${isConnected ? 'bg-neon-green/50' : 'bg-slate-600'}`} />
-                            {isConnected ? 'Live link' : 'Syncing'}
+                        <div className="flex items-center gap-2 mt-3">
+                            {[1, 2, 3, 4].map((step) => (
+                                <div
+                                    key={step}
+                                    className={`flex-1 h-1 rounded-full ${step <= stepIndex ? 'bg-primary shadow-neon-cyan' : 'bg-slate-700'}`}
+                                />
+                            ))}
+                        </div>
+                        <div className="flex justify-between mt-2 text-[10px] font-mono text-slate-400">
+                            <span className={stepIndex >= 1 ? 'text-primary' : ''}>DESC</span>
+                            <span className={stepIndex >= 2 ? 'text-primary' : ''}>IMG</span>
+                            <span className={stepIndex >= 3 ? 'text-primary' : ''}>VOICE</span>
+                            <span className={stepIndex >= 4 ? 'text-primary' : ''}>RSLT</span>
                         </div>
                     </div>
 
-                    <div className="glass-panel rounded-xl p-4">
-                        <div className="text-[11px] uppercase tracking-widest text-primary mb-3">Text Intake</div>
-                        <textarea
-                            value={textInput}
-                            onChange={(e) => setTextInput(e.target.value)}
-                            placeholder="Describe the item, location, and context"
-                            className="w-full h-24 bg-slate-900/80 border border-white/10 rounded-lg p-3 text-sm text-white placeholder-slate-500 focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none"
-                        />
-                        <div className="mt-3">
-                            <label className="text-[11px] text-slate-400 mb-2 block uppercase tracking-widest">Visual description for CLIP</label>
-                            <input
-                                type="text"
-                                value={visualText}
-                                onChange={(e) => setVisualText(e.target.value)}
-                                placeholder="Short visual descriptor"
-                                className="w-full bg-slate-900/80 border border-white/10 rounded-lg p-3 text-sm text-white placeholder-slate-500 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="glass-panel rounded-xl p-4">
-                        <div className="text-[11px] uppercase tracking-widest text-primary mb-3">Image Evidence</div>
-
-                        {/* Webcam Capture Section */}
-                        {isWebcamActive ? (
-                            <div className="space-y-3 mb-4">
-                                <div className="relative rounded-lg overflow-hidden bg-slate-900/80">
-                                    <video
-                                        ref={videoRef}
-                                        autoPlay
-                                        playsInline
-                                        muted
-                                        className="w-full h-48 object-cover"
-                                    />
-                                    <div className="absolute top-2 left-2 px-2 py-1 bg-alert-red/80 rounded text-[10px] uppercase tracking-widest text-white flex items-center gap-1">
-                                        <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                                        Live
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={capturePhoto}
-                                        className="flex-1 px-4 py-2 rounded-lg text-xs uppercase tracking-widest border border-primary/50 text-primary hover:bg-primary/20 transition-colors"
-                                    >
-                                        📸 Capture photo
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={stopWebcam}
-                                        className="px-4 py-2 rounded-lg text-xs uppercase tracking-widest border border-alert-red/50 text-alert-red hover:bg-alert-red/10 transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
+                    <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                        <div className="flex items-start justify-between">
+                            <div>
+                                <h2 className="text-xl font-bold text-white">Validation Hub</h2>
+                                <p className="text-xs text-slate-400 mt-1">Proactive multimodal input validation</p>
                             </div>
-                        ) : (
-                            <div className="space-y-3 mb-4">
-                                <button
-                                    type="button"
-                                    onClick={startWebcam}
-                                    disabled={!!imagePreview}
-                                    className="w-full px-4 py-2 rounded-lg text-xs uppercase tracking-widest border border-primary/50 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    📷 Use webcam
-                                </button>
-                                {webcamError && (
-                                    <div className="text-xs text-alert-red">{webcamError}</div>
-                                )}
+                            <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-slate-500">
+                                <span className={`h-1.5 w-1.5 rounded-full ${isConnected ? 'bg-neon-green/50' : 'bg-slate-600'}`} />
+                                {isConnected ? 'Live link' : 'Syncing'}
                             </div>
-                        )}
-
-                        {/* File Upload Section */}
-                        <div className="border border-dashed border-white/20 rounded-lg p-4 text-center hover:border-primary transition-colors">
-                            <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleImageChange}
-                                className="hidden"
-                                id="image-upload"
-                                disabled={isWebcamActive}
-                            />
-                            <label htmlFor="image-upload" className="cursor-pointer">
-                                {imagePreview ? (
-                                    <img src={imagePreview} alt="Preview" className="max-h-36 mx-auto rounded-lg" />
-                                ) : (
-                                    <div className="text-xs text-slate-400">
-                                        {isWebcamActive ? 'Webcam active' : 'Click to upload image file'}
-                                    </div>
-                                )}
-                            </label>
-                            {imageFile && (
-                                <button
-                                    onClick={() => {
-                                        setImageFile(null);
-                                        setImagePreview(null);
-                                        clearWebcamCapture();
-                                        setPendingImage(null, null);
-                                    }}
-                                    className="mt-3 text-[11px] text-alert-red hover:underline"
-                                >
-                                    Remove
-                                </button>
-                            )}
                         </div>
-                    </div>
 
-                    <div className="glass-panel rounded-xl p-4">
-                        <div className="text-[11px] uppercase tracking-widest text-primary mb-3">Voice Recording</div>
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-3">
-                                <button
-                                    type="button"
-                                    onClick={isRecording ? stopRecording : startRecording}
-                                    className={`px-4 py-2 rounded-lg text-xs uppercase tracking-widest border transition-colors ${isRecording
-                                        ? 'border-alert-red/50 text-alert-red hover:bg-alert-red/10'
-                                        : 'border-primary/50 text-primary hover:bg-primary/20'
-                                        }`}
-                                >
-                                    {isRecording ? 'Stop recording' : 'Record'}
-                                    <span className="ml-2">🎤</span>
-                                </button>
-                                {isRecording && (
-                                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-slate-400">
-                                        <div className="flex items-end gap-1">
-                                            {[0, 150, 300, 450].map((delay) => (
-                                                <span
-                                                    key={delay}
-                                                    className="w-1 bg-primary/80 rounded-full animate-bounce"
-                                                    style={{ height: `${10 + delay / 30}px`, animationDelay: `${delay}ms` }}
-                                                />
-                                            ))}
+                        <div className="glass-panel rounded-xl p-4">
+                            <div className="text-[11px] uppercase tracking-widest text-primary mb-3">Text Intake</div>
+                            <textarea
+                                value={textInput}
+                                onChange={(e) => setTextInput(e.target.value)}
+                                placeholder="Describe the item, location, and context"
+                                className="w-full h-24 bg-slate-900/80 border border-white/10 rounded-lg p-3 text-sm text-white placeholder-slate-500 focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none"
+                            />
+                            <div className="mt-3">
+                                <label className="text-[11px] text-slate-400 mb-2 block uppercase tracking-widest">Visual description for CLIP</label>
+                                <input
+                                    type="text"
+                                    value={visualText}
+                                    onChange={(e) => setVisualText(e.target.value)}
+                                    placeholder="Short visual descriptor"
+                                    className="w-full bg-slate-900/80 border border-white/10 rounded-lg p-3 text-sm text-white placeholder-slate-500 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="glass-panel rounded-xl p-4">
+                            <div className="text-[11px] uppercase tracking-widest text-primary mb-3">Image Evidence</div>
+
+                            {/* Webcam Capture Section */}
+                            {isWebcamActive ? (
+                                <div className="space-y-3 mb-4">
+                                    <div className="relative rounded-lg overflow-hidden bg-slate-900/80">
+                                        <video
+                                            ref={videoRef}
+                                            autoPlay
+                                            playsInline
+                                            muted
+                                            className="w-full h-48 object-cover"
+                                        />
+                                        <div className="absolute top-2 left-2 px-2 py-1 bg-alert-red/80 rounded text-[10px] uppercase tracking-widest text-white flex items-center gap-1">
+                                            <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                                            Live
                                         </div>
-                                        Recording...
                                     </div>
-                                )}
-                            </div>
-
-                            {recordedUrl && (
-                                <audio controls src={recordedUrl} className="w-full" />
-                            )}
-
-                            {recordingError && (
-                                <div className="text-xs text-alert-red">{recordingError}</div>
-                            )}
-
-                            {recordedUrl && !isRecording && (
-                                <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={capturePhoto}
+                                            className="flex-1 px-4 py-2 rounded-lg text-xs uppercase tracking-widest border border-primary/50 text-primary hover:bg-primary/20 transition-colors"
+                                        >
+                                            📸 Capture photo
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={stopWebcam}
+                                            className="px-4 py-2 rounded-lg text-xs uppercase tracking-widest border border-alert-red/50 text-alert-red hover:bg-alert-red/10 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-3 mb-4">
                                     <button
                                         type="button"
-                                        onClick={clearRecording}
-                                        className="text-[11px] text-alert-red hover:underline"
+                                        onClick={startWebcam}
+                                        disabled={!!imagePreview}
+                                        className="w-full px-4 py-2 rounded-lg text-xs uppercase tracking-widest border border-primary/50 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        📷 Use webcam
+                                    </button>
+                                    {webcamError && (
+                                        <div className="text-xs text-alert-red">{webcamError}</div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* File Upload Section */}
+                            <div className="border border-dashed border-white/20 rounded-lg p-4 text-center hover:border-primary transition-colors">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleImageChange}
+                                    className="hidden"
+                                    id="image-upload"
+                                    disabled={isWebcamActive}
+                                />
+                                <label htmlFor="image-upload" className="cursor-pointer">
+                                    {imagePreview ? (
+                                        <img src={imagePreview} alt="Preview" className="max-h-36 mx-auto rounded-lg" />
+                                    ) : (
+                                        <div className="text-xs text-slate-400">
+                                            {isWebcamActive ? 'Webcam active' : 'Click to upload image file'}
+                                        </div>
+                                    )}
+                                </label>
+                                {imageFile && (
+                                    <button
+                                        onClick={() => {
+                                            setImageFile(null);
+                                            setImagePreview(null);
+                                            clearWebcamCapture();
+                                            setPendingImage(null, null);
+                                        }}
+                                        className="mt-3 text-[11px] text-alert-red hover:underline"
                                     >
                                         Remove
                                     </button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="glass-panel rounded-xl p-4">
+                            <div className="text-[11px] uppercase tracking-widest text-primary mb-3">Voice Recording</div>
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3">
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            clearRecording();
-                                            startRecording();
-                                        }}
-                                        className="text-[11px] text-primary hover:underline"
+                                        onClick={isRecording ? stopRecording : startRecording}
+                                        className={`px-4 py-2 rounded-lg text-xs uppercase tracking-widest border transition-colors ${isRecording
+                                            ? 'border-alert-red/50 text-alert-red hover:bg-alert-red/10'
+                                            : 'border-primary/50 text-primary hover:bg-primary/20'
+                                            }`}
                                     >
-                                        Retry
+                                        {isRecording ? 'Stop recording' : 'Record'}
+                                        <span className="ml-2">🎤</span>
                                     </button>
+                                    {isRecording && (
+                                        <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-slate-400">
+                                            <div className="flex items-end gap-1">
+                                                {[0, 150, 300, 450].map((delay) => (
+                                                    <span
+                                                        key={delay}
+                                                        className="w-1 bg-primary/80 rounded-full animate-bounce"
+                                                        style={{ height: `${10 + delay / 30}px`, animationDelay: `${delay}ms` }}
+                                                    />
+                                                ))}
+                                            </div>
+                                            Recording...
+                                        </div>
+                                    )}
+                                </div>
+
+                                {recordedUrl && (
+                                    <audio controls src={recordedUrl} className="w-full" />
+                                )}
+
+                                {recordingError && (
+                                    <div className="text-xs text-alert-red">{recordingError}</div>
+                                )}
+
+                                {recordedUrl && !isRecording && (
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={clearRecording}
+                                            className="text-[11px] text-alert-red hover:underline"
+                                        >
+                                            Remove
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                clearRecording();
+                                                startRecording();
+                                            }}
+                                            className="text-[11px] text-primary hover:underline"
+                                        >
+                                            Retry
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="glass-panel rounded-xl p-4">
+                            <div className="text-[11px] uppercase tracking-widest text-primary mb-3">Audio Context</div>
+                            <div className="border border-dashed border-white/20 rounded-lg p-4 text-center hover:border-primary transition-colors">
+                                <input
+                                    type="file"
+                                    accept="audio/*"
+                                    onChange={handleAudioChange}
+                                    className="hidden"
+                                    id="audio-upload"
+                                />
+                                <label htmlFor="audio-upload" className="cursor-pointer">
+                                    {audioFile ? (
+                                        <div className="text-xs text-slate-200">{audioFile.name}</div>
+                                    ) : (
+                                        <div className="text-xs text-slate-400">Click to attach audio evidence</div>
+                                    )}
+                                </label>
+                                {audioFile && (
+                                    <button
+                                        onClick={() => setAudioFile(null)}
+                                        className="mt-3 text-[11px] text-alert-red hover:underline"
+                                    >
+                                        Remove
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {isLoading && (
+                            <div className="glass-panel rounded-xl p-4">
+                                <div className="flex items-center justify-between text-[11px] text-slate-400 uppercase tracking-widest">
+                                    <span>Processing</span>
+                                    <span className="text-primary">{Math.round(progress)}%</span>
+                                </div>
+                                <div className="w-full bg-slate-900 rounded-full h-1.5 mt-3 overflow-hidden">
+                                    <div
+                                        className="bg-gradient-to-r from-primary to-neon-purple h-full transition-all duration-300"
+                                        style={{ width: `${progress}%` }}
+                                    />
+                                </div>
+                                {progressMessage && (
+                                    <p className="text-[11px] text-slate-400 mt-2">{progressMessage}</p>
+                                )}
+                            </div>
+                        )}
+
+                        {error && (
+                            <ErrorMessage
+                                title="Validation Error"
+                                message={error}
+                                onRetry={handleSubmit}
+                                onDismiss={() => setError(null)}
+                            />
+                        )}
+                    </div>
+
+                    <div className="p-5 border-t border-white/10 bg-gradient-to-t from-background-dark via-background-dark/80 to-transparent">
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={handleSubmit}
+                                disabled={isLoading || (!textInput && !imageFile && !audioFile)}
+                                className="flex-1 bg-primary/20 text-primary border border-primary/50 hover:bg-primary/30 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-bold uppercase tracking-widest py-3 rounded-lg transition-all"
+                            >
+                                {isLoading ? 'Validating' : 'Run Validation'}
+                            </button>
+                            <button
+                                onClick={handleReset}
+                                className="px-4 py-3 text-xs uppercase tracking-widest border border-white/10 text-slate-300 rounded-lg hover:bg-white/5 transition-colors"
+                            >
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <section className="flex flex-col gap-6">
+                    <div className="glass-panel rounded-2xl p-4 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-[2px] bg-primary/80" />
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <div className="text-[11px] uppercase tracking-[0.2em] text-primary flex items-center gap-2">
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                    XAI Vision Stage
+                                </div>
+                                <div className="text-[10px] text-slate-400 mt-1">Visual attention overlay and input scan</div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {imageFile && (
+                                    <div className="text-[9px] uppercase tracking-wider text-slate-400 bg-white/5 py-1 px-2 rounded border border-white/5 flex items-center gap-2">
+                                        <span>{imageFile.name.length > 20 ? imageFile.name.substring(0, 20) + '...' : imageFile.name}</span>
+                                        <span className="w-px h-3 bg-white/20"></span>
+                                        <span>{(imageFile.size / 1024 / 1024).toFixed(2)} MB</span>
+                                    </div>
+                                )}
+                                <div className="text-[9px] text-primary uppercase font-bold tracking-widest bg-primary/10 border border-primary/20 px-2 py-1 rounded">
+                                    {analysisLoading ? 'Scanning...' : 'Heatmap Ready'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="relative rounded-xl overflow-hidden bg-black/80 border border-white/10 h-80 flex items-center justify-center group">
+                            {currentResult?.xai_heatmap_url ? (
+                                <img src={currentResult.xai_heatmap_url} alt="XAI Heatmap" className="w-full h-full object-contain" />
+                            ) : imagePreview ? (
+                                <>
+                                    <img src={imagePreview} alt="Preview" className="w-full h-full object-contain relative z-0" />
+
+                                    {/* Mock Heatmap Overlay on Hover or Active Analysis */}
+                                    <div className={`absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-alert-red/30 via-yellow-500/10 to-transparent mix-blend-screen opacity-0 group-hover:opacity-100 transition-opacity duration-700 z-10 ${analysisLoading || currentResult ? 'opacity-80' : ''}`} />
+
+                                    {/* High-tech Grid overlay */}
+                                    <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none z-10" />
+
+                                    {/* Crosshairs */}
+                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 opacity-20 pointer-events-none z-10">
+                                        <div className="absolute top-0 bottom-0 left-1/2 w-px bg-primary -translate-x-1/2" />
+                                        <div className="absolute left-0 right-0 top-1/2 h-px bg-primary -translate-y-1/2" />
+                                        <div className="absolute inset-0 border border-primary rounded-full" />
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center text-slate-500 gap-3">
+                                    <svg className="w-10 h-10 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <span className="text-xs uppercase tracking-widest">Awaiting visual input</span>
+                                </div>
+                            )}
+
+                            {/* Scanning laser effect */}
+                            {imagePreview && (
+                                <div className="absolute inset-x-0 h-[2px] bg-primary shadow-[0_0_15px_rgba(6,182,212,0.8)] animate-scan-vertical z-20 pointer-events-none" />
+                            )}
+
+                            {/* Metadata Footer overlay */}
+                            {imagePreview && (
+                                <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/95 via-black/70 to-transparent pt-12 pb-3 px-4 z-30 flex justify-between items-end border-t border-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                    <div className="flex gap-6">
+                                        <div className="flex flex-col">
+                                            <span className="text-[8px] uppercase tracking-[0.2em] text-slate-500 mb-0.5">Format</span>
+                                            <span className="text-xs font-mono text-slate-300">{imageFile?.type.split('/')[1]?.toUpperCase() || 'JPEG'}</span>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-[8px] uppercase tracking-[0.2em] text-slate-500 mb-0.5">Color Space</span>
+                                            <span className="text-xs font-mono text-slate-300">sRGB</span>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-[8px] uppercase tracking-[0.2em] text-slate-500 mb-0.5">Entities Detected</span>
+                                            <div className="text-xs font-mono text-primary font-bold flex items-center gap-1.5">
+                                                {currentResult ? (currentResult?.image?.objects?.detections?.length || 0) : '-'}
+                                                {currentResult && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="text-[9px] uppercase tracking-widest text-slate-400 font-mono">
+                                        UID-{(currentResult?.request_id || 'PENDING').slice(0, 8)}
+                                    </div>
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    <div className="glass-panel rounded-xl p-4">
-                        <div className="text-[11px] uppercase tracking-widest text-primary mb-3">Audio Context</div>
-                        <div className="border border-dashed border-white/20 rounded-lg p-4 text-center hover:border-primary transition-colors">
-                            <input
-                                type="file"
-                                accept="audio/*"
-                                onChange={handleAudioChange}
-                                className="hidden"
-                                id="audio-upload"
-                            />
-                            <label htmlFor="audio-upload" className="cursor-pointer">
-                                {audioFile ? (
-                                    <div className="text-xs text-slate-200">{audioFile.name}</div>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="glass-panel rounded-2xl p-6 flex flex-col items-center justify-center">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4">Confidence Core</div>
+                            <div className="relative w-36 h-36">
+                                <svg className="w-full h-full -rotate-90">
+                                    <circle className="text-slate-800" cx="72" cy="72" r="60" fill="transparent" stroke="currentColor" strokeWidth="8" />
+                                    <circle
+                                        className={`transition-colors duration-500 ${confidenceScore >= 0.75 ? 'text-neon-green' :
+                                            confidenceScore >= 0.5 ? 'text-yellow-400' :
+                                                confidenceScore > 0 ? 'text-alert-red' : 'text-primary'
+                                            }`}
+                                        cx="72"
+                                        cy="72"
+                                        r="60"
+                                        fill="transparent"
+                                        stroke="currentColor"
+                                        strokeDasharray="377"
+                                        strokeDashoffset={`${377 - Math.round(confidenceScore * 377)}`}
+                                        strokeWidth="8"
+                                    />
+                                </svg>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                    <span className={`text-3xl font-bold ${confidenceScore >= 0.75 ? 'text-neon-green shadow-neon-green/50 drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]' :
+                                        confidenceScore >= 0.5 ? 'text-yellow-400 shadow-yellow-400/50 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
+                                            confidenceScore > 0 ? 'text-alert-red shadow-alert-red/50 drop-shadow-[0_0_8px_rgba(240,68,56,0.5)]' : 'text-white neon-text-cyan'
+                                        }`}>
+                                        {confidenceScore > 0 ? `${Math.round(confidenceScore * 100)}%` : '—'}
+                                    </span>
+                                    <span className="text-[10px] uppercase tracking-widest mt-1 text-center font-semibold text-slate-300">
+                                        {confidenceScore >= 0.75 ? 'High Quality' :
+                                            confidenceScore >= 0.5 ? 'Review Needed' :
+                                                confidenceScore > 0 ? 'Low Quality' : 'Authenticity'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="glass-panel rounded-2xl p-6 relative overflow-hidden flex flex-col">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4 inline-flex items-center gap-2">
+                                Plausibility Matrix
+                                {analysisLoading && <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />}
+                            </div>
+
+                            <div className="flex-1 flex items-center justify-center min-h-[160px]">
+                                <div className="relative w-40 h-40">
+                                    {/* Radar Grid Circles */}
+                                    <div className="absolute inset-0 rounded-full border border-white/10" />
+                                    <div className="absolute inset-0 rounded-full border border-white/10 scale-75" />
+                                    <div className="absolute inset-0 rounded-full border border-white/10 scale-50" />
+                                    <div className="absolute inset-0 rounded-full border border-white/10 scale-25" />
+
+                                    {/* Crosshairs */}
+                                    <div className="absolute top-0 bottom-0 left-1/2 w-px bg-white/5 -translate-x-1/2" />
+                                    <div className="absolute left-0 right-0 top-1/2 h-px bg-white/5 -translate-y-1/2" />
+                                    <div className="absolute top-0 bottom-0 left-1/2 w-px bg-white/5 -translate-x-1/2 rotate-45" />
+                                    <div className="absolute left-0 right-0 top-1/2 h-px bg-white/5 -translate-y-1/2 rotate-45" />
+
+                                    {/* Radar Sweep Animation */}
+                                    <div className="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-primary/10 to-transparent animate-radar-sweep border-r border-primary/30 origin-center mix-blend-screen" />
+
+                                    {/* Data Points Polygon & Dots */}
+                                    {contextResult && (
+                                        <svg className="absolute inset-0 w-full h-full overflow-visible">
+                                            {/* We can construct a dynamic polygon roughly based on the score to look cool */}
+                                            <polygon
+                                                points={`
+                                                    80,${80 - 60 * (contextResult.plausibility_score)} 
+                                                    ${80 + 50 * (contextResult.plausibility_score)},${80 - 30 * (contextResult.plausibility_score)} 
+                                                    ${80 + 40 * (contextResult.plausibility_score)},${80 + 50 * (contextResult.plausibility_score)} 
+                                                    80,${80 + 60 * (contextResult.plausibility_score)} 
+                                                    ${80 - 45 * (contextResult.plausibility_score)},${80 + 30 * (contextResult.plausibility_score)} 
+                                                    ${80 - 55 * (contextResult.plausibility_score)},${80 - 20 * (contextResult.plausibility_score)}
+                                                `}
+                                                fill="var(--color-primary-transparent)"
+                                                stroke="var(--color-primary)"
+                                                strokeWidth="1.5"
+                                                className="opacity-40 transition-all duration-1000 ease-out fill-primary/20"
+                                            />
+                                            {/* Center connection point */}
+                                            <circle cx="80" cy="80" r="2" className="fill-primary" />
+                                            {/* Individual metric dots */}
+                                            <circle cx="80" cy={80 - 60 * (contextResult.plausibility_score)} r="3" className="fill-neon-green" />
+                                            <circle cx={80 + 40 * (contextResult.plausibility_score)} cy={80 + 50 * (contextResult.plausibility_score)} r="3" className="fill-neon-purple shadow-neon-purple" />
+                                            <circle cx={80 - 55 * (contextResult.plausibility_score)} cy={80 - 20 * (contextResult.plausibility_score)} r="3" className="fill-cyan-400" />
+                                        </svg>
+                                    )}
+
+                                    {/* Idle Blip (if no data) */}
+                                    {!contextResult && !analysisLoading && (
+                                        <div className="absolute top-[30%] left-[55%] w-2 h-2 bg-neon-green rounded-full shadow-neon-cyan animate-pulse" />
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Data Labels & Explanation */}
+                            <div className="mt-4 text-center z-10">
+                                {contextResult ? (
+                                    <div className="animate-fade-in-up">
+                                        <div className="text-2xl font-bold text-white neon-text-cyan flex items-baseline justify-center gap-1">
+                                            {Math.round(contextResult.plausibility_score * 100)}
+                                            <span className="text-xs text-primary/80 uppercase tracking-widest">% Plausible</span>
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 mt-2 line-clamp-2 px-2 border-t border-white/5 pt-2">
+                                            {contextResult.explanation}
+                                        </div>
+                                    </div>
+                                ) : currentResult ? (
+                                    <div className="text-[10px] text-slate-400 animate-pulse">
+                                        {analysisLoading ? 'Running matrix analysis...' : 'Click "Run Context Analysis" below.'}
+                                    </div>
                                 ) : (
-                                    <div className="text-xs text-slate-400">Click to attach audio evidence</div>
+                                    <div className="text-[10px] text-slate-500">
+                                        Spatial-temporal coherence pending.
+                                    </div>
                                 )}
-                            </label>
-                            {audioFile && (
+                            </div>
+                        </div>
+
+                        <div className="glass-panel rounded-2xl p-6">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4">Quality Gates</div>
+                            <div className="space-y-3">
+                                {qualityGates.map((gate) => (
+                                    <div key={gate.label} className="flex items-center justify-between group">
+                                        <div className="text-xs text-slate-300 w-24 truncate" title={gate.label}>{gate.label}</div>
+                                        <div className="relative w-32 h-2 bg-slate-800/80 rounded-full overflow-hidden border border-white/5">
+                                            {/* Threshold markers */}
+                                            <div className="absolute top-0 bottom-0 left-[50%] w-px bg-white/20 z-10" title="Review Threshold (50%)" />
+                                            <div className="absolute top-0 bottom-0 left-[75%] w-px bg-white/20 z-10" title="High Quality Threshold (75%)" />
+
+                                            {/* Progress Fill */}
+                                            <div
+                                                className={`h-full transition-all duration-1000 ease-out relative z-0 ${gate.value >= 0.75 ? 'bg-gradient-to-r from-green-500 to-neon-green shadow-neon-green' :
+                                                    gate.value >= 0.5 ? 'bg-gradient-to-r from-yellow-600 to-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
+                                                        gate.value > 0 ? 'bg-gradient-to-r from-red-600 to-alert-red shadow-[0_0_8px_rgba(240,68,56,0.5)]' : 'bg-slate-700'
+                                                    }`}
+                                                style={{ width: `${Math.round(gate.value * 100)}%` }}
+                                            />
+                                        </div>
+                                        <div className={`text-[10px] w-10 text-right font-medium transition-colors ${gate.value >= 0.75 ? 'text-neon-green' :
+                                            gate.value >= 0.5 ? 'text-yellow-400' :
+                                                gate.value > 0 ? 'text-alert-red' : 'text-slate-500'
+                                            }`}>
+                                            {Math.round(gate.value * 100)}%
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="glass-panel rounded-2xl p-6">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4">Entity Extraction</div>
+                            {entitiesPreview.length > 0 ? (
+                                <div className="grid grid-cols-2 gap-3">
+                                    {entitiesPreview.map(([key, value]) => (
+                                        <div key={key} className="bg-slate-900/60 border border-white/10 rounded-lg p-3">
+                                            <div className="text-[10px] text-slate-500 uppercase">{key.replace(/_/g, ' ')}</div>
+                                            <div className="text-sm text-white mt-1">{String(value)}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-xs text-slate-500">Entities will appear after validation.</div>
+                            )}
+                            <button
+                                type="button"
+                                onClick={handleAnalyzeContext}
+                                disabled={analysisLoading}
+                                className="mt-4 w-full text-[10px] uppercase tracking-widest border border-primary/40 text-primary py-2 rounded-lg hover:bg-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {analysisLoading ? 'Analyzing...' : 'Run context analysis'}
+                            </button>
+                        </div>
+
+                        <div className="glass-panel rounded-2xl p-6">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4 flex justify-between">
+                                <span>Cross-Modal Alignment</span>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <div className="flex justify-between items-end text-[10px] text-slate-400 uppercase mb-1.5">
+                                        <div className="flex flex-col">
+                                            <span>CLIP similarity</span>
+                                            {clipScore > 0 && (
+                                                <span className={`text-[9px] mt-0.5 ${clipScore >= 0.75 ? 'text-neon-green' :
+                                                    clipScore >= 0.5 ? 'text-yellow-400' : 'text-alert-red'
+                                                    }`}>
+                                                    {clipScore >= 0.75 ? 'High match' : clipScore >= 0.5 ? 'Review needed' : 'Low match'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className={`text-sm font-bold ${clipScore >= 0.75 ? 'text-neon-green' :
+                                            clipScore >= 0.5 ? 'text-yellow-400' :
+                                                clipScore > 0 ? 'text-alert-red' : 'text-slate-500'
+                                            }`}>
+                                            {formatPercent(clipScore)}%
+                                        </span>
+                                    </div>
+                                    <div className="w-full h-2 bg-slate-800/80 border border-white/5 rounded-full overflow-hidden relative">
+                                        <div className="absolute top-0 bottom-0 left-[50%] w-px bg-white/20 z-10" />
+                                        <div className="absolute top-0 bottom-0 left-[75%] w-px bg-white/20 z-10" />
+                                        <div
+                                            className={`h-full relative z-0 transition-all duration-1000 ${clipScore >= 0.75 ? 'bg-gradient-to-r from-green-500 to-neon-green shadow-[0_0_8px_rgba(74,222,128,0.5)]' :
+                                                clipScore >= 0.5 ? 'bg-gradient-to-r from-yellow-600 to-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
+                                                    clipScore > 0 ? 'bg-gradient-to-r from-red-600 to-alert-red shadow-[0_0_8px_rgba(240,68,56,0.5)]' : 'bg-slate-700'
+                                                }`}
+                                            style={{ width: `${formatPercent(clipScore)}%` }}
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="flex justify-between items-end text-[10px] text-slate-400 uppercase mb-1.5">
+                                        <div className="flex flex-col">
+                                            <span>Voice-text similarity</span>
+                                            {(() => {
+                                                const voiceSim = currentResult?.confidence?.cross_modal_scores?.voice_text_similarity;
+                                                if (voiceSim === undefined) return null;
+
+                                                return (
+                                                    <span className={`text-[9px] mt-0.5 ${voiceSim >= 0.75 ? 'text-neon-purple' :
+                                                        voiceSim >= 0.5 ? 'text-yellow-400' : 'text-alert-red'
+                                                        }`}>
+                                                        {voiceSim >= 0.75 ? 'Strong alignment' :
+                                                            voiceSim >= 0.5 ? 'Partial alignment' : 'Low alignment'}
+                                                    </span>
+                                                );
+                                            })()}
+                                        </div>
+                                        {(() => {
+                                            const voiceSim = currentResult?.confidence?.cross_modal_scores?.voice_text_similarity;
+                                            return (
+                                                <span className={`text-sm font-bold ${voiceSim === undefined ? 'text-slate-500' :
+                                                    voiceSim >= 0.75 ? 'text-neon-purple' :
+                                                        voiceSim >= 0.5 ? 'text-yellow-400' : 'text-alert-red'
+                                                    }`}>
+                                                    {voiceSim !== undefined ? `${formatPercent(voiceSim)}%` : '—'}
+                                                </span>
+                                            )
+                                        })()}
+                                    </div>
+                                    {(() => {
+                                        const voiceSim = currentResult?.confidence?.cross_modal_scores?.voice_text_similarity ?? 0;
+                                        return (
+                                            <div className="w-full h-2 bg-slate-800/80 border border-white/5 rounded-full overflow-hidden relative mt-2">
+                                                <div className="absolute top-0 bottom-0 left-[50%] w-px bg-white/20 z-10" />
+                                                <div className="absolute top-0 bottom-0 left-[75%] w-px bg-white/20 z-10" />
+                                                <div
+                                                    className={`h-full relative z-0 transition-all duration-1000 ${voiceSim >= 0.75 ? 'bg-gradient-to-r from-purple-600 to-neon-purple shadow-[0_0_8px_rgba(192,132,252,0.5)]' :
+                                                        voiceSim >= 0.5 ? 'bg-gradient-to-r from-yellow-600 to-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
+                                                            currentResult?.confidence?.cross_modal_scores?.voice_text_similarity !== undefined ? 'bg-gradient-to-r from-red-600 to-alert-red shadow-[0_0_8px_rgba(240,68,56,0.5)]' : 'bg-slate-700'
+                                                        }`}
+                                                    style={{ width: `${formatPercent(voiceSim)}%` }}
+                                                />
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="glass-panel rounded-2xl p-6">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4">Confidence Drift</div>
+                            <div className="flex items-center justify-between mb-3">
+                                <div>
+                                    <div className="text-2xl font-bold text-white">{Math.round(confidenceDrift.recentAvg * 100)}%</div>
+                                    <div className="text-[10px] text-slate-500 uppercase">Recent average</div>
+                                </div>
+                                <div className={`text-xs font-mono ${confidenceDrift.delta >= 0 ? 'text-accent-emerald' : 'text-alert-red'}`}>
+                                    {confidenceDrift.delta >= 0 ? '+' : ''}{Math.round(confidenceDrift.delta * 100)}%
+                                </div>
+                            </div>
+                            {sparklinePoints ? (
+                                <svg viewBox="0 0 160 48" className="w-full h-12">
+                                    <polyline
+                                        points={sparklinePoints}
+                                        fill="none"
+                                        stroke="#06b6d4"
+                                        strokeWidth="2"
+                                        strokeLinejoin="round"
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                            ) : (
+                                <div className="text-[10px] text-slate-500">Not enough data for drift.</div>
+                            )}
+                        </div>
+
+                        <div className="glass-panel rounded-2xl p-6">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4">Temporal Consistency</div>
+
+                            {/* Legend */}
+                            <div className="flex items-center justify-end gap-3 mb-4 text-[9px] uppercase tracking-wider text-slate-500">
+                                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-alert-red/80 border border-alert-red/30"></div>Low</span>
+                                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-yellow-500/80 border border-yellow-500/30"></div>Med</span>
+                                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-neon-green/80 border border-neon-green/30"></div>High</span>
+                            </div>
+
+                            <div className="grid grid-cols-7 gap-1 text-[9px] text-slate-500 mb-2">
+                                {temporalHeatmap.labels.map((label) => (
+                                    <div key={label} className="text-center">{label}</div>
+                                ))}
+                            </div>
+                            <div className="grid grid-cols-7 gap-1">
+                                {temporalHeatmap.values.map((row, rowIndex) => (
+                                    row.map((value, colIndex) => {
+                                        let baseColor = 'rgba(240, 68, 56,'; // alert-red
+                                        let borderColor = 'rgba(240, 68, 56, 0.3)';
+                                        if (value > 0.7) {
+                                            baseColor = 'rgba(74, 222, 128,'; // neon-green
+                                            borderColor = 'rgba(74, 222, 128, 0.3)';
+                                        } else if (value > 0.4) {
+                                            baseColor = 'rgba(234, 179, 8,'; // yellow-500
+                                            borderColor = 'rgba(234, 179, 8, 0.3)';
+                                        }
+
+                                        const alpha = 0.2 + value * 0.8;
+                                        return (
+                                            <div
+                                                key={`${rowIndex}-${colIndex}`}
+                                                className="h-5 rounded transition-colors duration-500"
+                                                style={{
+                                                    backgroundColor: `${baseColor} ${alpha})`,
+                                                    border: `1px solid ${borderColor}`
+                                                }}
+                                                title={`Value: ${Math.round(value * 100)}%`}
+                                            />
+                                        );
+                                    })
+                                ))}
+                            </div>
+                            <div className="flex justify-between text-[9px] text-slate-500 mt-2">
+                                <span>00-04</span>
+                                <span>20-24</span>
+                            </div>
+                        </div>
+
+                        <div className="glass-panel rounded-2xl p-6">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4">QA Lineage</div>
+                            <div className="space-y-3">
+                                {lineageCards.length ? lineageCards.map((report) => (
+                                    <div key={report.id} className="bg-slate-900/60 border border-white/10 rounded-lg p-3">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-white">ID-{(report.id || report.request_id || '').slice(0, 6).toUpperCase()}</span>
+                                            <span className="text-[10px] text-slate-500 font-mono">
+                                                {new Date(report.timestamp).toLocaleTimeString()}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-2">
+                                            {report.input_types?.includes('text') && <span>TXT</span>}
+                                            {report.input_types?.includes('image') && <span>IMG</span>}
+                                            {report.input_types?.includes('voice') && <span>VOICE</span>}
+                                            <span className="ml-auto">{report.confidence?.routing?.replace(/_/g, ' ') || ''}</span>
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <div className="text-[10px] text-slate-500">No lineage data available.</div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className={`glass-panel rounded-2xl p-6 border ${discrepancies.length > 0 ? 'border-alert-red/30 bg-alert-red/5' : 'border-white/10'}`}>
+                            <div className="flex justify-between items-center mb-4">
+                                <div className={`text-[11px] uppercase tracking-[0.2em] ${discrepancies.length > 0 ? 'text-alert-red' : 'text-slate-400'}`}>
+                                    Discrepancy Engine
+                                </div>
+                                {discrepancies.length > 0 && (
+                                    <span className="bg-alert-red/20 text-alert-red text-[9px] px-2 py-0.5 rounded-full font-bold">
+                                        {discrepancies.length} DETECTED
+                                    </span>
+                                )}
+                            </div>
+
+                            {discrepancies.length ? (
+                                <div className="space-y-3">
+                                    {discrepancies.slice(0, 4).map((disc, idx) => {
+                                        // Determine severity based on type or content for visual distinction
+                                        const isCritical = disc.type.includes('missing') || disc.type.includes('mismatch') || disc.type.includes('conflict');
+                                        const isWarning = disc.type.includes('inconsistent') || disc.type.includes('suspicious');
+
+                                        const severityColor = isCritical ? 'text-alert-red' : isWarning ? 'text-yellow-400' : 'text-blue-400';
+                                        const bgColor = isCritical ? 'bg-alert-red/10 border-alert-red/20' : isWarning ? 'bg-yellow-400/10 border-yellow-400/20' : 'bg-blue-400/10 border-blue-400/20';
+
+                                        return (
+                                            <div key={idx} className={`border rounded-lg p-3 ${bgColor} transition-all hover:bg-slate-800/80`}>
+                                                <div className="flex justify-between items-start mb-1.5">
+                                                    <div className={`text-[10px] font-bold uppercase tracking-wider ${severityColor}`}>
+                                                        {disc.type}
+                                                    </div>
+                                                    <div className={`text-[8px] uppercase px-1.5 py-0.5 rounded ${severityColor} border border-current opacity-70`}>
+                                                        {isCritical ? 'Critical' : isWarning ? 'Warning' : 'Info'}
+                                                    </div>
+                                                </div>
+                                                <div className="text-xs text-slate-300 leading-snug mb-3">
+                                                    {disc.description}
+                                                </div>
+
+                                                {/* Mock Action Buttons based on context */}
+                                                <div className="flex gap-2">
+                                                    <button className={`text-[9px] uppercase tracking-wider px-3 py-1.5 rounded transition-colors bg-white/5 hover:bg-white/10 ${severityColor}`}>
+                                                        {isCritical ? 'Investigate' : 'Review'}
+                                                    </button>
+
+                                                    {isCritical && (
+                                                        <button className="text-[9px] uppercase tracking-wider px-3 py-1.5 rounded transition-colors bg-alert-red/20 text-alert-red hover:bg-alert-red/30">
+                                                            Flag Asset
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {discrepancies.length > 4 && (
+                                        <div className="text-[10px] text-center text-slate-500 pt-2 border-t border-white/5">
+                                            + {discrepancies.length - 4} more discrepancies hidden
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-6 text-center border border-dashed border-white/10 rounded-lg bg-white/[0.02]">
+                                    <svg className="w-8 h-8 text-neon-green/50 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <div className="text-xs text-slate-400">
+                                        {currentResult ? 'No discrepancies detected. Assets align.' : 'Run validation to detect anomalies.'}
+                                    </div>
+                                </div>
+                            )}
+                            {currentResult && discrepancies.length > 0 && (
                                 <button
-                                    onClick={() => setAudioFile(null)}
-                                    className="mt-3 text-[11px] text-alert-red hover:underline"
+                                    type="button"
+                                    onClick={handleExplainXai}
+                                    disabled={analysisLoading}
+                                    className="mt-4 w-full text-[10px] uppercase tracking-widest border border-white/10 text-slate-300 py-2.5 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
-                                    Remove
+                                    {analysisLoading ? (
+                                        <><div className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> Analyzing root causes...</>
+                                    ) : (
+                                        <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg> Run XAI Deep Dive</>
+                                    )}
                                 </button>
                             )}
                         </div>
-                    </div>
 
-                    {isLoading && (
-                        <div className="glass-panel rounded-xl p-4">
-                            <div className="flex items-center justify-between text-[11px] text-slate-400 uppercase tracking-widest">
-                                <span>Processing</span>
-                                <span className="text-primary">{Math.round(progress)}%</span>
+                        <div className="glass-panel rounded-2xl p-6 flex flex-col relative overflow-hidden">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4 flex justify-between items-center relative z-10">
+                                <span>Mission Report</span>
+                                {missionReport && (
+                                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold tracking-wider ${discrepancies.length > 0 ? 'bg-alert-red/20 text-alert-red border border-alert-red/30' :
+                                        'bg-neon-green/20 text-neon-green border border-neon-green/30'
+                                        }`}>
+                                        {discrepancies.length > 0 ? 'ACTION REQUIRED' : 'ALL CLEAR'}
+                                    </span>
+                                )}
                             </div>
-                            <div className="w-full bg-slate-900 rounded-full h-1.5 mt-3 overflow-hidden">
-                                <div
-                                    className="bg-gradient-to-r from-primary to-neon-purple h-full transition-all duration-300"
-                                    style={{ width: `${progress}%` }}
-                                />
-                            </div>
-                            {progressMessage && (
-                                <p className="text-[11px] text-slate-400 mt-2">{progressMessage}</p>
+
+                            {/* Background glow based on urgency */}
+                            {missionReport && (
+                                <div className={`absolute top-0 right-0 w-32 h-32 blur-3xl rounded-full opacity-20 -z-10 ${discrepancies.length > 0 ? 'bg-alert-red' : 'bg-neon-green'
+                                    } translate-x-10 -translate-y-10`} />
                             )}
-                        </div>
-                    )}
 
-                    {error && (
-                        <ErrorMessage
-                            title="Validation Error"
-                            message={error}
-                            onRetry={handleSubmit}
-                            onDismiss={() => setError(null)}
-                        />
-                    )}
-                </div>
-
-                <div className="p-5 border-t border-white/10 bg-gradient-to-t from-background-dark via-background-dark/80 to-transparent">
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={handleSubmit}
-                            disabled={isLoading || (!textInput && !imageFile && !audioFile)}
-                            className="flex-1 bg-primary/20 text-primary border border-primary/50 hover:bg-primary/30 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-bold uppercase tracking-widest py-3 rounded-lg transition-all"
-                        >
-                            {isLoading ? 'Validating' : 'Run Validation'}
-                        </button>
-                        <button
-                            onClick={handleReset}
-                            className="px-4 py-3 text-xs uppercase tracking-widest border border-white/10 text-slate-300 rounded-lg hover:bg-white/5 transition-colors"
-                        >
-                            Reset
-                        </button>
-                    </div>
-                </div>
-            </section>
-
-            <section className="flex flex-col gap-6">
-                <div className="glass-panel rounded-2xl p-4 relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-[2px] bg-primary/80" />
-                    <div className="flex items-center justify-between mb-4">
-                        <div>
-                            <div className="text-[11px] uppercase tracking-[0.2em] text-primary">XAI Vision Stage</div>
-                            <div className="text-[10px] text-slate-400 mt-1">Visual attention overlay and input scan</div>
-                        </div>
-                        <div className="text-[10px] text-slate-400 uppercase">Heatmap</div>
-                    </div>
-                    <div className="relative rounded-xl overflow-hidden bg-black/70 border border-white/10 h-72 flex items-center justify-center">
-                        {currentResult?.xai_heatmap_url ? (
-                            <img src={currentResult.xai_heatmap_url} alt="XAI Heatmap" className="w-full h-full object-contain" />
-                        ) : imagePreview ? (
-                            <img src={imagePreview} alt="Preview" className="w-full h-full object-contain" />
-                        ) : (
-                            <div className="text-xs text-slate-500">Awaiting visual input</div>
-                        )}
-                        <div className="absolute inset-x-0 h-[2px] bg-primary shadow-neon-cyan animate-scan-vertical" />
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="glass-panel rounded-2xl p-6 flex flex-col items-center justify-center">
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4">Confidence Core</div>
-                        <div className="relative w-36 h-36">
-                            <svg className="w-full h-full -rotate-90">
-                                <circle className="text-slate-800" cx="72" cy="72" r="60" fill="transparent" stroke="currentColor" strokeWidth="8" />
-                                <circle
-                                    className="text-primary"
-                                    cx="72"
-                                    cy="72"
-                                    r="60"
-                                    fill="transparent"
-                                    stroke="currentColor"
-                                    strokeDasharray="377"
-                                    strokeDashoffset={`${377 - Math.round(confidenceScore * 377)}`}
-                                    strokeWidth="8"
-                                />
-                            </svg>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <span className="text-3xl font-bold text-white neon-text-cyan">
-                                    {confidenceScore > 0 ? `${Math.round(confidenceScore * 100)}%` : '—'}
-                                </span>
-                                <span className="text-[10px] text-primary/80 uppercase tracking-widest">Authenticity</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="glass-panel rounded-2xl p-6 relative overflow-hidden">
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Plausibility Matrix</div>
-                        <div className="flex items-center justify-center h-40">
-                            <div className="relative w-32 h-32 rounded-full border border-white/10">
-                                <div className="absolute inset-0 rounded-full border border-white/5 scale-75" />
-                                <div className="absolute inset-0 rounded-full border border-white/5 scale-50" />
-                                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-primary/10 to-transparent animate-radar-sweep border-r border-primary/30" />
-                                <div className="absolute top-[30%] left-[55%] w-2 h-2 bg-neon-green rounded-full shadow-neon-cyan" />
-                            </div>
-                        </div>
-                        <div className="text-[10px] text-slate-400">
-                            {contextResult
-                                ? `Plausibility: ${Math.round(contextResult.plausibility_score * 100)}% — ${contextResult.explanation}`
-                                : currentResult
-                                    ? 'Click "Run Context Analysis" below to score plausibility.'
-                                    : 'Spatial-temporal coherence pending.'
-                            }
-                        </div>
-                    </div>
-
-                    <div className="glass-panel rounded-2xl p-6">
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4">Quality Gates</div>
-                        <div className="space-y-3">
-                            {qualityGates.map((gate) => (
-                                <div key={gate.label} className="flex items-center justify-between">
-                                    <div className="text-xs text-slate-300">{gate.label}</div>
-                                    <div className="w-32 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                                        <div className="h-full bg-primary" style={{ width: `${Math.round(gate.value * 100)}%` }} />
+                            {missionReport ? (
+                                <div className="space-y-4 relative z-10 flex-grow">
+                                    <div className="bg-slate-900/40 rounded-lg p-3 border border-white/5">
+                                        <div className="text-[10px] uppercase text-slate-500 mb-1">Executive Summary</div>
+                                        <div className="text-xs text-slate-300 leading-relaxed">
+                                            {missionReport.summary}
+                                        </div>
                                     </div>
-                                    <div className="text-[10px] text-slate-400 w-10 text-right">{Math.round(gate.value * 100)}%</div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="glass-panel rounded-2xl p-6">
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4">Entity Extraction</div>
-                        {entitiesPreview.length > 0 ? (
-                            <div className="grid grid-cols-2 gap-3">
-                                {entitiesPreview.map(([key, value]) => (
-                                    <div key={key} className="bg-slate-900/60 border border-white/10 rounded-lg p-3">
-                                        <div className="text-[10px] text-slate-500 uppercase">{key.replace(/_/g, ' ')}</div>
-                                        <div className="text-sm text-white mt-1">{String(value)}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-xs text-slate-500">Entities will appear after validation.</div>
-                        )}
-                        <button
-                            type="button"
-                            onClick={handleAnalyzeContext}
-                            disabled={analysisLoading}
-                            className="mt-4 w-full text-[10px] uppercase tracking-widest border border-primary/40 text-primary py-2 rounded-lg hover:bg-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {analysisLoading ? 'Analyzing...' : 'Run context analysis'}
-                        </button>
-                    </div>
-
-                    <div className="glass-panel rounded-2xl p-6">
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4">Cross-Modal Alignment</div>
-                        <div className="space-y-3">
-                            <div>
-                                <div className="flex justify-between text-[10px] text-slate-400 uppercase">
-                                    <span>CLIP similarity</span>
-                                    <span className="text-primary">{formatPercent(clipScore)}%</span>
-                                </div>
-                                <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden mt-2">
-                                    <div className="h-full bg-primary" style={{ width: `${formatPercent(clipScore)}%` }} />
-                                </div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-[10px] text-slate-400 uppercase">
-                                    <span>Voice-text similarity</span>
-                                    <span className="text-neon-purple">{formatPercent(currentResult?.confidence?.cross_modal_scores?.voice_text_similarity)}%</span>
-                                </div>
-                                <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden mt-2">
-                                    <div className="h-full bg-neon-purple" style={{ width: `${formatPercent(currentResult?.confidence?.cross_modal_scores?.voice_text_similarity)}%` }} />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="glass-panel rounded-2xl p-6">
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4">Confidence Drift</div>
-                        <div className="flex items-center justify-between mb-3">
-                            <div>
-                                <div className="text-2xl font-bold text-white">{Math.round(confidenceDrift.recentAvg * 100)}%</div>
-                                <div className="text-[10px] text-slate-500 uppercase">Recent average</div>
-                            </div>
-                            <div className={`text-xs font-mono ${confidenceDrift.delta >= 0 ? 'text-accent-emerald' : 'text-alert-red'}`}>
-                                {confidenceDrift.delta >= 0 ? '+' : ''}{Math.round(confidenceDrift.delta * 100)}%
-                            </div>
-                        </div>
-                        {sparklinePoints ? (
-                            <svg viewBox="0 0 160 48" className="w-full h-12">
-                                <polyline
-                                    points={sparklinePoints}
-                                    fill="none"
-                                    stroke="#06b6d4"
-                                    strokeWidth="2"
-                                    strokeLinejoin="round"
-                                    strokeLinecap="round"
-                                />
-                            </svg>
-                        ) : (
-                            <div className="text-[10px] text-slate-500">Not enough data for drift.</div>
-                        )}
-                    </div>
-
-                    <div className="glass-panel rounded-2xl p-6">
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4">Temporal Consistency</div>
-                        <div className="grid grid-cols-7 gap-1 text-[9px] text-slate-500 mb-2">
-                            {temporalHeatmap.labels.map((label) => (
-                                <div key={label} className="text-center">{label}</div>
-                            ))}
-                        </div>
-                        <div className="grid grid-cols-7 gap-1">
-                            {temporalHeatmap.values.map((row, rowIndex) => (
-                                row.map((value, colIndex) => {
-                                    const alpha = 0.15 + value * 0.75;
-                                    return (
-                                        <div
-                                            key={`${rowIndex}-${colIndex}`}
-                                            className="h-5 rounded border border-white/5"
-                                            style={{ backgroundColor: `rgba(6, 182, 212, ${alpha})` }}
-                                        />
-                                    );
-                                })
-                            ))}
-                        </div>
-                        <div className="flex justify-between text-[9px] text-slate-500 mt-2">
-                            <span>00-04</span>
-                            <span>20-24</span>
-                        </div>
-                    </div>
-
-                    <div className="glass-panel rounded-2xl p-6">
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4">QA Lineage</div>
-                        <div className="space-y-3">
-                            {lineageCards.length ? lineageCards.map((report) => (
-                                <div key={report.id} className="bg-slate-900/60 border border-white/10 rounded-lg p-3">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs font-bold text-white">ID-{(report.id || report.request_id || '').slice(0, 6).toUpperCase()}</span>
-                                        <span className="text-[10px] text-slate-500 font-mono">
-                                            {new Date(report.timestamp).toLocaleTimeString()}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-2">
-                                        {report.input_types?.includes('text') && <span>TXT</span>}
-                                        {report.input_types?.includes('image') && <span>IMG</span>}
-                                        {report.input_types?.includes('voice') && <span>VOICE</span>}
-                                        <span className="ml-auto">{report.confidence?.routing?.replace(/_/g, ' ') || ''}</span>
+                                    <div className="bg-primary/5 rounded-lg p-3 border border-primary/20">
+                                        <div className="text-[10px] uppercase text-primary mb-2 flex items-center gap-2">
+                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                            </svg>
+                                            Recommended Action Items
+                                        </div>
+                                        <ul className="space-y-2">
+                                            {/* Splitting recommendations by period or newline for an actionable list format */}
+                                            {missionReport.recommendation.split(/[.!?\n]+/).filter(item => item.trim().length > 5).map((action, i) => (
+                                                <li key={i} className="flex items-start gap-2 text-xs text-primary/90">
+                                                    <span className="shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full bg-primary/50" />
+                                                    {action.trim()}.
+                                                </li>
+                                            ))}
+                                            {missionReport.recommendation.split(/[.!?\n]+/).filter(item => item.trim().length > 5).length === 0 && (
+                                                <li className="flex items-start gap-2 text-xs text-primary/90">
+                                                    <span className="shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full bg-primary/50" />
+                                                    {missionReport.recommendation}
+                                                </li>
+                                            )}
+                                        </ul>
                                     </div>
                                 </div>
-                            )) : (
-                                <div className="text-[10px] text-slate-500">No lineage data available.</div>
+                            ) : (
+                                <div className="flex-grow flex items-center justify-center border border-dashed border-white/10 rounded-lg p-6 bg-white/[0.02]">
+                                    <div className="text-xs text-slate-500 text-center">
+                                        {analysisLoading ? (
+                                            <span className="animate-pulse">Synthesizing intelligence...</span>
+                                        ) : (
+                                            'Authenticate visual and contextual data to generate report.'
+                                        )}
+                                    </div>
+                                </div>
                             )}
                         </div>
                     </div>
-                </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="glass-panel rounded-2xl p-6 border border-alert-red/30">
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-alert-red mb-3">Discrepancy Engine</div>
-                        {discrepancies.length ? (
-                            <div className="space-y-3">
-                                {discrepancies.slice(0, 3).map((disc, idx) => (
-                                    <div key={idx} className="bg-slate-900/70 border border-alert-red/20 rounded-lg p-3">
-                                        <div className="text-xs text-alert-red uppercase">{disc.type}</div>
-                                        <div className="text-xs text-slate-300 mt-1">{disc.description}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-xs text-slate-500">{currentResult ? 'No discrepancies detected.' : 'Run validation to check.'}</div>
-                        )}
-                        {currentResult && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="glass-panel rounded-2xl p-6">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-3">Spatial-Temporal Context</div>
+                            {contextResult ? (
+                                <div className="space-y-2 text-xs text-slate-300">
+                                    <div>Plausibility: {Math.round(contextResult.plausibility_score * 100)}%</div>
+                                    <div className="text-slate-400">{contextResult.explanation}</div>
+                                    <div className="text-[10px] uppercase text-slate-500">Context: {contextResult.context}</div>
+                                </div>
+                            ) : (
+                                <div className="text-xs text-slate-500">Run context analysis to score plausibility.</div>
+                            )}
+                        </div>
+
+                        <div className="glass-panel rounded-2xl p-6">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-3">Active Learning Feedback</div>
+                            <textarea
+                                value={feedbackNote}
+                                onChange={(event) => setFeedbackNote(event.target.value)}
+                                placeholder="Describe any corrections or mismatches to improve the model."
+                                className="w-full h-24 bg-slate-900/80 border border-white/10 rounded-lg p-3 text-xs text-white placeholder-slate-500 focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none"
+                            />
                             <button
                                 type="button"
-                                onClick={handleExplainXai}
-                                disabled={analysisLoading}
-                                className="mt-4 w-full text-[10px] uppercase tracking-widest border border-white/10 text-slate-300 py-2 rounded-lg hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                onClick={handleSubmitFeedback}
+                                disabled={!currentResult || !feedbackNote.trim() || analysisLoading}
+                                className="mt-3 w-full text-[10px] uppercase tracking-widest border border-primary/40 text-primary py-2 rounded-lg hover:bg-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {analysisLoading ? 'Explaining...' : 'Run XAI explanation'}
+                                {analysisLoading ? 'Submitting...' : 'Submit correction'}
                             </button>
-                        )}
+                            {feedbackStatus && (
+                                <div className="mt-2 text-[10px] text-slate-400">{feedbackStatus}</div>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="glass-panel rounded-2xl p-6">
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-3">Mission Report</div>
-                        {missionReport ? (
-                            <div className="space-y-3">
-                                <div className="text-xs text-slate-300">{missionReport.summary}</div>
-                                <div className="text-xs text-primary">{missionReport.recommendation}</div>
-                            </div>
-                        ) : (
-                            <div className="text-xs text-slate-500">No mission report available yet.</div>
-                        )}
-                    </div>
-                </div>
+                    {analysisError && (
+                        <div className="glass-panel rounded-2xl p-4 border border-alert-red/30 text-xs text-alert-red">
+                            {analysisError}
+                        </div>
+                    )}
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="glass-panel rounded-2xl p-6">
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-3">Spatial-Temporal Context</div>
-                        {contextResult ? (
-                            <div className="space-y-2 text-xs text-slate-300">
-                                <div>Plausibility: {Math.round(contextResult.plausibility_score * 100)}%</div>
-                                <div className="text-slate-400">{contextResult.explanation}</div>
-                                <div className="text-[10px] uppercase text-slate-500">Context: {contextResult.context}</div>
-                            </div>
-                        ) : (
-                            <div className="text-xs text-slate-500">Run context analysis to score plausibility.</div>
-                        )}
-                    </div>
-
-                    <div className="glass-panel rounded-2xl p-6">
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-3">Active Learning Feedback</div>
-                        <textarea
-                            value={feedbackNote}
-                            onChange={(event) => setFeedbackNote(event.target.value)}
-                            placeholder="Describe any corrections or mismatches to improve the model."
-                            className="w-full h-24 bg-slate-900/80 border border-white/10 rounded-lg p-3 text-xs text-white placeholder-slate-500 focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none"
-                        />
-                        <button
-                            type="button"
-                            onClick={handleSubmitFeedback}
-                            disabled={!currentResult || !feedbackNote.trim() || analysisLoading}
-                            className="mt-3 w-full text-[10px] uppercase tracking-widest border border-primary/40 text-primary py-2 rounded-lg hover:bg-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {analysisLoading ? 'Submitting...' : 'Submit correction'}
-                        </button>
-                        {feedbackStatus && (
-                            <div className="mt-2 text-[10px] text-slate-400">{feedbackStatus}</div>
-                        )}
-                    </div>
-                </div>
-
-                {analysisError && (
-                    <div className="glass-panel rounded-2xl p-4 border border-alert-red/30 text-xs text-alert-red">
-                        {analysisError}
-                    </div>
-                )}
-
-                {xaiExplain && (
-                    <div className="glass-panel rounded-2xl p-6">
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-3">XAI Explanation</div>
-                        <div className="text-xs text-slate-300 mb-2">{xaiExplain.explanation}</div>
-                        {xaiExplain.discrepancies?.length ? (
-                            <div className="space-y-2">
-                                {xaiExplain.discrepancies.map((disc, idx) => (
-                                    <div key={idx} className="bg-slate-900/70 border border-white/10 rounded-lg p-3">
-                                        <div className="text-[10px] uppercase text-alert-red">{disc.type}</div>
-                                        <div className="text-xs text-slate-300 mt-1">{disc.explanation}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : null}
-                    </div>
-                )}
-            </section>
+                    {xaiExplain && (
+                        <div className="glass-panel rounded-2xl p-6">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-3">XAI Explanation</div>
+                            <div className="text-xs text-slate-300 mb-2">{xaiExplain.explanation}</div>
+                            {xaiExplain.discrepancies?.length ? (
+                                <div className="space-y-2">
+                                    {xaiExplain.discrepancies.map((disc, idx) => (
+                                        <div key={idx} className="bg-slate-900/70 border border-white/10 rounded-lg p-3">
+                                            <div className="text-[10px] uppercase text-alert-red">{disc.type}</div>
+                                            <div className="text-xs text-slate-300 mt-1">{disc.explanation}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : null}
+                        </div>
+                    )}
+                </section>
             </div>
         </div>
     );
