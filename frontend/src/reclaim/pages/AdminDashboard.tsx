@@ -70,7 +70,7 @@ export function AdminDashboard({ user, onSignOut }) {
   const [toasts, setToasts] = useState<{ id: number; type: string; severity: string; message: string }[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
-  const [health, setHealth] = useState<{ healthy?: boolean } | null>(null);
+  const [health, setHealth] = useState<{ healthy?: boolean; error?: string } | null>(null);
   const socketRef = useRef(null);
   const toastIdRef = useRef(0);
   const notificationPanelRef = useRef<HTMLDivElement>(null);
@@ -167,7 +167,10 @@ export function AdminDashboard({ user, onSignOut }) {
   }, [pagination.page, pagination.limit]);
 
   useEffect(() => {
-    voshanDetectionApi.health().then(setHealth).catch(() => setHealth({ healthy: false }));
+    voshanDetectionApi
+      .health()
+      .then(setHealth)
+      .catch((err) => setHealth({ healthy: false, error: err?.message || 'Health check failed' }));
   }, []);
 
   useEffect(() => {
@@ -392,10 +395,19 @@ export function AdminDashboard({ user, onSignOut }) {
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
         {health && (
-          <div className="flex items-center gap-2 text-sm">
-            <span className={health.healthy ? 'text-green-400' : 'text-red-400'}>
-              {health.healthy ? '● ML service connected' : '○ ML service unavailable'}
-            </span>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 text-sm">
+              <span className={health.healthy ? 'text-green-400' : 'text-red-400'}>
+                {health.healthy ? '● ML service connected' : '○ ML service unavailable'}
+              </span>
+            </div>
+            {!health.healthy && health.error && (
+              <p className="text-xs text-red-300/90 max-w-xl" title={health.error}>
+                {health.error.includes('ECONNREFUSED') || health.error.includes('fetch')
+                  ? 'ML service not running. Start it from Voshan/ml-service: python app.py'
+                  : health.error}
+              </p>
+            )}
           </div>
         )}
 
