@@ -287,6 +287,8 @@ class ImageValidator:
                 "potted plant", "vase", "flower",
                 # Animals
                 "cat", "dog", "bird", "horse", "cow", "sheep",
+                # Infrastructure
+                "fire hydrant", "stop sign", "traffic light", "parking meter",
             }
             detections = [
                 d for d in detections
