@@ -58,14 +58,17 @@ class ObjectTracker:
             )
         except Exception as e:
             error_msg = str(e).lower()
-            if "optical flow" in error_msg or "lkpyramid" in error_msg or "prevpyr" in error_msg or "lvlstep" in error_msg:
-                results = self.model.predict(
-                    frame,
-                    verbose=False,
-                    imgsz=640
-                )
-                if len(results) > 0 and results[0].boxes is not None:
-                    results[0].boxes.id = None
+            if "optical flow" in error_msg or "lkpyramid" in error_msg or "prevpyr" in error_msg or "lvlstep" in error_msg or "215" in error_msg or "assertion failed" in error_msg:
+                try:
+                    results = self.model.predict(
+                        frame,
+                        verbose=False,
+                        imgsz=640
+                    )
+                    if len(results) > 0 and results[0].boxes is not None:
+                        results[0].boxes.id = None
+                except Exception:
+                    return []
             else:
                 raise
         

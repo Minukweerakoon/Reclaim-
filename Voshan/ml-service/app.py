@@ -430,37 +430,46 @@ def process_video():
                         # If tracking fails (e.g. OpenCV optical flow / lkpyramid / prevPyr), fall back to detection-only
                         error_msg = str(track_error)
                         if ("optical flow" in error_msg.lower() or "lkpyramid" in error_msg.lower()
-                                or "prevpyr" in error_msg.lower() or "lvlstep" in error_msg.lower() or "prevPyr" in error_msg):
+                                or "prevpyr" in error_msg.lower() or "lvlstep" in error_msg.lower() or "prevPyr" in error_msg
+                                or "215" in error_msg or "assertion failed" in error_msg.lower()):
                             consecutive_tracking_failures += 1
                             logger.warning(f"Optical flow error at frame {frame_count}: {error_msg[:100]}")
                             if consecutive_tracking_failures >= 1:
                                 logger.warning(f"Optical flow errors detected. Switching to detection-only mode for remaining frames.")
                                 use_detection_only = True
-                            detections = detector.detect(frame)
-                            tracked_objects = [
-                                {
-                                    "track_id": None,
-                                    "bbox": det["bbox"],
-                                    "confidence": det["confidence"],
-                                    "class_id": det["class_id"],
-                                    "class_name": det["class_name"]
-                                }
-                                for det in detections
-                            ]
-                            logger.info(f"Using detection-only mode for frame {frame_count} ({len(tracked_objects)} objects detected)")
+                            try:
+                                detections = detector.detect(frame)
+                                tracked_objects = [
+                                    {
+                                        "track_id": None,
+                                        "bbox": det["bbox"],
+                                        "confidence": det["confidence"],
+                                        "class_id": det["class_id"],
+                                        "class_name": det["class_name"]
+                                    }
+                                    for det in detections
+                                ]
+                                logger.info(f"Using detection-only mode for frame {frame_count} ({len(tracked_objects)} objects detected)")
+                            except Exception as det_err:
+                                logger.warning(f"Detection fallback failed at frame {frame_count}: {det_err}")
+                                tracked_objects = []
                         else:
                             # Other tracking error: still try detection-only for this frame
-                            detections = detector.detect(frame)
-                            tracked_objects = [
-                                {
-                                    "track_id": None,
-                                    "bbox": det["bbox"],
-                                    "confidence": det["confidence"],
-                                    "class_id": det["class_id"],
-                                    "class_name": det["class_name"]
-                                }
-                                for det in detections
-                            ]
+                            try:
+                                detections = detector.detect(frame)
+                                tracked_objects = [
+                                    {
+                                        "track_id": None,
+                                        "bbox": det["bbox"],
+                                        "confidence": det["confidence"],
+                                        "class_id": det["class_id"],
+                                        "class_name": det["class_name"]
+                                    }
+                                    for det in detections
+                                ]
+                            except Exception as det_err:
+                                logger.warning(f"Detection fallback failed at frame {frame_count}: {det_err}")
+                                tracked_objects = []
                             logger.debug(f"Tracking failed, using detection-only for frame {frame_count}: {len(tracked_objects)} objects")
             except Exception as detect_error:
                 # If even detection fails, log and continue with empty detections

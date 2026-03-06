@@ -280,20 +280,6 @@ exports.processVideo = async (req, res) => {
               videoInfo: payload.videoInfo
             });
             if (inserted) savedAlerts.push(inserted);
-            try {
-              websocketService.broadcastAlert({
-                alertId: alert.alert_id || alert.alertId,
-                type: alert.type,
-                severity: alert.severity,
-                timestamp: alert.timestamp,
-                frame: alert.frame,
-                cameraId: cameraId,
-                details: alert.details || {},
-                frame_image: alert.frame_image || null
-              });
-            } catch (wsError) {
-              console.error('[processVideo] WebSocket broadcast error:', wsError);
-            }
             notificationService.sendHighPriorityAlert({
               alertId: alert.alert_id || alert.alertId,
               type: alert.type,
@@ -305,6 +291,38 @@ exports.processVideo = async (req, res) => {
             });
           } catch (saveError) {
             console.error('[processVideo] Error saving alert:', saveError);
+          }
+        }
+        // Group alerts by 50-frame window and type; broadcast one grouped-alert per group
+        const FRAME_WINDOW = 50;
+        const groups = new Map();
+        for (const alert of alerts) {
+          if (!alert || !alert.alert_id) continue;
+          const frame = alert.frame ?? 0;
+          const bucket = Math.floor(Number(frame) / FRAME_WINDOW) * FRAME_WINDOW;
+          const key = `${bucket}_${alert.type}`;
+          if (!groups.has(key)) {
+            groups.set(key, {
+              type: alert.type,
+              severity: alert.severity || 'MEDIUM',
+              frameStart: bucket,
+              frameEnd: bucket + FRAME_WINDOW - 1,
+              cameraId: cameraId || null,
+              count: 0,
+              frameImages: []
+            });
+          }
+          const g = groups.get(key);
+          g.count += 1;
+          if (alert.frame_image && !g.frameImages.includes(alert.frame_image)) {
+            g.frameImages.push(alert.frame_image);
+          }
+        }
+        for (const g of groups.values()) {
+          try {
+            websocketService.broadcastAlertGroup(g);
+          } catch (wsError) {
+            console.error('[processVideo] WebSocket broadcastGroup error:', wsError);
           }
         }
         if (savedAlerts.length > 0) {

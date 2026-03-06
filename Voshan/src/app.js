@@ -56,9 +56,9 @@ app.use('/api/voshan/detection/alert-frames', (req, res, next) => {
 // Voshan: Suspicious Behavior Detection Routes
 app.use('/api/voshan/detection', require('./routes/voshan/detectionRoutes'));
 
-// Health check route
+// Health check route (frontend expects status: 'healthy' | 'degraded' | 'unhealthy')
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' });
+  res.json({ status: 'healthy', message: 'Server is running' });
 });
 
 // Error handling middleware

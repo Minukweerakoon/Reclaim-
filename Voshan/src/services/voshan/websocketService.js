@@ -47,7 +47,8 @@ class WebSocketService {
     this.io.on('connection', (socket) => {
       const clientId = socket.id;
       this.connectedClients.set(clientId, socket);
-      console.log(`📡 Client connected: ${clientId} (Total: ${this.connectedClients.size})`);
+      socket.join('alerts');
+      console.log(`📡 Client connected: ${clientId} (Total: ${this.connectedClients.size}) [auto-joined alerts]`);
 
       // Handle client joining camera room
       socket.on('join-camera', (cameraId) => {
@@ -113,6 +114,24 @@ class WebSocketService {
       this.io.to(`camera-${alert.cameraId}`).emit('new-alert', alert);
       console.log(`📹 Broadcasted alert to camera room: ${alert.cameraId} (${cameraRoomSize} client(s))`);
     }
+  }
+
+  /**
+   * Broadcast a grouped alert (e.g. N alerts of same type in a 50-frame window)
+   * @param {Object} group - { type, count, frameStart, frameEnd, cameraId, severity, frameImages[] }
+   */
+  broadcastAlertGroup(group) {
+    if (!this.io) {
+      console.warn('⚠️ WebSocket not initialized, cannot broadcast grouped alert');
+      return;
+    }
+    const alertsRoom = this.io.sockets.adapter.rooms.get('alerts');
+    const alertsRoomSize = alertsRoom ? alertsRoom.size : 0;
+    this.io.to('alerts').emit('grouped-alert', group);
+    if (group.cameraId) {
+      this.io.to(`camera-${group.cameraId}`).emit('grouped-alert', group);
+    }
+    console.log(`📢 Broadcasted grouped alert: ${group.count}× ${group.type} (frames ${group.frameStart}-${group.frameEnd}) to ${alertsRoomSize} client(s)`);
   }
 
   /**

@@ -38,13 +38,15 @@ export const voshanDetectionApi = {
     });
   },
 
-  async getAlerts(params: { page?: number; limit?: number; type?: string; severity?: string; cameraId?: string } = {}) {
+  async getAlerts(params: { page?: number; limit?: number; type?: string; severity?: string; cameraId?: string; startDate?: string; endDate?: string } = {}) {
     const sp = new URLSearchParams();
     if (params.page != null) sp.set('page', String(params.page));
     if (params.limit != null) sp.set('limit', String(params.limit));
     if (params.type) sp.set('type', params.type);
     if (params.severity) sp.set('severity', params.severity);
     if (params.cameraId) sp.set('cameraId', params.cameraId);
+    if (params.startDate) sp.set('startDate', params.startDate);
+    if (params.endDate) sp.set('endDate', params.endDate);
     const res = await fetch(`${BASE}/voshan/detection/alerts?${sp}`);
     return res.json();
   },
