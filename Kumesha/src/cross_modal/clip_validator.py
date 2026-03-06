@@ -177,9 +177,16 @@ class CLIPValidator:
         # Calculate raw cosine similarity (range: [-1, 1])
         raw_similarity = torch.nn.functional.cosine_similarity(image_embedding, text_embedding).item()
         
-        # Normalize to [0, 1] for percentage-based scoring
-        normalized_similarity = (raw_similarity + 1.0) / 2.0
-        return normalized_similarity
+        # Empirical PyTorch CLIP calibration:
+        # Raw cosine similarities typically range from ~0.15 (mismatch) to ~0.35 (strong match).
+        # We linearly scale this range to a clean 0% to 100% confidence score.
+        min_expected = 0.15
+        max_expected = 0.35
+        
+        normalized_similarity = (raw_similarity - min_expected) / (max_expected - min_expected)
+        
+        # Clamp perfectly between 0.0 and 1.0
+        return max(0.0, min(1.0, normalized_similarity))
     
 
     

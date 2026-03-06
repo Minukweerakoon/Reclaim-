@@ -1886,9 +1886,9 @@ async def validate_complete(
                 if cv is None:
                     raise Exception("CLIP validator not available")
                 # Format text for CLIP
-                # Extract visual attributes and compose a short sentence like "black Nikon camera"
-                clip_text = text
-                if text_result:
+                # Use explicit visual text if provided, else extract from full text
+                clip_text = visualText if visualText else text
+                if not visualText and text_result:
                     ents = text_result.get("entities", {}) or {}
                     compl = text_result.get("completeness", {}).get("entities", {}) or {}
                     
