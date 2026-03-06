@@ -485,13 +485,13 @@ class ConsistencyEngine:
         else:
             # Adjust based on missing inputs
             if "voice" not in present_modalities:
-                # Distribute voice-related weights (0.20 + 0.10 = 0.30) to image and text/clip
-                # New split: Image (0.35), Text (0.35), CLIP (0.30)
+                # Distribute voice-related weights (0.20 + 0.10 = 0.30) to image and text
+                # New split: Image (0.45), Text (0.40), CLIP (0.15)
                 active_weights = {
-                    "image": 0.35,
-                    "text": 0.35,
+                    "image": 0.45,
+                    "text": 0.40,
                     "voice": 0.0,
-                    "clip": 0.30,
+                    "clip": 0.15,
                     "voice_text": 0.0
                 }
             
@@ -536,10 +536,10 @@ class ConsistencyEngine:
         # Determine routing and action based on calibrated confidence
         routing = "low_quality"
         action = "return_for_improvement"
-        if rounded_confidence >= 0.85:
+        if rounded_confidence >= 0.80:
             routing = "high_quality"
             action = "forward_to_matching"
-        elif rounded_confidence >= 0.70:
+        elif rounded_confidence >= 0.60:
             routing = "medium_quality"
             action = "manual_review"
 

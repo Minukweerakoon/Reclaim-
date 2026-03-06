@@ -361,6 +361,7 @@ export interface XAIExplainRequest {
     text?: string;
     image_path?: string;
     transcription?: string;
+    validation_result?: Record<string, any>;
 }
 
 export interface XAIExplainResponse {

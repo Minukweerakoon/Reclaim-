@@ -1280,6 +1280,8 @@ class XAIExplainRequest(BaseModel):
     text: Optional[str] = None
     image_path: Optional[str] = None
     transcription: Optional[str] = None
+    # Add optional full results dictionary from frontend
+    validation_result: Optional[Dict[str, Any]] = None
 
 @app.post("/api/xai/explain-enhanced")
 async def get_enhanced_xai_explanation(
@@ -1301,18 +1303,46 @@ async def get_enhanced_xai_explanation(
             check_color_mismatch
         )
         
+        # Determine whether to use the provided full validation payload or run validators
+        image_result = None
+        text_result = None
+        voice_result = None
+        cross_modal_results = None
+        
+        if request.validation_result:
+            # Use the pre-computed validation result from the frontend state
+            val = request.validation_result
+            image_result = val.get("image")
+            text_result = val.get("text")
+            voice_result = val.get("voice")
+            cross_modal_results = val.get("cross_modal")
+        else:
+            # Fallback: We need the validators to get the real detections/similarity
+            from src.image.validator import get_image_validator
+            from src.text.validator import get_text_validator
+            
+            if request.text:
+                text_val = get_text_validator()
+                if text_val:
+                    text_result = text_val.validate_text(request.text, language="en")
+                    
+            if request.image_path:
+                image_val = get_image_validator()
+                if image_val:
+                    image_result = image_val.validate_image(request.image_path, request.text)
+                    image_result["image_path"] = request.image_path
+                    
+            if request.transcription:
+                voice_result = {"transcription": request.transcription}
+            
         explainer = XAIExplainer()
         
-        # Build mock result dicts from the frontend request to pass to the explainer and checkers
-        image_result = {"image_path": request.image_path} if request.image_path else None
-        text_result = {"text": request.text} if request.text else None
-        voice_result = {"transcription": request.transcription} if request.transcription else None
-        
-        # Get basic explanation
+        # Get basic explanation using the ACTUAL validation results
         base_explanation = explainer.generate_explanation(
             image_result=image_result,
             text_result=text_result,
-            voice_result=voice_result
+            voice_result=voice_result,
+            cross_modal_results=cross_modal_results
         )
         
         # Add enhanced discrepancy checks if requested
@@ -1855,7 +1885,41 @@ async def validate_complete(
                 cv = get_clip_validator()
                 if cv is None:
                     raise Exception("CLIP validator not available")
-                cross_modal_results["image_text"] = cv.validate_image_text_alignment(image_path, text)
+                # Format text for CLIP
+                # Use explicit visual text if provided, else extract from full text
+                clip_text = visualText if visualText else text
+                if not visualText and text_result:
+                    ents = text_result.get("entities", {}) or {}
+                    compl = text_result.get("completeness", {}).get("entities", {}) or {}
+                    
+                    colors = ents.get("color_mentions", []) or compl.get("color", [])
+                    brands = ents.get("brand_mentions", []) or compl.get("brand", [])
+                    items  = ents.get("item_mentions",  []) or compl.get("item_type", [])
+                    
+                    color     = colors[0] if colors else None
+                    brand     = brands[0] if brands else None
+                    item_type = items[0]  if items  else None
+                    
+                    if not (color and item_type):
+                        for segment in text.split(","):
+                            idx = segment.find(":")
+                            if idx < 0:
+                                continue
+                            key = segment[:idx].strip().lower().replace(" ", "_")
+                            val = segment[idx + 1:].strip()
+                            if key in ("item_type", "item type") and not item_type:
+                                item_type = val
+                            elif key == "color" and not color:
+                                color = val
+                            elif key == "brand" and not brand:
+                                brand = val
+                                
+                    parts = [p for p in [color, brand, item_type] if p]
+                    if parts:
+                        clip_text = f"a photo of a {' '.join(parts)}"
+                
+                logger.info(f"[CLIP] Final query for CLIP: '{clip_text}'")
+                cross_modal_results["image_text"] = cv.validate_image_text_alignment(image_path, clip_text)
                 logger.info("✓ Image-text consistency checked")
             except Exception as e:
                 logger.warning(f"Image-text consistency check failed: {e}")
