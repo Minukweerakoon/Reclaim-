@@ -174,9 +174,12 @@ class CLIPValidator:
         Returns:
             float: Cosine similarity score (0-1)
         """
-        # Calculate cosine similarity
-        similarity = torch.nn.functional.cosine_similarity(image_embedding, text_embedding).item()
-        return similarity
+        # Calculate raw cosine similarity (range: [-1, 1])
+        raw_similarity = torch.nn.functional.cosine_similarity(image_embedding, text_embedding).item()
+        
+        # Normalize to [0, 1] for percentage-based scoring
+        normalized_similarity = (raw_similarity + 1.0) / 2.0
+        return normalized_similarity
     
 
     

@@ -1238,8 +1238,8 @@ function ValidationHub() {
                                 <svg className="w-full h-full -rotate-90">
                                     <circle className="text-slate-800" cx="72" cy="72" r="60" fill="transparent" stroke="currentColor" strokeWidth="8" />
                                     <circle
-                                        className={`transition-colors duration-500 ${confidenceScore >= 0.75 ? 'text-neon-green' :
-                                            confidenceScore >= 0.5 ? 'text-yellow-400' :
+                                        className={`transition-colors duration-500 ${confidenceScore >= 0.80 ? 'text-neon-green' :
+                                            confidenceScore >= 0.60 ? 'text-yellow-400' :
                                                 confidenceScore > 0 ? 'text-alert-red' : 'text-primary'
                                             }`}
                                         cx="72"
@@ -1253,15 +1253,15 @@ function ValidationHub() {
                                     />
                                 </svg>
                                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                    <span className={`text-3xl font-bold ${confidenceScore >= 0.75 ? 'text-neon-green shadow-neon-green/50 drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]' :
-                                        confidenceScore >= 0.5 ? 'text-yellow-400 shadow-yellow-400/50 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
+                                    <span className={`text-3xl font-bold ${confidenceScore >= 0.80 ? 'text-neon-green shadow-neon-green/50 drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]' :
+                                        confidenceScore >= 0.60 ? 'text-yellow-400 shadow-yellow-400/50 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
                                             confidenceScore > 0 ? 'text-alert-red shadow-alert-red/50 drop-shadow-[0_0_8px_rgba(240,68,56,0.5)]' : 'text-white neon-text-cyan'
                                         }`}>
                                         {confidenceScore > 0 ? `${Math.round(confidenceScore * 100)}%` : '—'}
                                     </span>
                                     <span className="text-[10px] uppercase tracking-widest mt-1 text-center font-semibold text-slate-300">
-                                        {confidenceScore >= 0.75 ? 'High Quality' :
-                                            confidenceScore >= 0.5 ? 'Review Needed' :
+                                        {confidenceScore >= 0.80 ? 'High Quality' :
+                                            confidenceScore >= 0.60 ? 'Review Needed' :
                                                 confidenceScore > 0 ? 'Low Quality' : 'Authenticity'}
                                     </span>
                                 </div>
@@ -1362,15 +1362,15 @@ function ValidationHub() {
 
                                             {/* Progress Fill */}
                                             <div
-                                                className={`h-full transition-all duration-1000 ease-out relative z-0 ${gate.value >= 0.75 ? 'bg-gradient-to-r from-green-500 to-neon-green shadow-neon-green' :
-                                                    gate.value >= 0.5 ? 'bg-gradient-to-r from-yellow-600 to-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
+                                                className={`h-full transition-all duration-1000 ease-out relative z-0 ${gate.value >= 0.80 ? 'bg-gradient-to-r from-green-500 to-neon-green shadow-neon-green' :
+                                                    gate.value >= 0.60 ? 'bg-gradient-to-r from-yellow-600 to-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
                                                         gate.value > 0 ? 'bg-gradient-to-r from-red-600 to-alert-red shadow-[0_0_8px_rgba(240,68,56,0.5)]' : 'bg-slate-700'
                                                     }`}
                                                 style={{ width: `${Math.round(gate.value * 100)}%` }}
                                             />
                                         </div>
-                                        <div className={`text-[10px] w-10 text-right font-medium transition-colors ${gate.value >= 0.75 ? 'text-neon-green' :
-                                            gate.value >= 0.5 ? 'text-yellow-400' :
+                                        <div className={`text-[10px] w-10 text-right font-medium transition-colors ${gate.value >= 0.80 ? 'text-neon-green' :
+                                            gate.value >= 0.60 ? 'text-yellow-400' :
                                                 gate.value > 0 ? 'text-alert-red' : 'text-slate-500'
                                             }`}>
                                             {Math.round(gate.value * 100)}%
@@ -1416,15 +1416,15 @@ function ValidationHub() {
                                         <div className="flex flex-col">
                                             <span>CLIP similarity</span>
                                             {clipScore > 0 && (
-                                                <span className={`text-[9px] mt-0.5 ${clipScore >= 0.75 ? 'text-neon-green' :
-                                                    clipScore >= 0.5 ? 'text-yellow-400' : 'text-alert-red'
+                                                <span className={`text-[9px] mt-0.5 ${clipScore >= 0.80 ? 'text-neon-green' :
+                                                    clipScore >= 0.60 ? 'text-yellow-400' : 'text-alert-red'
                                                     }`}>
-                                                    {clipScore >= 0.75 ? 'High match' : clipScore >= 0.5 ? 'Review needed' : 'Low match'}
+                                                    {clipScore >= 0.80 ? 'High match' : clipScore >= 0.60 ? 'Review needed' : 'Low match'}
                                                 </span>
                                             )}
                                         </div>
-                                        <span className={`text-sm font-bold ${clipScore >= 0.75 ? 'text-neon-green' :
-                                            clipScore >= 0.5 ? 'text-yellow-400' :
+                                        <span className={`text-sm font-bold ${clipScore >= 0.80 ? 'text-neon-green' :
+                                            clipScore >= 0.60 ? 'text-yellow-400' :
                                                 clipScore > 0 ? 'text-alert-red' : 'text-slate-500'
                                             }`}>
                                             {formatPercent(clipScore)}%
@@ -1434,8 +1434,8 @@ function ValidationHub() {
                                         <div className="absolute top-0 bottom-0 left-[50%] w-px bg-white/20 z-10" />
                                         <div className="absolute top-0 bottom-0 left-[75%] w-px bg-white/20 z-10" />
                                         <div
-                                            className={`h-full relative z-0 transition-all duration-1000 ${clipScore >= 0.75 ? 'bg-gradient-to-r from-green-500 to-neon-green shadow-[0_0_8px_rgba(74,222,128,0.5)]' :
-                                                clipScore >= 0.5 ? 'bg-gradient-to-r from-yellow-600 to-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
+                                            className={`h-full relative z-0 transition-all duration-1000 ${clipScore >= 0.80 ? 'bg-gradient-to-r from-green-500 to-neon-green shadow-[0_0_8px_rgba(74,222,128,0.5)]' :
+                                                clipScore >= 0.60 ? 'bg-gradient-to-r from-yellow-600 to-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
                                                     clipScore > 0 ? 'bg-gradient-to-r from-red-600 to-alert-red shadow-[0_0_8px_rgba(240,68,56,0.5)]' : 'bg-slate-700'
                                                 }`}
                                             style={{ width: `${formatPercent(clipScore)}%` }}
@@ -1451,11 +1451,11 @@ function ValidationHub() {
                                                 if (voiceSim === undefined) return null;
 
                                                 return (
-                                                    <span className={`text-[9px] mt-0.5 ${voiceSim >= 0.75 ? 'text-neon-purple' :
-                                                        voiceSim >= 0.5 ? 'text-yellow-400' : 'text-alert-red'
+                                                    <span className={`text-[9px] mt-0.5 ${voiceSim >= 0.80 ? 'text-neon-purple' :
+                                                        voiceSim >= 0.60 ? 'text-yellow-400' : 'text-alert-red'
                                                         }`}>
-                                                        {voiceSim >= 0.75 ? 'Strong alignment' :
-                                                            voiceSim >= 0.5 ? 'Partial alignment' : 'Low alignment'}
+                                                        {voiceSim >= 0.80 ? 'Strong alignment' :
+                                                            voiceSim >= 0.60 ? 'Partial alignment' : 'Low alignment'}
                                                     </span>
                                                 );
                                             })()}
@@ -1464,8 +1464,8 @@ function ValidationHub() {
                                             const voiceSim = currentResult?.confidence?.cross_modal_scores?.voice_text_similarity;
                                             return (
                                                 <span className={`text-sm font-bold ${voiceSim === undefined ? 'text-slate-500' :
-                                                    voiceSim >= 0.75 ? 'text-neon-purple' :
-                                                        voiceSim >= 0.5 ? 'text-yellow-400' : 'text-alert-red'
+                                                    voiceSim >= 0.80 ? 'text-neon-purple' :
+                                                        voiceSim >= 0.60 ? 'text-yellow-400' : 'text-alert-red'
                                                     }`}>
                                                     {voiceSim !== undefined ? `${formatPercent(voiceSim)}%` : '—'}
                                                 </span>
@@ -1479,8 +1479,8 @@ function ValidationHub() {
                                                 <div className="absolute top-0 bottom-0 left-[50%] w-px bg-white/20 z-10" />
                                                 <div className="absolute top-0 bottom-0 left-[75%] w-px bg-white/20 z-10" />
                                                 <div
-                                                    className={`h-full relative z-0 transition-all duration-1000 ${voiceSim >= 0.75 ? 'bg-gradient-to-r from-purple-600 to-neon-purple shadow-[0_0_8px_rgba(192,132,252,0.5)]' :
-                                                        voiceSim >= 0.5 ? 'bg-gradient-to-r from-yellow-600 to-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
+                                                    className={`h-full relative z-0 transition-all duration-1000 ${voiceSim >= 0.80 ? 'bg-gradient-to-r from-purple-600 to-neon-purple shadow-[0_0_8px_rgba(192,132,252,0.5)]' :
+                                                        voiceSim >= 0.60 ? 'bg-gradient-to-r from-yellow-600 to-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
                                                             currentResult?.confidence?.cross_modal_scores?.voice_text_similarity !== undefined ? 'bg-gradient-to-r from-red-600 to-alert-red shadow-[0_0_8px_rgba(240,68,56,0.5)]' : 'bg-slate-700'
                                                         }`}
                                                     style={{ width: `${formatPercent(voiceSim)}%` }}
