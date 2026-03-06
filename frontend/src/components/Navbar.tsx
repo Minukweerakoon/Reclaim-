@@ -1,9 +1,10 @@
 // @ts-nocheck
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Search, Sparkles } from 'lucide-react';
 import { ProfileDropdown } from './ProfileDropdown';
 
-export function Navbar({ currentPage = 'chat', onNavigate, user, onSignOut }) {
+export function Navbar({ currentPage = 'chat', onNavigate, user, onSignOut, showAdminLink }) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
     const displayName = user?.user_metadata?.full_name || user?.email || 'User';
@@ -31,6 +32,14 @@ export function Navbar({ currentPage = 'chat', onNavigate, user, onSignOut }) {
 
             {/* Nav Items — scroll to sections, do NOT navigate to chat */}
             <div className="hidden md:flex items-center gap-8">
+                {showAdminLink && (
+                    <Link
+                        to="/reclaim/admin"
+                        className="text-sm font-medium text-amber-400 hover:text-amber-300 border-b-2 border-transparent py-5 px-1"
+                    >
+                        Admin
+                    </Link>
+                )}
                 {[
                     { label: 'Find', section: 'hero-section' },
                     { label: 'Report', section: 'features-section' },
