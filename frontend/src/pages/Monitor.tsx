@@ -122,26 +122,8 @@ function Monitor() {
     );
 
     return (
-        <div className="animate-fade-in">
-            {/* Page Title */}
-            <div className="mb-8 text-center">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-medium mb-4">
-                    <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                    </span>
-                    Real-Time Analytics
-                </div>
-                <h1 className="text-4xl md:text-5xl font-bold mb-3 tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400">
-                    Monitor Dashboard
-                </h1>
-                <p className="text-slate-400 max-w-2xl mx-auto">
-                    System health metrics, confidence trends, and report lineage tracking.
-                </p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
-                <aside className="glass-panel rounded-2xl overflow-hidden flex flex-col">
+        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 h-[calc(100vh-160px)]">
+            <aside className="glass-panel rounded-2xl overflow-hidden flex flex-col">
                 <div className="p-4 border-b border-white/10 flex items-center justify-between">
                     <div>
                         <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Latest Submissions</h2>
@@ -409,7 +391,6 @@ function Monitor() {
                     </div>
                 )}
             </section>
-            </div>
         </div>
     );
 }

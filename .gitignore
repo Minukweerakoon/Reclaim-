@@ -44,3 +44,4 @@ __pycache__/
 # Misc
 *.tmp
 *.bak
+.qodo

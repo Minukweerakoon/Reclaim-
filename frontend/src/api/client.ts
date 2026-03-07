@@ -20,7 +20,13 @@ apiClient.interceptors.request.use(
             config.headers.Authorization = `Bearer ${session.access_token}`;
         }
         if (import.meta.env.DEV) {
-            console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`, config.data);
+            const method = config.method?.toUpperCase();
+            const payload = config.data ?? config.params;
+            if (payload !== undefined) {
+                console.log(`[API] ${method} ${config.url}`, payload);
+            } else {
+                console.log(`[API] ${method} ${config.url}`);
+            }
         }
         return config;
     },

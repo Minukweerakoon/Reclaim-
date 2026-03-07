@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { healthApi } from '../api/health';
@@ -9,7 +9,6 @@ import { ProfileDropdown } from './ProfileDropdown';
 function Layout() {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const location = useLocation();
-    const navigate = useNavigate();
     const { user, signOutUser } = useAuth();
 
     const { data: health, isError } = useQuery({
@@ -39,29 +38,21 @@ function Layout() {
         return health.status || 'Unknown';
     };
 
-    const displayName = user?.user_metadata?.full_name || user?.email || 'User';
-    const nameParts = String(displayName).split(' ');
-    const firstName = nameParts[0] || 'User';
-    const lastInitial = nameParts[1]?.[0] ? `${nameParts[1][0]}.` : '';
-    const avatarUrl = user?.user_metadata?.avatar_url ||
-        `https://ui-avatars.com/api/?name=${encodeURIComponent(String(displayName))}`;
-
     return (
-        <div className="min-h-screen w-full bg-[#08080f] text-white relative overflow-x-hidden">
-            {/* Background Glow Orbs */}
-            <div className="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-600/10 blur-[120px] pointer-events-none" />
-            <div className="fixed bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-cyan-600/10 blur-[120px] pointer-events-none" />
-
-            <header className="fixed top-0 left-0 right-0 z-50 glass-panel-heavy backdrop-blur-xl border-b border-white/10">
+        <div className="min-h-screen bg-background-dark text-slate-100 grid-bg">
+            <header className="sticky top-0 z-50 glass-panel-heavy border-b border-white/10">
                 <div className="px-6 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-2 group cursor-pointer" onClick={() => navigate('/reclaim')}>
-                        <div className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-500/10 group-hover:bg-indigo-500/20 transition-colors">
-                            <Sparkles className="w-5 h-5 text-indigo-400" />
-                            <div className="absolute inset-0 rounded-lg shadow-[0_0_15px_rgba(99,102,241,0.3)] opacity-50 group-hover:opacity-100 transition-opacity" />
+                    <div className="flex items-center gap-4">
+                        <div className="h-9 w-9 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center shadow-neon-cyan">
+                            <span className="text-primary text-xs font-mono">NC</span>
                         </div>
                         <div>
-                            <div className="text-xl font-bold text-white tracking-tight">Reclaim</div>
-                            <div className="text-[10px] text-slate-400 uppercase tracking-widest">AI-Powered Lost &amp; Found</div>
+                            <div className="text-sm uppercase tracking-[0.3em] font-tech text-white neon-text-cyan">
+                                Neural Command Center
+                            </div>
+                            <div className="text-[10px] text-slate-400 uppercase tracking-widest">
+                                Proactive multimodal validation
+                            </div>
                         </div>
                     </div>
 
@@ -80,7 +71,7 @@ function Layout() {
                         ))}
                     </nav>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-6">
                         <div className="text-right">
                             <div className="text-[10px] text-slate-400 uppercase tracking-widest">System</div>
                             <div className="text-xs font-semibold uppercase text-slate-100">
@@ -116,7 +107,7 @@ function Layout() {
                 </div>
             </header>
 
-            <main className="pt-24 pb-16 px-4 md:px-8 max-w-7xl mx-auto relative z-10">
+            <main className="px-6 py-6">
                 <Outlet />
             </main>
         </div>

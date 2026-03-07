@@ -27,10 +27,9 @@ CATEGORY_ALIASES = {
     'laptop': ['notebook', 'macbook', 'computer'],
     'laptop_charger': ['charger', 'adapter', 'power supply'],
     'backpack': ['bag', 'rucksack', 'schoolbag'],
-    'card': ['wallet', 'id', 'credit card'],
     'mouse': ['mice', 'mouse pad'],
-    'phone': ['mobile', 'smartphone', 'iphone', 'cellphone'],  # ✅ PHONE IS HERE!
-    'wallet': ['purse', 'money clip'],
+    'phone': ['mobile', 'smartphone', 'iphone', 'cellphone'],
+    'wallet': ['purse', 'money clip', 'billfold', 'card holder'],  # Removed 'card' category to prevent false matches
 }
 
 class ViTImageValidator:

@@ -93,10 +93,22 @@ export interface DetectedObject {
 /* ---------- Voice ---------- */
 
 export interface VoiceValidationResult {
-    transcription: string;
-    confidence: number;
+    audio_path?: string;
+    quality?: Record<string, any>;
+    transcription:
+        | string
+        | {
+            valid?: boolean;
+            transcription?: string;
+            confidence?: number;
+            language?: string;
+            feedback?: string;
+        };
+    confidence?: number;
+    overall_score?: number;
+    valid?: boolean;
     snr?: number;
-    language: string;
+    language?: string;
     timestamp: string;
 }
 
@@ -154,6 +166,15 @@ export interface CrossModal {
         suggestions: string[];
         normalized_inputs?: Record<string, string>;
         confidence_level: string;
+    };
+    voice_text?: {
+        valid?: boolean;
+        similarity?: number;
+        feedback?: string;
+    };
+    context?: {
+        valid?: boolean;
+        feedback?: string;
     };
 }
 
@@ -329,10 +350,18 @@ export interface SpatialTemporalRequest {
 export interface SpatialTemporalResponse {
     plausibility_score: number;
     explanation: string;
-    item_location_probability: number;
-    item_time_probability: number;
-    context: string;
-    is_plausible: boolean;
+    // Current backend fields
+    location_probability?: number;
+    time_probability?: number | null;
+    valid?: boolean;
+    normalized_inputs?: Record<string, string>;
+    confidence_level?: string;
+    suggestions?: string[];
+    // Backward-compatible fields used by some older screens
+    item_location_probability?: number;
+    item_time_probability?: number;
+    context?: string;
+    is_plausible?: boolean;
 }
 
 export interface SpatialTemporalStats {

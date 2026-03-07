@@ -661,10 +661,30 @@ function ValidationHub() {
     const confidenceScore = normalizeScore(
         currentResult?.confidence?.overall_confidence
     );
-    const clipScore = normalizeScore(currentResult?.cross_modal?.image_text?.similarity);
-    const textScore = normalizeScore(currentResult?.text?.overall_score);
-    const imageScore = normalizeScore(currentResult?.image?.overall_score);
-    const audioScore = normalizeScore(currentResult?.voice?.confidence);
+    const clipScore = normalizeScore(
+        currentResult?.cross_modal?.image_text?.similarity
+        ?? currentResult?.confidence?.cross_modal_scores?.clip_similarity
+    );
+    const textScore = normalizeScore(
+        currentResult?.text?.overall_score
+        ?? currentResult?.confidence?.individual_scores?.text
+    );
+    const imageScore = normalizeScore(
+        currentResult?.image?.overall_score
+        ?? currentResult?.confidence?.individual_scores?.image
+    );
+    const audioScore = normalizeScore(
+        currentResult?.voice?.confidence
+        ?? currentResult?.voice?.overall_score
+        ?? (typeof currentResult?.voice?.transcription === 'object'
+            ? (currentResult.voice.transcription as any)?.confidence
+            : undefined)
+        ?? currentResult?.confidence?.individual_scores?.voice
+    );
+    const voiceTextScore = normalizeScore(
+        currentResult?.confidence?.cross_modal_scores?.voice_text_similarity
+        ?? (currentResult?.cross_modal as any)?.voice_text?.similarity
+    );
 
     const entitiesPreview: [string, string][] = useMemo(() => {
         const merged: Record<string, string> = {};
@@ -743,6 +763,8 @@ function ValidationHub() {
         return items;
     }, [currentResult]);
 
+    const hasContradiction = discrepancies.length > 0 || currentResult?.cross_modal?.image_text?.valid === false;
+
     // Build mission report from backend feedback + confidence routing
     const missionReport: MissionReport | null = useMemo(() => {
         if (!currentResult) return null;
@@ -777,8 +799,18 @@ function ValidationHub() {
     ];
 
     const { data: reportsData } = useQuery({
-        queryKey: ['reports', 'overlay'],
-        queryFn: () => reportsApi.getMyReports(),
+        queryKey: ['reports', 'overlay', user?.id ?? 'anon'],
+        queryFn: async () => {
+            // If user-scoped reports are empty/unavailable, fall back to shared reports
+            // so trend/lineage widgets are still populated.
+            if (user?.id) {
+                const mine = await reportsApi.getMyReports();
+                if (mine.count > 0) {
+                    return mine;
+                }
+            }
+            return reportsApi.getReports();
+        },
         refetchInterval: 30000,
     });
 
@@ -1280,16 +1312,18 @@ function ValidationHub() {
                                     />
                                 </svg>
                                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                    <span className={`text-3xl font-bold ${confidenceScore >= 0.80 ? 'text-neon-green shadow-neon-green/50 drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]' :
-                                        confidenceScore >= 0.60 ? 'text-yellow-400 shadow-yellow-400/50 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
-                                            confidenceScore > 0 ? 'text-alert-red shadow-alert-red/50 drop-shadow-[0_0_8px_rgba(240,68,56,0.5)]' : 'text-white neon-text-cyan'
+                                    <span className={`text-3xl font-bold ${hasContradiction ? 'text-yellow-400 shadow-yellow-400/50 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
+                                        confidenceScore >= 0.80 ? 'text-neon-green shadow-neon-green/50 drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]' :
+                                            confidenceScore >= 0.60 ? 'text-yellow-400 shadow-yellow-400/50 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
+                                                confidenceScore > 0 ? 'text-alert-red shadow-alert-red/50 drop-shadow-[0_0_8px_rgba(240,68,56,0.5)]' : 'text-white neon-text-cyan'
                                         }`}>
                                         {confidenceScore > 0 ? `${Math.round(confidenceScore * 100)}%` : '—'}
                                     </span>
                                     <span className="text-[10px] uppercase tracking-widest mt-1 text-center font-semibold text-slate-300">
-                                        {confidenceScore >= 0.80 ? 'High Quality' :
-                                            confidenceScore >= 0.60 ? 'Review Needed' :
-                                                confidenceScore > 0 ? 'Low Quality' : 'Authenticity'}
+                                        {hasContradiction ? 'Review Needed' :
+                                            confidenceScore >= 0.80 ? 'High Quality' :
+                                                confidenceScore >= 0.60 ? 'Review Needed' :
+                                                    confidenceScore > 0 ? 'Low Quality' : 'Authenticity'}
                                     </span>
                                 </div>
                             </div>
@@ -1474,47 +1508,40 @@ function ValidationHub() {
                                         <div className="flex flex-col">
                                             <span>Voice-text similarity</span>
                                             {(() => {
-                                                const voiceSim = currentResult?.confidence?.cross_modal_scores?.voice_text_similarity;
-                                                if (voiceSim === undefined) return null;
+                                                if (voiceTextScore <= 0) return null;
 
                                                 return (
-                                                    <span className={`text-[9px] mt-0.5 ${voiceSim >= 0.80 ? 'text-neon-purple' :
-                                                        voiceSim >= 0.60 ? 'text-yellow-400' : 'text-alert-red'
+                                                    <span className={`text-[9px] mt-0.5 ${voiceTextScore >= 0.80 ? 'text-neon-purple' :
+                                                        voiceTextScore >= 0.60 ? 'text-yellow-400' : 'text-alert-red'
                                                         }`}>
-                                                        {voiceSim >= 0.80 ? 'Strong alignment' :
-                                                            voiceSim >= 0.60 ? 'Partial alignment' : 'Low alignment'}
+                                                        {voiceTextScore >= 0.80 ? 'Strong alignment' :
+                                                            voiceTextScore >= 0.60 ? 'Partial alignment' : 'Low alignment'}
                                                     </span>
                                                 );
                                             })()}
                                         </div>
                                         {(() => {
-                                            const voiceSim = currentResult?.confidence?.cross_modal_scores?.voice_text_similarity;
                                             return (
-                                                <span className={`text-sm font-bold ${voiceSim === undefined ? 'text-slate-500' :
-                                                    voiceSim >= 0.80 ? 'text-neon-purple' :
-                                                        voiceSim >= 0.60 ? 'text-yellow-400' : 'text-alert-red'
+                                                <span className={`text-sm font-bold ${voiceTextScore <= 0 ? 'text-slate-500' :
+                                                    voiceTextScore >= 0.80 ? 'text-neon-purple' :
+                                                        voiceTextScore >= 0.60 ? 'text-yellow-400' : 'text-alert-red'
                                                     }`}>
-                                                    {voiceSim !== undefined ? `${formatPercent(voiceSim)}%` : '—'}
+                                                    {voiceTextScore > 0 ? `${formatPercent(voiceTextScore)}%` : '—'}
                                                 </span>
                                             )
                                         })()}
                                     </div>
-                                    {(() => {
-                                        const voiceSim = currentResult?.confidence?.cross_modal_scores?.voice_text_similarity ?? 0;
-                                        return (
-                                            <div className="w-full h-2 bg-slate-800/80 border border-white/5 rounded-full overflow-hidden relative mt-2">
-                                                <div className="absolute top-0 bottom-0 left-[50%] w-px bg-white/20 z-10" />
-                                                <div className="absolute top-0 bottom-0 left-[75%] w-px bg-white/20 z-10" />
-                                                <div
-                                                    className={`h-full relative z-0 transition-all duration-1000 ${voiceSim >= 0.80 ? 'bg-gradient-to-r from-purple-600 to-neon-purple shadow-[0_0_8px_rgba(192,132,252,0.5)]' :
-                                                        voiceSim >= 0.60 ? 'bg-gradient-to-r from-yellow-600 to-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
-                                                            currentResult?.confidence?.cross_modal_scores?.voice_text_similarity !== undefined ? 'bg-gradient-to-r from-red-600 to-alert-red shadow-[0_0_8px_rgba(240,68,56,0.5)]' : 'bg-slate-700'
-                                                        }`}
-                                                    style={{ width: `${formatPercent(voiceSim)}%` }}
-                                                />
-                                            </div>
-                                        );
-                                    })()}
+                                    <div className="w-full h-2 bg-slate-800/80 border border-white/5 rounded-full overflow-hidden relative mt-2">
+                                        <div className="absolute top-0 bottom-0 left-[50%] w-px bg-white/20 z-10" />
+                                        <div className="absolute top-0 bottom-0 left-[75%] w-px bg-white/20 z-10" />
+                                        <div
+                                            className={`h-full relative z-0 transition-all duration-1000 ${voiceTextScore >= 0.80 ? 'bg-gradient-to-r from-purple-600 to-neon-purple shadow-[0_0_8px_rgba(192,132,252,0.5)]' :
+                                                voiceTextScore >= 0.60 ? 'bg-gradient-to-r from-yellow-600 to-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]' :
+                                                    voiceTextScore > 0 ? 'bg-gradient-to-r from-red-600 to-alert-red shadow-[0_0_8px_rgba(240,68,56,0.5)]' : 'bg-slate-700'
+                                                }`}
+                                            style={{ width: `${formatPercent(voiceTextScore)}%` }}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>

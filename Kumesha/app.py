@@ -759,7 +759,7 @@ async def process_validation_background(client_id: str, task_id: str, text: Opti
             iv2 = get_image_validator()
             if iv2 is None:
                 raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Image validator unavailable on this instance")
-            image_result = iv2.validate_image(image_path)
+            image_result = iv2.validate_image(image_path, text)
             # Inject missing fields for consistency
             image_result["image_path"] = image_path
             image_result["timestamp"] = datetime.now().isoformat()
@@ -780,7 +780,7 @@ async def process_validation_background(client_id: str, task_id: str, text: Opti
             cv_bg = get_clip_validator()
             if cv_bg is None:
                 raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="CLIP validator unavailable on this instance")
-            clip_image_text_result = cv_bg.validate_image_text_alignment(image_path, text)
+            clip_image_text_result = cv_bg.validate_image_text_alignment(image_path, text, analysis_text=text)
             cross_modal_results["image_text"] = clip_image_text_result
             await update_progress(client_id, 70, "Image-text consistency checked", {"task_id": task_id})
         
@@ -1620,9 +1620,9 @@ async def validate_image(
             cv = get_clip_validator()
             if cv is not None:
                 # Use visualText for CLIP if available (visual attributes only), else use full text
-                clip_text = visualText if visualText else text
-                logger.info(f"[CLIP] Using text for validation: '{clip_text}' (visual_only={bool(visualText)})")
-                clip_image_text_result = cached()(cv.validate_image_text_alignment)(image_path, clip_text)
+                clip_text = text
+                logger.info(f"[CLIP] Using text for validation: '{clip_text}'")
+                clip_image_text_result = cached()(cv.validate_image_text_alignment)(image_path, clip_text, text)
         
         # Prepare response data
         response_data = {
@@ -1796,7 +1796,7 @@ async def validate_complete(
                 if iv is None:
                     raise Exception("Image validator not available")
                     
-                image_result = iv.validate_image(image_path)
+                image_result = iv.validate_image(image_path, visualText or text)
                 image_result["image_path"] = image_path
                 image_result["timestamp"] = datetime.now().isoformat()
                 logger.info("✓ Image validation successful")
@@ -1921,7 +1921,7 @@ async def validate_complete(
                         clip_text = f"a photo of a {' '.join(parts)}"
                 
                 logger.info(f"[CLIP] Final query for CLIP: '{clip_text}'")
-                cross_modal_results["image_text"] = cv.validate_image_text_alignment(image_path, clip_text)
+                cross_modal_results["image_text"] = cv.validate_image_text_alignment(image_path, clip_text, analysis_text=text)
                 logger.info("✓ Image-text consistency checked")
             except Exception as e:
                 logger.warning(f"Image-text consistency check failed: {e}")

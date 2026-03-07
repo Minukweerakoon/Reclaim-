@@ -11,7 +11,8 @@ interface ValidationState {
     pendingVisualText: string;
     pendingImageFile: File | null;
     pendingAudioFile: File | null;
-    pendingExtractedInfo: Record<string, string> | null;  // structured chat fields
+    pendingExtractedInfo: Record<string, string> | null;
+    intent: string | null;
 
     // Actions
     setResult: (result: ValidationResponse | null) => void;
@@ -21,10 +22,9 @@ interface ValidationState {
     setPendingInputs: (text: string, visualText: string) => void;
     setPendingMedia: (image: File | null, audio: File | null) => void;
     setPendingExtractedInfo: (info: Record<string, string> | null) => void;
+    setIntent: (intent: string | null) => void;
     clearPending: () => void;
     reset: () => void;
-    intent: string | null;
-    setIntent: (intent: string | null) => void;
 }
 
 export const useValidationStore = create<ValidationState>((set) => ({
@@ -47,8 +47,14 @@ export const useValidationStore = create<ValidationState>((set) => ({
     setPendingInputs: (text, visualText) => set({ pendingText: text, pendingVisualText: visualText }),
     setPendingMedia: (image, audio) => set({ pendingImageFile: image, pendingAudioFile: audio }),
     setPendingExtractedInfo: (info) => set({ pendingExtractedInfo: info }),
-    clearPending: () => set({ pendingText: '', pendingVisualText: '', pendingImageFile: null, pendingAudioFile: null, pendingExtractedInfo: null }),
     setIntent: (intent) => set({ intent }),
+    clearPending: () => set({
+        pendingText: '',
+        pendingVisualText: '',
+        pendingImageFile: null,
+        pendingAudioFile: null,
+        pendingExtractedInfo: null,
+    }),
     reset: () => set({
         currentResult: null,
         isLoading: false,
