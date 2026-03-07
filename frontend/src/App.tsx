@@ -8,12 +8,14 @@ import Monitor from './pages/Monitor';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import ReclaimApp from './reclaim/ReclaimApp';
+import { PhoneNumberGate } from './components/PhoneNumberGate';
 import './index.css';
 
 function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <PhoneNumberGate />
         <Routes>
           <Route path="/login" element={<Navigate to="/reclaim" replace />} />
 

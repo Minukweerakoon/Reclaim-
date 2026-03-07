@@ -22,6 +22,35 @@ def _parse_time_for_db(time_str: str) -> Optional[str]:
         
     time_str = str(time_str).lower().strip()
     
+    # Map common phrases to approximate times
+    phrase_mappings = {
+        'just now': '00:00:00',
+        'right now': '00:00:00',
+        'earlier today': '10:00:00',
+        'today': '12:00:00',
+        'this morning': '09:00:00',
+        'this afternoon': '14:00:00',
+        'this evening': '18:00:00',
+        'yesterday morning': '09:00:00',
+        'yesterday afternoon': '14:00:00',
+        'yesterday evening': '18:00:00',
+        'early morning': '06:00:00',
+        'morning': '09:00:00',
+        'late morning': '11:00:00',
+        'noon': '12:00:00',
+        'afternoon': '14:00:00',
+        'late afternoon': '16:00:00',
+        'evening': '18:00:00',
+        'night': '20:00:00',
+        'late night': '22:00:00',
+        'midnight': '00:00:00',
+    }
+    
+    # Check for phrase matches (including "yesterday evening", "this morning", etc.)
+    for phrase, time_value in phrase_mappings.items():
+        if phrase in time_str:
+            return time_value
+    
     # Check for HH:MM AM/PM pattern
     am_pm_match = re.search(r'(\d{1,2})[.:]?(\d{2})?\s*([ap]\.?m\.?)', time_str)
     if am_pm_match:
@@ -193,6 +222,12 @@ class SupabaseManager:
         # Map Kumesha fields → shared items table columns
         # item_type in items = "lost"/"found" (the intention)
         # user_category in items = what the user says the item category is (e.g. "jacket")
+        
+        # Debug logging for time field
+        raw_time_value = item_data.get("time", "")
+        parsed_time = _parse_time_for_db(raw_time_value)
+        logger.info(f"[TIME DEBUG] Raw time value: '{raw_time_value}' → Parsed: '{parsed_time}'")
+        
         record = {
             "user_id": user_id,
             "user_email": user_email,
@@ -200,7 +235,7 @@ class SupabaseManager:
             "user_category": item_data.get("user_category") or item_data.get("item_type", ""),
             "description": item_data.get("description", ""),
             "location": item_data.get("location", ""),
-            "time_of_incident": _parse_time_for_db(item_data.get("time", "")),
+            "time_of_incident": parsed_time,
             "status": "active",
             # Additional Kumesha tracking fields
             "color": item_data.get("color", ""),

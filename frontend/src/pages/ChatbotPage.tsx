@@ -40,13 +40,24 @@ const buildValidationNarrative = (info: Record<string, any>, intentValue: string
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const detectExplicitIntent = (message: string): 'lost' | 'found' | null => {
+    const text = message.toLowerCase();
+    const foundMatch = /\b(i\s+)?found\b/.test(text);
+    const lostMatch = /\b(i\s+)?lost\b/.test(text);
+
+    if (foundMatch && !lostMatch) return 'found';
+    if (lostMatch && !foundMatch) return 'lost';
+    return null;
+};
+
 function ChatbotPage() {
     const [searchParams] = useSearchParams();
     const initialIntent = searchParams.get('intent') || '';
-    const { user } = useAuth();
+    const { user, phoneNumber } = useAuth();
 
     const [input, setInput] = useState('');
     const [isProcessingReport, setIsProcessingReport] = useState(false);
+    const [selectedMatch, setSelectedMatch] = useState<any | null>(null);
     const {
         messages, setMessages,
         isTyping, setIsTyping,
@@ -93,6 +104,7 @@ function ChatbotPage() {
         setPendingInputs,
         setPendingMedia,
         setPendingExtractedInfo,
+        reset: resetValidationState,
     } = useValidationStore();
 
     // Prefer Vite proxy for consistency with dev server/backends.
@@ -225,9 +237,46 @@ function ChatbotPage() {
     const handleSend = async () => {
         if (!input.trim() || isTyping) return;
 
+        const trimmedInput = input.trim();
+        const explicitIntent = detectExplicitIntent(trimmedInput);
+        const hasCompletedFlow = summaryConfirmed || Boolean(currentResult);
+        const shouldRestartFlow = Boolean(
+            explicitIntent && (
+                explicitIntent !== intent ||
+                hasCompletedFlow
+            )
+        );
+
+        if (explicitIntent && shouldRestartFlow) {
+            resetChat();
+            resetValidationState();
+            confirmInFlightRef.current = false;
+            setIsProcessingReport(false);
+            setIntent(explicitIntent);
+
+            const restartMessage = explicitIntent === 'found'
+                ? "Starting a fresh found-item report. Tell me what you found and where you picked it up."
+                : "Starting a fresh lost-item report. Tell me what you lost and where you last saw it.";
+
+            setMessages([
+                {
+                    role: 'user',
+                    content: trimmedInput,
+                    timestamp: new Date(),
+                },
+                {
+                    role: 'bot',
+                    content: restartMessage,
+                    timestamp: new Date(),
+                },
+            ]);
+            setInput('');
+            return;
+        }
+
         const userMessage: ChatMessage = {
             role: 'user',
-            content: input,
+            content: trimmedInput,
             timestamp: new Date()
         };
         setMessages((prev) => [...prev, userMessage]);
@@ -244,24 +293,75 @@ function ChatbotPage() {
                 extracted_info: extractedInfo,
             });
 
+            // Update extracted info first
+            let updatedExtractedInfo = { ...extractedInfo };
+            if (response.extracted_info) {
+                Object.entries(response.extracted_info).forEach(([key, value]) => {
+                    // Only overwrite if the new value is actually provided (non-empty string)
+                    if (value !== null && value !== undefined && value !== '') {
+                        updatedExtractedInfo[key] = value;
+                    }
+                });
+            }
+            setExtractedInfo(updatedExtractedInfo);
+
+            // Check if user explicitly said they don't know (expanded patterns)
+            const userText = userMessage.content.toLowerCase().trim();
+            const dontKnowPatterns = /^(no|nope|nah|not?|don'?t know|not sure|can'?t remember|no idea|don'?t have|unknown|forgot|unsure|not found|nothing|none|i don'?t|don'?t remember)$/i;
+            const userDoesntKnow = dontKnowPatterns.test(userText) || /\b(don'?t know|not sure|can'?t remember|no idea|don'?t have|unknown|forgot|unsure|not found|nothing)\b/i.test(userText);
+
+            // Generate follow-up question if fields are missing (but skip if user doesn't know)
+            let followUpQuestion = '';
+            if (response.intention) {
+                const requiredFields = [
+                    { key: 'item_type', label: 'What kind of item is this?', critical: true },
+                    { key: 'location', label: 'Can you mention the location?', critical: true },
+                    { key: 'time', label: 'Can you tell me approximately what time this was?', critical: false },
+                    { key: 'color', label: 'What color is the item?', critical: false },
+                    { key: 'brand', label: 'Do you know the brand or make?', critical: false },
+                ];
+
+                // Check critical fields (item_type and location must be present)
+                const criticalFieldsFilled = requiredFields
+                    .filter(f => f.critical)
+                    .every(f => updatedExtractedInfo[f.key] && updatedExtractedInfo[f.key].trim() !== '');
+
+                if (!userDoesntKnow) {
+                    // Find first missing field
+                    for (const field of requiredFields) {
+                        if (!updatedExtractedInfo[field.key] || updatedExtractedInfo[field.key].trim() === '') {
+                            followUpQuestion = ` ${field.label}`;
+                            break;
+                        }
+                    }
+                } else {
+                    // User doesn't know current field, skip to next missing one
+                    let skippedOne = false;
+                    for (const field of requiredFields) {
+                        if (!updatedExtractedInfo[field.key] || updatedExtractedInfo[field.key].trim() === '') {
+                            if (skippedOne) {
+                                // Ask for the next field after the skipped one
+                                followUpQuestion = ` ${field.label}`;
+                                break;
+                            }
+                            skippedOne = true; // Skip current field
+                        }
+                    }
+                }
+
+                // If all critical fields are filled and no more questions, prompt to confirm
+                if (!followUpQuestion && criticalFieldsFilled && pendingImage) {
+                    followUpQuestion = ' Now you can confirm and proceed with the report!';
+                }
+            }
+
             const botMessage: ChatMessage = {
                 role: 'bot',
-                content: response.bot_response,
+                content: response.bot_response + followUpQuestion,
                 timestamp: new Date()
             };
             setMessages((prev) => [...prev, botMessage]);
-            setExtractedInfo((prev) => {
-                const next = { ...prev };
-                if (response.extracted_info) {
-                    Object.entries(response.extracted_info).forEach(([key, value]) => {
-                        // Only overwrite if the new value is actually provided (non-empty string)
-                        if (value !== null && value !== undefined && value !== '') {
-                            next[key] = value;
-                        }
-                    });
-                }
-                return next;
-            });
+
             if (response.intention) {
                 setIntent(response.intention);
             }
@@ -329,6 +429,7 @@ function ChatbotPage() {
                 intent,
                 userId: user?.id,
                 userEmail: user?.email ?? undefined,
+                userPhone: phoneNumber || undefined,
             });
 
             // Keep ValidationHub in sync with chat-side processing.
@@ -476,7 +577,7 @@ function ChatbotPage() {
                     {messages.map((message, index) => (
                         <div key={message.id || index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
                             <div
-                                className={`max-w-[72%] rounded-2xl px-4 py-3 ${message.role === 'user'
+                                className={`${message.role === 'user' ? 'max-w-[72%]' : Array.isArray(message.matchResults) && message.matchResults.length > 0 ? 'max-w-[88%]' : 'max-w-[72%]'} rounded-2xl px-4 py-3 ${message.role === 'user'
                                     ? 'text-white rounded-br-none'
                                     : 'text-slate-100 rounded-bl-none'
                                     }`}
@@ -498,11 +599,12 @@ function ChatbotPage() {
                                             <MatchResultCard
                                                 key={match.id || `${match.rank || matchIndex}`}
                                                 image_url={match.image_url}
-                                                final_category={match.final_category || match.category}
+                                                final_category={match.model_category || match.category || match.final_category}
                                                 score={match.score}
                                                 location={match.location || 'Location not provided'}
                                                 reported_time={match.reported_time || 'Recently reported'}
                                                 isBestMatch={matchIndex === 0}
+                                                onContact={() => setSelectedMatch(match)}
                                             />
                                         ))}
                                     </div>
@@ -540,6 +642,59 @@ function ChatbotPage() {
                     )}
                     <div ref={messagesEndRef} />
                 </div>
+
+                {selectedMatch && (
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+                        <div className="w-full max-w-3xl rounded-2xl border border-white/10 bg-[#111827] shadow-[0_24px_80px_rgba(0,0,0,0.55)] overflow-hidden">
+                            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
+                                <h3 className="text-white font-semibold text-lg">Matched Item Contact Details</h3>
+                                <button
+                                    onClick={() => setSelectedMatch(null)}
+                                    className="text-slate-300 hover:text-white text-sm px-2 py-1 rounded hover:bg-white/10"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+                                <div className="p-4 border-r border-white/10">
+                                    <div className="w-full aspect-square rounded-xl overflow-hidden bg-black/30 border border-white/10">
+                                        <img
+                                            src={selectedMatch.image_url}
+                                            alt={selectedMatch.final_category || selectedMatch.category || 'Matched item'}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="p-5 space-y-3">
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wider text-slate-400">Category</div>
+                                        <div className="text-white font-medium">{selectedMatch.final_category || selectedMatch.category || 'Unknown'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wider text-slate-400">Location</div>
+                                        <div className="text-white">{selectedMatch.location || 'Not provided'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wider text-slate-400">Time</div>
+                                        <div className="text-white">{selectedMatch.reported_time || 'Not provided'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wider text-slate-400">Reported By (Email)</div>
+                                        <div className="text-white break-all">{selectedMatch.user_email || 'Not available'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wider text-slate-400">Reporter Profile</div>
+                                        <div className="text-white break-all">{selectedMatch.user_id || 'Not available'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wider text-slate-400">Phone Number</div>
+                                        <div className="text-white">{selectedMatch.phone_number || 'Not available'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Image Preview Area */}
                 {imagePreview && (

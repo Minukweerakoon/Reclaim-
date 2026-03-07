@@ -557,6 +557,7 @@ class ConsistencyEngine:
         overall_confidence -= penalties["mismatch_penalty"]
 
         overall_confidence = max(0.0, min(1.0, overall_confidence))
+        # ========================================================
 
         # Apply calibration if available (Research Enhancement)
         calibrated_confidence = overall_confidence

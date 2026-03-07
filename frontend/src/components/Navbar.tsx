@@ -19,6 +19,10 @@ export function Navbar({ currentPage = 'chat', onNavigate, user, onSignOut, show
         setTimeout(() => document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' }), 100);
     };
 
+    const openTrackingDashboard = () => {
+        window.location.href = 'https://frontend.cloudixpro.cloud/dashboard';
+    };
+
     return (
         <nav className="fixed top-0 left-0 right-0 h-16 glass-nav z-50 flex items-center justify-between px-4 md:px-8">
             {/* Logo */}
@@ -47,7 +51,7 @@ export function Navbar({ currentPage = 'chat', onNavigate, user, onSignOut, show
                 ].map(({ label, section }) => (
                     <button
                         key={label}
-                        onClick={() => scrollToSection(section)}
+                        onClick={() => (label === 'Tracking' ? openTrackingDashboard() : scrollToSection(section))}
                         className={`text-sm font-medium transition-colors py-5 px-1 border-b-2 ${currentPage === 'home'
                                 ? 'text-slate-400 border-transparent hover:text-white'
                                 : 'text-slate-400 border-transparent hover:text-white'

@@ -162,12 +162,14 @@ db_index: Optional[faiss.Index] = None
 db_ids = []
 db_urls = []
 db_cats = []
+db_model_cats = []
+db_meta = []
 
 def rebuild_faiss():
-    global db_index, db_ids, db_urls, db_cats
+    global db_index, db_ids, db_urls, db_cats, db_model_cats, db_meta
 
     rows = supabase.table("items") \
-        .select("id, metric_vec, final_category, image_url") \
+        .select("id, metric_vec, final_category, model_category, image_url, location, time_of_incident, user_email, user_id, user_category, validation_summary") \
         .eq("status", "pending") \
         .eq("item_type", "found") \
         .execute().data
@@ -180,6 +182,8 @@ def rebuild_faiss():
     db_ids = []
     db_urls = []
     db_cats = []
+    db_model_cats = []
+    db_meta = []
 
     for r in rows:
         if not r["metric_vec"]:
@@ -188,6 +192,15 @@ def rebuild_faiss():
         db_ids.append(r["id"])
         db_urls.append(r["image_url"])
         db_cats.append(r.get("final_category"))
+        db_model_cats.append(r.get("model_category"))
+        db_meta.append({
+            "location": r.get("location"),
+            "reported_time": r.get("time_of_incident"),
+            "user_email": r.get("user_email"),
+            "user_id": r.get("user_id"),
+            "user_category": r.get("user_category"),
+            "phone_number": (r.get("validation_summary") or {}).get("contact_phone"),
+        })
 
     if not vecs:
         db_index = None
@@ -266,6 +279,13 @@ def minmax(x):
         return np.zeros_like(x)
     return (x - x.min()) / (x.max() - x.min())
 
+
+def _norm_cat(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    v = str(value).strip().lower()
+    return v or None
+
 # =========================================================
 # REQUEST MODEL
 # =========================================================
@@ -315,18 +335,54 @@ async def process_item(payload: ProcessItemRequest):
 
     # If found → rebuild index and return
     if payload.item_type == "found":
-        global db_index, db_ids, db_urls, db_cats
+        global db_index, db_ids, db_urls, db_cats, db_model_cats, db_meta
 
         if db_index is None:
             rebuild_faiss()
         else:
-            vec = z.reshape(1, -1).astype("float32")
-            faiss.normalize_L2(vec)
-            db_index.add(vec)  # type: ignore[call-arg]
+            # Important: do not append duplicate vectors for the same item id.
+            # If item already exists in the in-memory index, rebuild from DB once
+            # so the index has one unique vector per found item.
+            if payload.item_id in db_ids:
+                rebuild_faiss()
+            else:
+                vec = z.reshape(1, -1).astype("float32")
+                faiss.normalize_L2(vec)
+                db_index.add(vec)  # type: ignore[call-arg]
 
-            db_ids.append(payload.item_id)
-            db_urls.append(payload.image_url)
-            db_cats.append(final_category)
+                db_ids.append(payload.item_id)
+                db_urls.append(payload.image_url)
+                db_cats.append(final_category)
+                db_model_cats.append(pred_cat)
+                item_meta = {
+                    "location": None,
+                    "reported_time": None,
+                    "user_email": None,
+                    "user_id": None,
+                    "user_category": payload.user_category,
+                    "phone_number": None,
+                }
+                try:
+                    meta_row = (
+                        supabase.table("items")
+                        .select("location, time_of_incident, user_email, user_id, user_category, validation_summary")
+                        .eq("id", payload.item_id)
+                        .limit(1)
+                        .execute()
+                    )
+                    if meta_row.data and len(meta_row.data) > 0:
+                        row = meta_row.data[0]
+                        item_meta = {
+                            "location": row.get("location"),
+                            "reported_time": row.get("time_of_incident"),
+                            "user_email": row.get("user_email"),
+                            "user_id": row.get("user_id"),
+                            "user_category": row.get("user_category"),
+                            "phone_number": (row.get("validation_summary") or {}).get("contact_phone"),
+                        }
+                except Exception:
+                    pass
+                db_meta.append(item_meta)
 
         return {
             "status": "indexed",
@@ -338,6 +394,8 @@ async def process_item(payload: ProcessItemRequest):
 
     # LOST → retrieve from 'items' where item_type='found'
     if db_index is None:
+        rebuild_faiss()
+    elif len(db_ids) != len(set(db_ids)):
         rebuild_faiss()
 
     if db_index is None:
@@ -370,16 +428,69 @@ async def process_item(payload: ProcessItemRequest):
 
     order = np.argsort(final)[::-1]
 
+    # Smart category logic using all category signals.
+    # Query side has: model(pred_cat), final(final_category), user(payload.user_category)
+    query_model = _norm_cat(pred_cat)
+    query_final = _norm_cat(final_category)
+    query_user = _norm_cat(payload.user_category)
+    query_categories = {c for c in [query_model, query_final, query_user] if c}
+
     results = []
-    for rank, j in enumerate(order, start=1):
+    seen_ids = set()
+    rank = 1
+    for j in order:
         i = idxs[j]
+        item_id = db_ids[i]
+        if item_id in seen_ids:
+            continue
+        seen_ids.add(item_id)
+
+        meta = db_meta[i] if i < len(db_meta) else {}
+
+        cand_model = _norm_cat(db_model_cats[i])
+        cand_final = _norm_cat(db_cats[i])
+        cand_user = _norm_cat(meta.get("user_category"))
+        candidate_categories = {c for c in [cand_model, cand_final, cand_user] if c}
+
+        # Candidate must share at least one category signal with query.
+        # This avoids unrelated categories (e.g. smartphone in laptop query).
+        overlap = query_categories.intersection(candidate_categories)
+        if not overlap:
+            continue
+
+        # Weighted boost: model match strongest, then final, then user category.
+        cat_boost = 0.0
+        if query_model and cand_model and query_model == cand_model:
+            cat_boost += 0.15
+        if query_final and cand_final and query_final == cand_final:
+            cat_boost += 0.08
+        if query_user and cand_user and query_user == cand_user:
+            cat_boost += 0.05
+
+        adjusted_score = min(1.0, float(final[j]) + cat_boost)
+
         results.append({
             "rank": rank,
-            "id": db_ids[i],
-            "category": db_cats[i],
+            "id": item_id,
+            "category": db_model_cats[i] or db_cats[i],
+            "model_category": db_model_cats[i],
+            "final_category": db_cats[i],
             "image_url": db_urls[i],
-            "score": float(final[j]),
+            "score": adjusted_score,
+            "location": meta.get("location"),
+            "reported_time": meta.get("reported_time"),
+            "user_email": meta.get("user_email"),
+            "user_id": meta.get("user_id"),
+            "user_category": meta.get("user_category"),
+            "phone_number": meta.get("phone_number"),
+            "category_overlap": sorted(list(overlap)),
         })
+        rank += 1
+
+    # Keep highest adjusted-score matches first after category filtering.
+    results.sort(key=lambda r: r.get("score", 0.0), reverse=True)
+    for idx, row in enumerate(results, start=1):
+        row["rank"] = idx
 
     return {
         "predicted_category": pred_cat,
