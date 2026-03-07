@@ -283,6 +283,7 @@ class CLIPValidator:
                 item_labels = [
                     "phone","wallet","keys","bag","backpack","laptop","umbrella","watch",
                     "glasses","headphones","earbuds","camera","book","jacket","purse","card",
+                    "earphones","sunglasses","digital camera","bottle","cup","toy","vase",
                     # Peripherals and accessories (CLIP scores lower for these)
                     "keyboard","mouse","charger","cable","remote","tablet","speaker",
                     "power bank","hard drive","usb drive","pen","pencil case"

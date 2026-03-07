@@ -519,7 +519,27 @@ class ConsistencyEngine:
             
         overall_confidence += voice_text_component * active_weights["voice_text"]
 
+        # ============ NEW: DISCREPANCY PENALTY LOGIC ============
+        # If explicit mismatches (Color, Item, Brand) were detected by CLIP/Vision,
+        # we apply a heavy penalty to the confidence score to ensure it drops 
+        # out of the "High Quality" tier.
+        mismatch_penalty = 0.0
+        has_critical_mismatch = False
+        
+        if cross_modal_results and "image_text" in cross_modal_results:
+            mismatch_data = cross_modal_results["image_text"].get("mismatch_detection", {})
+            mismatches = mismatch_data.get("mismatches", [])
+            
+            if mismatches:
+                # Penalty: -0.30 (30%) per major conflict type (Color/Item/Brand)
+                mismatch_types = {m.get("type") for m in mismatches}
+                mismatch_penalty = len(mismatch_types) * 0.30
+                has_critical_mismatch = True
+                logger.info(f"[CONFIDENCE] Detected {len(mismatch_types)} mismatch types. Penalty: -{mismatch_penalty:.2f}")
+
+        overall_confidence -= mismatch_penalty
         overall_confidence = max(0.0, min(1.0, overall_confidence))
+        # ========================================================
 
         # Apply calibration if available (Research Enhancement)
         calibrated_confidence = overall_confidence
@@ -536,7 +556,20 @@ class ConsistencyEngine:
         # Determine routing and action based on calibrated confidence
         routing = "low_quality"
         action = "return_for_improvement"
-        if rounded_confidence >= 0.80:
+        
+        # Override: If there is a critical mismatch, we MUST force Manual Review
+        # even if the numerical score is high (e.g. CLIP match 70% but color conflict).
+        # However, we don't "upgrade" a low-confidence score to medium.
+        if has_critical_mismatch:
+            if rounded_confidence >= 0.60:
+                routing = "medium_quality"
+                action = "manual_review"
+                logger.info(f"[ROUTING] Overriding to Manual Review due to critical mismatch detection.")
+            else:
+                routing = "low_quality"
+                action = "return_for_improvement"
+                logger.info(f"[ROUTING] Critical mismatch detected on already low confidence ({rounded_confidence}).")
+        elif rounded_confidence >= 0.80:
             routing = "high_quality"
             action = "forward_to_matching"
         elif rounded_confidence >= 0.60:

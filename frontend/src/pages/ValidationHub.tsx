@@ -737,10 +737,21 @@ function ValidationHub() {
         const msg = currentResult.feedback?.message || 'Validation complete.';
         const suggestions = currentResult.feedback?.suggestions || [];
         const missing = currentResult.feedback?.missing_elements || [];
+
         let summary = msg;
+
+        // If there's a discrepancy, emphasize it in the summary
+        const itMismatches = (currentResult as any)?.cross_modal?.image_text?.mismatch_detection?.mismatches;
+        if (itMismatches && itMismatches.length > 0) {
+            summary = `${itMismatches[0].message}. `;
+        }
+
         if (missing.length) summary += ` Missing: ${missing.join(', ')}.`;
         if (suggestions.length) summary += ` ${suggestions.join(' ')}`;
-        summary += ` Quality tier: ${routing}.`;
+
+        const tierText = routing.charAt(0).toUpperCase() + routing.slice(1);
+        summary += ` Quality tier: ${tierText}.`;
+
         return { summary, recommendation: `Recommended action: ${action}.` };
     }, [currentResult]);
 
@@ -784,11 +795,13 @@ function ValidationHub() {
         const recent = confidenceSeries.slice(-3);
         const previous = confidenceSeries.slice(-6, -3);
         const recentAvg = average(recent);
-        const previousAvg = average(previous);
+        const previousAvg = previous.length > 0 ? average(previous) : recentAvg;
+
         return {
             recentAvg,
             previousAvg,
-            delta: recentAvg - previousAvg,
+            delta: confidenceSeries.length > 1 ? (recentAvg - previousAvg) : 0,
+            hasHistory: confidenceSeries.length > 1
         };
     }, [confidenceSeries]);
 
@@ -1501,8 +1514,14 @@ function ValidationHub() {
                                     <div className="text-2xl font-bold text-white">{Math.round(confidenceDrift.recentAvg * 100)}%</div>
                                     <div className="text-[10px] text-slate-500 uppercase">Recent average</div>
                                 </div>
-                                <div className={`text-xs font-mono ${confidenceDrift.delta >= 0 ? 'text-accent-emerald' : 'text-alert-red'}`}>
-                                    {confidenceDrift.delta >= 0 ? '+' : ''}{Math.round(confidenceDrift.delta * 100)}%
+                                <div className={`text-xs font-mono ${(confidenceDrift.delta > 0 && confidenceDrift.hasHistory) ? 'text-accent-emerald' : confidenceDrift.delta < 0 ? 'text-alert-red' : 'text-slate-500'}`}>
+                                    {confidenceDrift.hasHistory ? (
+                                        <>
+                                            {confidenceDrift.delta >= 0 ? '+' : ''}{Math.round(confidenceDrift.delta * 100)}%
+                                        </>
+                                    ) : (
+                                        'Baseline'
+                                    )}
                                 </div>
                             </div>
                             {sparklinePoints ? (

@@ -11,6 +11,7 @@ from PIL import Image as PILImage
 import imagehash
 
 from src.image.vit_validator import get_vit_validator, CATEGORY_ALIASES
+from src.image.yolo_mapping import YOLO_TO_LOSTFOUND_MAPPING
 
 # CLIP validator for fallback (lazy loaded)
 _clip_validator = None
@@ -149,7 +150,7 @@ class ImageValidator:
         sharpness_score = sharpness_result["score"] / 100
         detection_score = objects_result["detection_score"] / 100
         overall = (sharpness_score * 0.6 + detection_score * 0.4) * 100
-        is_valid = overall >= 70
+        is_valid = overall >= 60  # Aligned with ConsistencyEngine (0.60)
 
         # Research metadata (expose which model was used)
         model_used = objects_result.get("model", "YOLOv8")
@@ -277,19 +278,20 @@ class ImageValidator:
                 # Furniture / scene
                 "chair", "couch", "sofa", "bench", "bed", "dining table",
                 "toilet", "sink", "refrigerator", "oven", "microwave",
-                "tv", "monitor", "desk",
-                # Vehicles (not typically lost items)
-                "car", "truck", "bus", "train", "motorcycle", "bicycle",
+                "monitor", "desk", # TV removed (can be electronics)
+                # Vehicles (not typically lost items in this context)
+                "car", "truck", "bus", "train", "motorcycle",
                 "boat", "airplane",
-                # Food / plants
-                "bottle", "cup", "bowl", "banana", "apple", "orange",
-                "pizza", "donut", "cake", "sandwich", "hot dog",
-                "potted plant", "vase", "flower",
                 # Animals
                 "cat", "dog", "bird", "horse", "cow", "sheep",
                 # Infrastructure
                 "fire hydrant", "stop sign", "traffic light", "parking meter",
+                # Food (leaving plants as background)
+                "banana", "apple", "orange", "pizza", "donut", "cake", "sandwich", "hot dog",
+                "potted plant", "vase", "flower",
             }
+            # Note: bottle, cup, bowl, scissors, clock, book removed from background
+            # to allow detection of common lost items.
             detections = [
                 d for d in detections
                 if d.get("original_class", d.get("class", "")).lower() not in BACKGROUND_CLASSES
@@ -510,12 +512,12 @@ class ImageValidator:
         }
 
     def _generate_feedback(self, sharpness: Dict, objects: Dict, overall: float) -> str:
-        if overall >= 85:
+        if overall >= 80:
             return "Excellent image quality! Clear and recognizable."
-        if overall >= 70:
+        if overall >= 60:
             return "Good image quality. Item is visible."
         issues = []
-        if sharpness.get("score", 0) < 70:
+        if sharpness.get("score", 0) < 60:
             issues.append("the image is blurry")
         if not objects.get("valid"):
             issues.append("the item is not clearly visible")
@@ -694,63 +696,17 @@ class ImageValidator:
     def _map_yolo_class(self, yolo_class: str) -> str:
         """
         Map YOLO's 80 COCO classes to Lost & Found categories.
-        Uses comprehensive dictionary mapping for accuracy.
+        Uses centralized yolo_mapping.py for consistency.
         """
-        # Comprehensive YOLO to Lost & Found mapping
-        YOLO_MAPPING = {
-            # Electronics - Direct Mapping
-            "cell phone": "phone",
-            "laptop": "laptop",
-            "mouse": "mouse",
-            "keyboard": "keyboard",
-            "remote": "remote",
-            "tv": "electronics",
-            
-            # Personal Items - Bags & Accessories  
-            "handbag": "wallet",  # Handbags, purses, clutches
-            "backpack": "backpack",
-            "suitcase": "bag",  # YOLO often detects purses/clutches as suitcase
-            "umbrella": "umbrella",
-            "tie": "clothing",
-            "jacket": "clothing",
-            "coat": "clothing",
-            
-            # Common Lost Items
-            "book": "book",
-            "bottle": "bottle",
-            "cup": "cup",
-            "clock": "clock",
-            "scissors": "scissors",
-            "teddy bear": "toy",
-            
-            # Sports Equipment
-            "sports ball": "ball",
-            "baseball bat": "sports_equipment",
-            "baseball glove": "sports_equipment",
-            "skateboard": "skateboard",
-            "tennis racket": "sports_equipment",
-            "bicycle": "bicycle",
-            "surfboard": "sports_equipment",
-            "skis": "sports_equipment",
-            "snowboard": "sports_equipment",
-            
-            # Utensils
-            "wine glass": "glass",
-            "cup": "cup",
-            "fork": "utensils",
-            "knife": "utensils",
-            "spoon": "utensils",
-            "bowl": "bowl",
-        }
-        
         yolo_class_lower = yolo_class.lower()
         
-        # Check direct mapping
-        if yolo_class_lower in YOLO_MAPPING:
-            return YOLO_MAPPING[yolo_class_lower]
+        # Use centralized mapping from yolo_mapping.py
+        category = YOLO_TO_LOSTFOUND_MAPPING.get(yolo_class_lower)
+        
+        if category:
+            return category
         
         # For unmapped classes, keep original name
-        # These will likely trigger ViT fallback if confidence is low
         return yolo_class
 
     
