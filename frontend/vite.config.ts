@@ -21,9 +21,8 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/health': {
-        target: 'http://127.0.0.1:5000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/health/, '/api/health'),
       },
       '/results': {
         target: 'http://127.0.0.1:8000',
