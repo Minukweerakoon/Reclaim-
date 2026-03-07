@@ -67,7 +67,7 @@ class TextValidator:
             'church', 'museum', 'stadium', 'beach', 'market', 'supermarket',
             'bank', 'bar', 'club', 'university', 'school', 'college',
             'campus', 'dorm', 'dormitory', 'apartment', 'house', 'street',
-            'road', 'bus', 'train', 'taxi', 'subway', 'metro'
+            'road', 'bus', 'train', 'taxi', 'subway', 'metro', 'study area'
         ],
         'si': [],
         'ta': []
@@ -77,7 +77,7 @@ class TextValidator:
         'en': [
             'gucci', 'louis vuitton', 'prada', 'apple', 'samsung', 'lenovo',
             'dell', 'hp', 'nike', 'adidas', 'coach', 'hermes', 'fossil',
-            'michael kors', 'lacoste'
+            'michael kors', 'lacoste', 'beats'
         ],
         'si': [],
         'ta': []
@@ -502,7 +502,7 @@ class TextValidator:
     BRAND_KEYWORDS = [
         'iphone', 'samsung', 'apple', 'google', 'huawei', 'xiaomi', 'nike', 'adidas', 'gucci', 'louis vuitton', 'prada',
         'sony', 'dell', 'hp', 'lenovo', 'asus', 'acer', 'microsoft', 'nintendo', 'canon', 'nikon',
-        'toyota', 'honda', 'nissan', 'suzuki', 'mazda', 'bmw', 'mercedes', 'benz', 'audi', 'ford', 'tesla'
+        'toyota', 'honda', 'nissan', 'suzuki', 'mazda', 'bmw', 'mercedes', 'benz', 'audi', 'ford', 'tesla', 'beats'
     ]
     LOCATION_KEYWORDS = [
         'library', 'cafeteria', 'canteen', 'classroom', 'parking', 'gym',
@@ -515,7 +515,7 @@ class TextValidator:
         'church', 'museum', 'stadium', 'beach', 'market', 'supermarket',
         'bank', 'bar', 'club', 'university', 'school', 'college',
         'campus', 'dorm', 'dormitory', 'apartment', 'house', 'street',
-        'road', 'bus', 'train', 'taxi', 'subway', 'metro'
+        'road', 'bus', 'train', 'taxi', 'subway', 'metro', 'study area'
     ]
     TIME_KEYWORDS = ['yesterday', 'today', 'morning', 'afternoon', 'evening', 'night', 'ago', 'last', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'am', 'pm', 'o\'clock']
 

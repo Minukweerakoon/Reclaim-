@@ -37,11 +37,64 @@ class CLIPValidator:
         'ViT-L/14': 'ViT-L/14',
         'RN50': 'RN50'
     }
+
+    # Canonicalization maps keep mismatch checks stable across synonyms/spelling.
+    COLOR_ALIASES = {
+        'grey': 'gray',
+        'charcoal': 'gray',
+        'navy': 'blue',
+        'tan': 'brown',
+        'beige': 'brown',
+        'maroon': 'red',
+        'burgundy': 'red',
+    }
+
+    ITEM_ALIASES = {
+        'cellphone': 'phone',
+        'mobile': 'phone',
+        'smartphone': 'phone',
+        'billfold': 'wallet',
+        'cardholder': 'wallet',
+        'purse': 'wallet',
+        'handbag': 'bag',
+        'satchel': 'bag',
+        'rucksack': 'backpack',
+        'earphones': 'earbuds',
+    }
+
+    BRAND_ALIASES = {
+        'lv': 'louis vuitton',
+        'louis vuitton': 'louis vuitton',
+        'samsung': 'samsung',
+        'gucci': 'gucci',
+        'prada': 'prada',
+        'apple': 'apple',
+        'nike': 'nike',
+        'adidas': 'adidas',
+        'dell': 'dell',
+        'hp': 'hp',
+        'lenovo': 'lenovo',
+        'sony': 'sony',
+        'rolex': 'rolex',
+        'casio': 'casio',
+        'asus': 'asus',
+        'acer': 'acer',
+    }
+
+    # Higher-risk items should use stricter image-text alignment by default.
+    ITEM_THRESHOLD_OVERRIDES = {
+        'phone': 0.62,      # Lowered from 0.68
+        'laptop': 0.60,     # Lowered from 0.66
+        'wallet': 0.60,     # Lowered from 0.66
+        'watch': 0.60,      # Lowered from 0.66
+        'card': 0.60,       # Lowered from 0.66
+        'keys': 0.58,       # Lowered from 0.64
+    }
     
 
     
     def __init__(self, 
-                 similarity_threshold: float = 0.60,  # Lowered to 60% for real-world casual photos
+                 similarity_threshold: float = 0.30,  # Lowered to 30% for generic casual descriptions
                  model_name: str = 'ViT-B/32',
                  enable_gpu: bool = True,
                  enable_logging: bool = True):
@@ -187,6 +240,50 @@ class CLIPValidator:
         
         # Clamp perfectly between 0.0 and 1.0
         return max(0.0, min(1.0, normalized_similarity))
+
+    @staticmethod
+    def _normalize_token(value: str) -> str:
+        return " ".join((value or '').lower().strip().split())
+
+    def _canonicalize_item(self, value: str) -> str:
+        normalized = self._normalize_token(value)
+        return self.ITEM_ALIASES.get(normalized, normalized)
+
+    def _canonicalize_color(self, value: str) -> str:
+        normalized = self._normalize_token(value)
+        return self.COLOR_ALIASES.get(normalized, normalized)
+
+    def _canonicalize_brand(self, value: str) -> str:
+        normalized = self._normalize_token(value)
+        return self.BRAND_ALIASES.get(normalized, normalized)
+
+    def _extract_mentions(self, text: str, labels: List[str], normalize_kind: str = "item") -> List[str]:
+        normalized_text = f" {self._normalize_token(text)} "
+        mentions: List[str] = []
+        for label in labels:
+            token = self._normalize_token(label)
+            if f" {token} " in normalized_text:
+                if normalize_kind == "color":
+                    mentions.append(self._canonicalize_color(token))
+                elif normalize_kind == "brand":
+                    mentions.append(self._canonicalize_brand(token))
+                else:
+                    mentions.append(self._canonicalize_item(token))
+
+        # De-duplicate while preserving order
+        unique: List[str] = []
+        for mention in mentions:
+            if mention and mention not in unique:
+                unique.append(mention)
+        return unique
+
+    @staticmethod
+    def _dedupe(values: List[str]) -> List[str]:
+        unique: List[str] = []
+        for value in values:
+            if value and value not in unique:
+                unique.append(value)
+        return unique
     
 
     
@@ -196,7 +293,7 @@ class CLIPValidator:
     
 
     
-    def validate_image_text_alignment(self, image_path: str, text: str) -> Dict:
+    def validate_image_text_alignment(self, image_path: str, text: str, analysis_text: Optional[str] = None) -> Dict:
         """Validate semantic alignment between an image and text description.
         
         Args:
@@ -256,7 +353,7 @@ class CLIPValidator:
             similarity = self._calculate_similarity(image_embedding, text_embedding)
             result["similarity"] = similarity
             
-            # ── Adaptive threshold for peripheral/accessory categories ────────
+            # ── Adaptive threshold by item type ────────────────────────────────
             # CLIP scores are systematically lower for peripherals (keyboards, mice,
             # headphones, chargers) because they are less-common in CLIP's training data.
             # Use a lower threshold so they are not falsely flagged as mismatches.
@@ -265,13 +362,15 @@ class CLIPValidator:
                 "headphones", "headset", "usb", "power bank", "hard drive",
                 "usb drive", "adapter", "hub", "dock", "speaker"
             }
-            text_lower_check = text.lower()
+            analysis_input = analysis_text if analysis_text else text
+            text_lower_check = analysis_input.lower()
             is_peripheral = any(kw in text_lower_check for kw in PERIPHERAL_KEYWORDS)
             effective_threshold = 0.30 if is_peripheral else self.similarity_threshold
 
-            # Determine validity based on (adaptive) threshold
-            result["valid"] = similarity >= effective_threshold
             result["threshold"] = effective_threshold
+            result["valid"] = similarity >= effective_threshold
+            result["effective_similarity"] = round(similarity, 3)
+            result["mismatch_penalty"] = 0.0
             if is_peripheral:
                 logger.info(
                     f"[CLIP] Peripheral item detected — using relaxed threshold "
@@ -281,8 +380,9 @@ class CLIPValidator:
             # Lightweight attribute-level diagnostics using CLIP zero-shot prompts
             try:
                 item_labels = [
-                    "phone","wallet","keys","bag","backpack","laptop","umbrella","watch",
-                    "glasses","headphones","earbuds","camera","book","jacket","purse","card",
+                    "phone","smartphone","cellphone","mobile","wallet","keys","bag","backpack",
+                    "laptop","umbrella","watch","glasses","headphones","earbuds","camera","book",
+                    "jacket","purse","card","billfold","purse","handbag",
                     # Peripherals and accessories (CLIP scores lower for these)
                     "keyboard","mouse","charger","cable","remote","tablet","speaker",
                     "power bank","hard drive","usb drive","pen","pencil case"
@@ -293,7 +393,8 @@ class CLIPValidator:
                 ]
                 brand_labels = [
                     "apple", "samsung", "dell", "asus", "hp", "lenovo", "acer", "sony",
-                    "nike", "adidas", "puma", "reebok", "gucci", "prada", "rolex", "casio"
+                    "nike", "adidas", "puma", "reebok", "gucci", "prada", "louis vuitton",
+                    "rolex", "casio", "michael kors", "coach", "chanel", "hermes"
                 ]
                 # Build prompt templates
                 def _score_prompts(prompts: List[str]) -> List[Tuple[str, float]]:
@@ -318,11 +419,28 @@ class CLIPValidator:
                 top_colors = _score_prompts(color_prompts)[:3]
                 top_brands = _score_prompts(brand_prompts)[:3]
 
-                # Extract tokens from user text for comparison
-                text_lower = text.lower()
-                mentioned_items = [l for l in item_labels if l in text_lower]
-                mentioned_colors = [c for c in color_labels if c in text_lower]
-                mentioned_brands = [b for b in brand_labels if b in text_lower]
+                # Extract tokens from user text for comparison.
+                mention_source = analysis_input.lower()
+                mentioned_items = self._extract_mentions(mention_source, item_labels, normalize_kind="item")
+                mentioned_colors = self._extract_mentions(mention_source, color_labels, normalize_kind="color")
+                mentioned_brands = self._extract_mentions(mention_source, brand_labels, normalize_kind="brand")
+
+                # Log extracted entities for debugging
+                if self.enable_logging:
+                    logger.info(f"[Entity Extraction] Text: '{mention_source}'")
+                    logger.info(f"[Entity Extraction] Items: {mentioned_items}")
+                    logger.info(f"[Entity Extraction] Colors: {mentioned_colors}")
+                    logger.info(f"[Entity Extraction] Brands: {mentioned_brands}")
+
+                # Raise threshold for specific high-risk items when explicitly mentioned.
+                mentioned_thresholds = [
+                    self.ITEM_THRESHOLD_OVERRIDES[item]
+                    for item in mentioned_items
+                    if item in self.ITEM_THRESHOLD_OVERRIDES
+                ]
+                if mentioned_thresholds:
+                    effective_threshold = max(effective_threshold, max(mentioned_thresholds))
+                    result["threshold"] = effective_threshold
 
                 # Attribute scores
                 result["mismatch_detection"]["attribute_scores"] = {
@@ -339,22 +457,63 @@ class CLIPValidator:
                 item_mismatch = False
                 color_mismatch = False
                 brand_mismatch = False
+
+                top_item_labels = self._dedupe([
+                    self._canonicalize_item(t[0].split(" ")[-1]) for t in top_items
+                ])
+                top_color_labels = self._dedupe([
+                    self._canonicalize_color(t[0].split(" ")[0]) for t in top_colors
+                ])
+                top_brand_labels = self._dedupe([
+                    self._canonicalize_brand(t[0].replace(" brand", "")) for t in top_brands
+                ])
+
+                # Log detected attributes for debugging
+                if self.enable_logging:
+                    logger.info(f"[Attribute Detection] Top items: {top_item_labels}")
+                    logger.info(f"[Attribute Detection] Top colors: {top_color_labels}")
+                    logger.info(f"[Attribute Detection] Top brands: {top_brand_labels}")
+
+                # Check for explicit contradictions.
                 if mentioned_items:
-                    ti = [t[0].split(" ")[-1] for t in top_items]
-                    if all(mi not in ti for mi in mentioned_items):
+                    if not set(mentioned_items) & set(top_item_labels):
                         mismatches.append({"type": "item", "message": "Item type in text not prominent in image"})
                         item_mismatch = True
+                        if self.enable_logging:
+                            logger.info(f"[Mismatch] Item mismatch: mentioned {mentioned_items} vs detected {top_item_labels}")
                 if mentioned_colors:
-                    tc = [t[0].split(" ")[0] for t in top_colors]
-                    if all(mc not in tc for mc in mentioned_colors):
+                    if not set(mentioned_colors) & set(top_color_labels):
                         mismatches.append({"type": "color", "message": "Color in text not prominent in image"})
                         color_mismatch = True
+                        if self.enable_logging:
+                            logger.info(f"[Mismatch] Color mismatch: mentioned {mentioned_colors} vs detected {top_color_labels}")
                 if mentioned_brands:
-                    tb = [t[0].split(" ")[0] for t in top_brands]
-                    if all(mb not in tb for mb in mentioned_brands):
+                    if not set(mentioned_brands) & set(top_brand_labels):
                         mismatches.append({"type": "brand", "message": "Brand in text not prominent in image"})
                         brand_mismatch = True
+                        if self.enable_logging:
+                            logger.info(f"[Mismatch] Brand mismatch: mentioned {mentioned_brands} vs detected {top_brand_labels}")
                 result["mismatch_detection"]["mismatches"] = mismatches
+
+                # Penalize semantic alignment when explicit contradictions are found.
+                mismatch_penalty = 0.0
+                if item_mismatch:
+                    mismatch_penalty += 0.22
+                if color_mismatch:
+                    mismatch_penalty += 0.10
+                if brand_mismatch:
+                    mismatch_penalty += 0.16
+                mismatch_penalty = min(0.42, mismatch_penalty)
+                effective_similarity = max(0.0, similarity - mismatch_penalty)
+                result["mismatch_penalty"] = round(mismatch_penalty, 3)
+                result["effective_similarity"] = round(effective_similarity, 3)
+
+                # Log penalty calculation
+                if self.enable_logging and mismatch_penalty > 0:
+                    logger.info(f"[Penalty] Item: {0.22 if item_mismatch else 0:.2f}, Color: {0.10 if color_mismatch else 0:.2f}, Brand: {0.16 if brand_mismatch else 0:.2f} | Total: {mismatch_penalty:.3f}")
+
+                # Determine validity using penalized similarity and adaptive threshold.
+                result["valid"] = effective_similarity >= effective_threshold
 
                 # Suggestions
                 if not result["valid"]:
@@ -392,6 +551,9 @@ class CLIPValidator:
                     top_item_name = top_items[0][0].replace('a photo of a ', '')
                     if all(mi not in top_item_name for mi in mentioned_items):
                          explanations.append(f"Conflict detected: Text mentions '{mentioned_items[0]}' but image looks like '{top_item_name}'")
+
+                if result.get("mismatch_penalty", 0) > 0:
+                    explanations.append(f"Mismatch penalty applied: -{int(result['mismatch_penalty'] * 100)} points")
 
                 if explanations:
                     explanation_str = ". ".join(explanations)

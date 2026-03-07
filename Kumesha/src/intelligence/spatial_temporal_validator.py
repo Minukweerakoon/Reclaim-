@@ -209,6 +209,7 @@ class SpatialTemporalValidator:
         "macbook": "laptop", "notebook": "laptop", "chromebook": "laptop",
         "keyboard": "laptop", "mouse": "laptop", "charger": "laptop",
         "ipad": "tablet", "headset": "headphones", "airpods": "headphones", "earbuds": "headphones",
+        "beats": "headphones", "beats by dre": "headphones", "beats solo": "headphones",
         "wireless headphones": "headphones", "bluetooth headset": "headphones",
         "earphones": "headphones", "smartwatch": "watch", "apple watch": "watch",
         # Accesssories

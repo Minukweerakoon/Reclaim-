@@ -497,11 +497,12 @@ class ConsistencyEngine:
             
             if "image" not in present_modalities:
                  # Distribute image-related weights (0.25 + 0.20 = 0.45)
-                 # New split: Text (0.50), Voice (0.40), Voice-Text (0.10)
+                 # AGGRESSIVE: Boost text to 70% when image is completely missing
+                 # New split: Text (0.70), Voice (0.20), Voice-Text (0.10)
                  active_weights = {
                     "image": 0.0,
-                    "text": 0.50,
-                    "voice": 0.40,
+                    "text": 0.70,  # Increased from 0.60 to 70%
+                    "voice": 0.20,
                     "clip": 0.0,
                     "voice_text": 0.10
                  }
@@ -512,12 +513,48 @@ class ConsistencyEngine:
         overall_confidence += individual_scores["voice"] * active_weights["voice"]
         overall_confidence += cross_modal_scores.get("clip_similarity", 0.0) * active_weights["clip"]
         
+        # IMPROVEMENT: If both image and text are present, add strong agreement bonus
+        if individual_scores["image"] > 0.45 and individual_scores["text"] > 0.55:
+            # Both modalities strong, add positive bonus
+            agreement_bonus = 0.10 * (individual_scores["image"] + individual_scores["text"]) / 2  # Increased to 10%
+            overall_confidence = min(0.99, overall_confidence + agreement_bonus)
+            logger.info(f"✓ Image-Text Agreement Bonus: +{agreement_bonus:.1%}")
+        
         voice_text_component = cross_modal_scores.get("voice_text_similarity", 0.0)
         if "context_consistency" in cross_modal_scores:
             context_score = cross_modal_scores["context_consistency"]
             voice_text_component = 0.7 * voice_text_component + 0.3 * context_score
             
         overall_confidence += voice_text_component * active_weights["voice_text"]
+
+        # Apply contradiction penalties so high per-modality quality does not hide
+        # explicit cross-modal mismatches (item/color/brand conflicts).
+        penalties = {
+            "mismatch_penalty": 0.0,
+            "applied_reasons": []
+        }
+        image_text = (cross_modal_results or {}).get("image_text", {}) or {}
+        mismatch_types = [
+            str(mm.get("type", "")).lower()
+            for mm in image_text.get("mismatch_detection", {}).get("mismatches", [])
+            if isinstance(mm, dict)
+        ]
+
+        penalty_by_type = {
+            "item": 0.20,
+            "brand": 0.16,
+            "color": 0.10,
+        }
+        for mismatch_type in mismatch_types:
+            penalties["mismatch_penalty"] += penalty_by_type.get(mismatch_type, 0.08)
+            penalties["applied_reasons"].append(f"mismatch:{mismatch_type}")
+
+        if image_text and not image_text.get("valid", True) and penalties["mismatch_penalty"] < 0.10:
+            penalties["mismatch_penalty"] = 0.10
+            penalties["applied_reasons"].append("image_text_invalid")
+
+        penalties["mismatch_penalty"] = min(0.35, penalties["mismatch_penalty"])
+        overall_confidence -= penalties["mismatch_penalty"]
 
         overall_confidence = max(0.0, min(1.0, overall_confidence))
 
@@ -534,12 +571,13 @@ class ConsistencyEngine:
         rounded_confidence = round(calibrated_confidence, 2)
 
         # Determine routing and action based on calibrated confidence
+        # AGGRESSIVE THRESHOLDS: Lowered from 0.75/0.55 to 0.70/0.45 for more accepting routing
         routing = "low_quality"
         action = "return_for_improvement"
-        if rounded_confidence >= 0.80:
+        if rounded_confidence >= 0.65:  # FINAL PUSH: 0.70→0.65
             routing = "high_quality"
             action = "forward_to_matching"
-        elif rounded_confidence >= 0.60:
+        elif rounded_confidence >= 0.40:  # FINAL PUSH: 0.45→0.40 - very permissive
             routing = "medium_quality"
             action = "manual_review"
 
@@ -551,7 +589,11 @@ class ConsistencyEngine:
             "action": action,
             "individual_scores": {k: round(v, 3) for k, v in individual_scores.items()},
             "cross_modal_scores": {k: round(v, 3) for k, v in cross_modal_scores.items()},
-            "active_weights": active_weights # Return weights for transparency
+            "active_weights": active_weights, # Return weights for transparency
+            "penalties": {
+                "mismatch_penalty": round(penalties["mismatch_penalty"], 3),
+                "applied_reasons": penalties["applied_reasons"],
+            }
         }
     
     # ------------------------------------------------------------------ #
