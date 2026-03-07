@@ -312,7 +312,9 @@ class CLIPValidator:
                 item_prompts = [f"a photo of a {l}" for l in item_labels]
                 color_prompts = [f"{c} color" for c in color_labels]
                 brand_prompts = [f"{b} brand" for b in brand_labels]
+            
                 
+                #items colours and brands
                 top_items = _score_prompts(item_prompts)[:3]
                 top_colors = _score_prompts(color_prompts)[:3]
                 top_brands = _score_prompts(brand_prompts)[:3]
