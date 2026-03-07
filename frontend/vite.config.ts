@@ -36,22 +36,6 @@ export default defineConfig({
         target: 'ws://127.0.0.1:8000',
         ws: true,
       },
-      '/items/process': {
-        target: 'http://127.0.0.1:8001',
-        changeOrigin: true,
-      },
-      '/items': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-      '/xai': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-      '/reports': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
     },
   },
 })

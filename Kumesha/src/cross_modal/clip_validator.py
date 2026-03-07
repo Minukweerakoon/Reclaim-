@@ -79,6 +79,13 @@ class CLIPValidator:
         'casio': 'casio',
         'asus': 'asus',
         'acer': 'acer',
+        'logitech': 'logitech',
+        'logi': 'logitech',
+        'razer': 'razer',
+        'corsair': 'corsair',
+        'steelseries': 'steelseries',
+        'hyperx': 'hyperx',
+        'thinkpad': 'lenovo',
     }
 
     # Higher-risk items should use stricter image-text alignment by default.
@@ -394,7 +401,8 @@ class CLIPValidator:
                 brand_labels = [
                     "apple", "samsung", "dell", "asus", "hp", "lenovo", "acer", "sony",
                     "nike", "adidas", "puma", "reebok", "gucci", "prada", "louis vuitton",
-                    "rolex", "casio", "michael kors", "coach", "chanel", "hermes"
+                    "rolex", "casio", "michael kors", "coach", "chanel", "hermes",
+                    "logitech", "razer", "corsair", "steelseries", "hyperx", "thinkpad"
                 ]
                 # Build prompt templates
                 def _score_prompts(prompts: List[str]) -> List[Tuple[str, float]]:

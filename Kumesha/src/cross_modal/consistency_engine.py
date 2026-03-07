@@ -571,7 +571,6 @@ class ConsistencyEngine:
         rounded_confidence = round(calibrated_confidence, 2)
 
         # Determine routing and action based on calibrated confidence
-        # AGGRESSIVE THRESHOLDS: Lowered from 0.75/0.55 to 0.70/0.45 for more accepting routing
         routing = "low_quality"
         action = "return_for_improvement"
         if rounded_confidence >= 0.65:  # FINAL PUSH: 0.70→0.65
@@ -580,6 +579,21 @@ class ConsistencyEngine:
         elif rounded_confidence >= 0.40:  # FINAL PUSH: 0.45→0.40 - very permissive
             routing = "medium_quality"
             action = "manual_review"
+
+        # Contradiction-aware routing guardrail:
+        # any explicit mismatch should not be auto-forwarded as high quality.
+        mismatch_set = set(mismatch_types)
+        has_any_mismatch = bool(mismatch_set)
+        has_severe_mismatch = bool(mismatch_set & {"item", "brand"})
+
+        if has_any_mismatch and routing == "high_quality":
+            routing = "medium_quality"
+            action = "manual_review"
+
+        # Severe contradictions (item/brand) should never appear better than low quality.
+        if has_severe_mismatch and routing != "low_quality":
+            routing = "low_quality"
+            action = "return_for_improvement"
 
         return {
             "overall_confidence": rounded_confidence,

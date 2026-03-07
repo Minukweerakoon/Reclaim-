@@ -105,12 +105,22 @@ export function useWebSocket({
                     return;
                 }
                 try {
-                    const message = JSON.parse(event.data) as WSProgressMessage;
+                    const rawMessage = JSON.parse(event.data) as WSProgressMessage;
+                    const message: WSProgressMessage = {
+                        ...rawMessage,
+                        type: rawMessage.type || (rawMessage.status === 'connected' ? 'connected' : undefined),
+                    };
                     // Ignore pong responses
                     if (message.type === 'pong') {
                         console.log('[WebSocket] Pong received');
                         return;
                     }
+
+                    if (!message.type) {
+                        console.log('[WebSocket] Message received with unknown type:', rawMessage);
+                        return;
+                    }
+
                     console.log('[WebSocket] Message received:', message.type);
                     onMessageRef.current?.(message);
                 } catch (err) {

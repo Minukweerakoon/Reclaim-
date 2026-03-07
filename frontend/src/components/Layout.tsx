@@ -1,12 +1,10 @@
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { healthApi } from '../api/health';
 import { useAuth } from '../contexts/AuthContext';
-import { Sparkles } from 'lucide-react';
 
 function Layout() {
     const location = useLocation();
-    const navigate = useNavigate();
     const { user, signOutUser } = useAuth();
 
     const { data: health, isError } = useQuery({
@@ -36,29 +34,21 @@ function Layout() {
         return health.status || 'Unknown';
     };
 
-    const displayName = user?.user_metadata?.full_name || user?.email || 'User';
-    const nameParts = String(displayName).split(' ');
-    const firstName = nameParts[0] || 'User';
-    const lastInitial = nameParts[1]?.[0] ? `${nameParts[1][0]}.` : '';
-    const avatarUrl = user?.user_metadata?.avatar_url ||
-        `https://ui-avatars.com/api/?name=${encodeURIComponent(String(displayName))}`;
-
     return (
-        <div className="min-h-screen w-full bg-[#08080f] text-white relative overflow-x-hidden">
-            {/* Background Glow Orbs */}
-            <div className="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-600/10 blur-[120px] pointer-events-none" />
-            <div className="fixed bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-cyan-600/10 blur-[120px] pointer-events-none" />
-
-            <header className="fixed top-0 left-0 right-0 z-50 glass-panel-heavy backdrop-blur-xl border-b border-white/10">
+        <div className="min-h-screen bg-background-dark text-slate-100 grid-bg">
+            <header className="sticky top-0 z-50 glass-panel-heavy border-b border-white/10">
                 <div className="px-6 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-2 group cursor-pointer" onClick={() => navigate('/reclaim')}>
-                        <div className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-500/10 group-hover:bg-indigo-500/20 transition-colors">
-                            <Sparkles className="w-5 h-5 text-indigo-400" />
-                            <div className="absolute inset-0 rounded-lg shadow-[0_0_15px_rgba(99,102,241,0.3)] opacity-50 group-hover:opacity-100 transition-opacity" />
+                    <div className="flex items-center gap-4">
+                        <div className="h-9 w-9 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center shadow-neon-cyan">
+                            <span className="text-primary text-xs font-mono">NC</span>
                         </div>
                         <div>
-                            <div className="text-xl font-bold text-white tracking-tight">Reclaim</div>
-                            <div className="text-[10px] text-slate-400 uppercase tracking-widest">AI-Powered Lost &amp; Found</div>
+                            <div className="text-sm uppercase tracking-[0.3em] font-tech text-white neon-text-cyan">
+                                Neural Command Center
+                            </div>
+                            <div className="text-[10px] text-slate-400 uppercase tracking-widest">
+                                Proactive multimodal validation
+                            </div>
                         </div>
                     </div>
 
@@ -68,8 +58,8 @@ function Layout() {
                                 key={item.path}
                                 to={item.path}
                                 className={`px-4 py-2 rounded-lg transition-all duration-300 flex items-center gap-2 text-xs uppercase tracking-wider ${location.pathname === item.path
-                                    ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/50'
-                                    : 'hover:bg-white/5 text-slate-300 hover:text-white'
+                                        ? 'bg-primary/20 text-primary border border-primary/50'
+                                        : 'hover:bg-white/5 text-slate-300 hover:text-white'
                                     }`}
                             >
                                 <span>{item.icon}</span>
@@ -78,7 +68,7 @@ function Layout() {
                         ))}
                     </nav>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-6">
                         <div className="text-right">
                             <div className="text-[10px] text-slate-400 uppercase tracking-widest">System</div>
                             <div className="text-xs font-semibold uppercase text-slate-100">
@@ -86,17 +76,16 @@ function Layout() {
                             </div>
                         </div>
                         <div className={`w-2.5 h-2.5 rounded-full ${getStatusColor()} animate-pulse`} />
-                        <div className="flex items-center gap-3 pl-4 border-l border-white/10">
-                            <div className="text-right hidden sm:block">
-                                <p className="text-xs text-slate-400">Signed in as</p>
-                                <p className="text-sm font-medium text-white">{firstName} {lastInitial}</p>
-                            </div>
-                            <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-indigo-500/30">
-                                <img src={avatarUrl} alt={String(displayName)} className="w-full h-full object-cover" />
+                        <div className="hidden lg:flex items-center gap-3 border-l border-white/10 pl-4">
+                            <div className="text-right">
+                                <div className="text-[10px] text-slate-400 uppercase tracking-widest">Operator</div>
+                                <div className="text-xs text-slate-200">
+                                    {user?.email || 'Authenticated'}
+                                </div>
                             </div>
                             <button
                                 onClick={() => signOutUser()}
-                                className="text-[10px] uppercase tracking-widest text-indigo-500 border border-indigo-500/40 px-3 py-2 rounded-lg hover:bg-indigo-600/20 transition-colors"
+                                className="text-[10px] uppercase tracking-widest text-primary border border-primary/40 px-3 py-2 rounded-lg hover:bg-primary/20 transition-colors"
                             >
                                 Sign out
                             </button>
@@ -105,7 +94,7 @@ function Layout() {
                 </div>
             </header>
 
-            <main className="pt-24 pb-16 px-4 md:px-8 max-w-7xl mx-auto relative z-10">
+            <main className="px-6 py-6">
                 <Outlet />
             </main>
         </div>

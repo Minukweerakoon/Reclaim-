@@ -22,10 +22,6 @@
     @apply bg-surface-dark/90 backdrop-blur-2xl border border-surface-border shadow-xl;
   }
 
-  .glass-nav {
-    @apply bg-surface-dark/80 backdrop-blur-2xl border-b border-white/10;
-  }
-
   .grid-bg {
     background-image:
       linear-gradient(rgba(6, 182, 212, 0.04) 1px, transparent 1px),
@@ -39,21 +35,6 @@
 
   .neon-text-purple {
     text-shadow: 0 0 8px rgba(139, 92, 246, 0.6), 0 0 16px rgba(139, 92, 246, 0.35);
-  }
-
-  .animate-fade-in {
-    animation: fadeIn 0.5s ease-in-out;
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
   }
 }
 
