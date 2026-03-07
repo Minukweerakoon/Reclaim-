@@ -469,9 +469,22 @@ function ValidationHub() {
                     const locAt = textInput?.match(/\bat\s+(?:the\s+)?([a-zA-Z\s]{2,40})/i);
                     return locAt ? locAt[1].trim() : '';
                 })();
+                const timeValue = (() => {
+                    // Priority 1: structured extracted info from chat (most reliable)
+                    if (extracted['time'] && extracted['time'].trim()) {
+                        return extracted['time'].trim();
+                    }
+                    // Priority 2: parse "time: X" key-value from the summaryText
+                    const timeKv = textInput?.match(/\btime:\s*([^,]+)/i);
+                    if (timeKv) return timeKv[1].trim();
+                    return '';
+                })();
                 const colorValue = extracted['color'] || '';
                 // description = human-readable summary, not the full structured blob
                 const descriptionValue = extracted['description'] || textInput || '';
+
+                console.log('[ValidationHub] Extracted time value:', timeValue);
+                console.log('[ValidationHub] Full extracted info:', extracted);
 
                 if (!result?.supabase_id) {
                     reportsApi.saveReport({
@@ -480,6 +493,7 @@ function ValidationHub() {
                         description: descriptionValue,
                         color: colorValue,
                         location: locationValue,
+                        time: timeValue,
                         intention: effectiveIntent as 'lost' | 'found',
                         confidence_score: overallConfidence,
                         routing: overallConfidence != null && overallConfidence >= 0.7 ? 'auto' : 'manual',

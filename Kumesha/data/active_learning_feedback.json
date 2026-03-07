@@ -79,5 +79,465 @@
       "notes": "Should be a purse not wallet"
     },
     "type": "user_correction"
+  },
+  {
+    "timestamp": "2026-03-07T23:48:24.076307",
+    "input": "i Found another item",
+    "original": {
+      "request_id": "a274e599-e776-4f29-8e9c-54c99c9221a6",
+      "timestamp": "2026-03-07T23:25:32.924199",
+      "input_types": [
+        "text",
+        "image"
+      ],
+      "image": {
+        "image_path": "uploads/20260307232530456548_457c0ecc8b77acb174d155cef58eab34.jpg",
+        "timestamp": "2026-03-07T23:25:31.444172",
+        "sharpness": {
+          "valid": true,
+          "score": 100,
+          "raw_variance": 541.1640067455837,
+          "feedback": "Image sharpness: 100% - Good"
+        },
+        "objects": {
+          "valid": true,
+          "confidence": 0.466,
+          "detections": [
+            {
+              "class": "book",
+              "original_class": "book",
+              "confidence": 0.466,
+              "bbox": [
+                259.3714904785156,
+                110.60345458984375,
+                732.1441040039062,
+                892.2359008789062
+              ]
+            }
+          ],
+          "detection_score": 50,
+          "feedback": "\u2713 Detected book (47% confidence)",
+          "model": "YOLOv11-Primary"
+        },
+        "privacy": {
+          "faces_detected": 1,
+          "privacy_protected": true,
+          "processed_image": "uploads/processed/privacy_20260307232530456548_457c0ecc8b77acb174d155cef58eab34.jpg",
+          "feedback": "Blurred 1 face(s)"
+        },
+        "overall_score": 80,
+        "valid": true
+      },
+      "text": {
+        "text": "I found a pink iPhone phone case at food court at the shopping mall around today, 3pm.",
+        "timestamp": "2026-03-07 23:25:13",
+        "completeness": {
+          "valid": true,
+          "score": 100,
+          "entities": {
+            "item_type": [
+              "phone"
+            ],
+            "color": [
+              "pink"
+            ],
+            "location": [
+              "mall"
+            ],
+            "brand": [
+              "iphone"
+            ]
+          },
+          "missing_info": [],
+          "has_brand": true,
+          "has_time": true,
+          "is_vague": false,
+          "vagueness_reasons": [],
+          "feedback": "Completeness: 100% - Complete!"
+        },
+        "coherence": {
+          "valid": true,
+          "score": 1,
+          "feedback": "Description is coherent"
+        },
+        "entities": {
+          "entities": [
+            {
+              "text": "today",
+              "label": "DATE",
+              "start": 75,
+              "end": 80
+            },
+            {
+              "text": "3pm",
+              "label": "TIME",
+              "start": 82,
+              "end": 85
+            }
+          ],
+          "item_mentions": [
+            "phone"
+          ],
+          "color_mentions": [
+            "pink"
+          ],
+          "location_mentions": [
+            "mall",
+            "shop"
+          ],
+          "brand_mentions": [
+            "Apple"
+          ],
+          "style_mentions": []
+        },
+        "overall_score": 1,
+        "valid": true,
+        "clarification_questions": []
+      },
+      "voice": null,
+      "cross_modal": {
+        "image_text": {
+          "valid": true,
+          "similarity": 0.7694371342658998,
+          "threshold": 0.6,
+          "feedback": "Image and text are semantically aligned",
+          "mismatch_detection": {
+            "mismatches": [],
+            "attribute_scores": {
+              "predicted_items": [
+                [
+                  "a photo of a power bank",
+                  0.2666865289211273
+                ],
+                [
+                  "a photo of a phone",
+                  0.2497228980064392
+                ],
+                [
+                  "a photo of a toy",
+                  0.22929444909095764
+                ]
+              ],
+              "predicted_colors": [
+                [
+                  "pink color",
+                  0.23776456713676453
+                ],
+                [
+                  "white color",
+                  0.2353573888540268
+                ],
+                [
+                  "silver color",
+                  0.20561128854751587
+                ]
+              ],
+              "predicted_brands": [
+                [
+                  "gucci brand",
+                  0.2366144061088562
+                ],
+                [
+                  "apple brand",
+                  0.225225567817688
+                ],
+                [
+                  "sony brand",
+                  0.22335591912269592
+                ]
+              ],
+              "mentioned_items": [
+                "phone"
+              ],
+              "mentioned_colors": [
+                "pink"
+              ],
+              "mentioned_brands": []
+            }
+          },
+          "suggestions": []
+        }
+      },
+      "confidence": {
+        "overall_confidence": 0.88,
+        "raw_confidence": 0.88,
+        "calibration_applied": false,
+        "routing": "high_quality",
+        "action": "forward_to_matching",
+        "individual_scores": {
+          "image": 0.8,
+          "text": 1,
+          "voice": 0
+        },
+        "cross_modal_scores": {
+          "clip_similarity": 0.769
+        },
+        "active_weights": {
+          "image": 0.45,
+          "text": 0.4,
+          "voice": 0,
+          "clip": 0.15,
+          "voice_text": 0
+        }
+      },
+      "feedback": {
+        "suggestions": [],
+        "missing_elements": [],
+        "message": "Validation complete"
+      },
+      "clarification_questions": [],
+      "supabase_id": "e8ed4247-fea6-495e-9105-a9f1dfd98018",
+      "image_url": "https://uhiwsohlaiqiizazprml.supabase.co/storage/v1/object/public/items/found/641339a4-0031-41cc-8538-32f29829a9a4_a274e599-e776-4f29-8e9c-54c99c9221a6_20260307232530456548_457c0ecc8b77acb174d155cef58eab34.jpg"
+    },
+    "correction": {
+      "item_type": "",
+      "color": "",
+      "location": "",
+      "time": "",
+      "brand": ""
+    },
+    "type": "correction"
+  },
+  {
+    "timestamp": "2026-03-08T00:27:19.089459",
+    "input": "i found another item",
+    "original": {
+      "request_id": "c848d4f2-0aa3-4e18-a3b2-ea752df26d8a",
+      "timestamp": "2026-03-08T00:20:22.022204",
+      "input_types": [
+        "text",
+        "image"
+      ],
+      "image": {
+        "image_path": "uploads/20260308002001736066_Found Lap.jpg",
+        "timestamp": "2026-03-08T00:20:06.871567",
+        "sharpness": {
+          "valid": true,
+          "score": 78.2,
+          "raw_variance": 191.03813414373298,
+          "feedback": "Image sharpness: 78% - Good"
+        },
+        "objects": {
+          "valid": true,
+          "confidence": 0.949,
+          "detections": [
+            {
+              "class": "laptop",
+              "original_class": "laptop",
+              "confidence": 0.949,
+              "bbox": [
+                163.85595703125,
+                35.335731506347656,
+                939.64111328125,
+                738.1212768554688
+              ]
+            },
+            {
+              "class": "cup",
+              "original_class": "cup",
+              "confidence": 0.863,
+              "bbox": [
+                966.8058471679688,
+                205.010009765625,
+                1124.312255859375,
+                407.85198974609375
+              ]
+            }
+          ],
+          "detection_score": 100,
+          "feedback": "\u2713 Detected laptop (95% confidence) and 1 other object(s)",
+          "model": "YOLOv11-Primary"
+        },
+        "privacy": {
+          "faces_detected": 0,
+          "privacy_protected": false,
+          "processed_image": null,
+          "feedback": "No faces detected"
+        },
+        "overall_score": 86.9,
+        "valid": true
+      },
+      "text": {
+        "text": "I found a dark gray Apple MacBook Pro laptop at coffee shop around around 3 pm.",
+        "timestamp": "2026-03-08 00:19:55",
+        "completeness": {
+          "valid": true,
+          "score": 100,
+          "entities": {
+            "item_type": [
+              "laptop"
+            ],
+            "color": [
+              "gray"
+            ],
+            "location": [
+              "shop"
+            ],
+            "brand": [
+              "apple"
+            ]
+          },
+          "missing_info": [],
+          "has_brand": true,
+          "has_time": true,
+          "is_vague": false,
+          "vagueness_reasons": [],
+          "feedback": "Completeness: 100% - Complete!"
+        },
+        "coherence": {
+          "valid": true,
+          "score": 1,
+          "feedback": "Description is coherent"
+        },
+        "entities": {
+          "entities": [
+            {
+              "text": "Apple MacBook Pro",
+              "label": "ORG",
+              "start": 20,
+              "end": 37
+            },
+            {
+              "text": "3 pm",
+              "label": "TIME",
+              "start": 74,
+              "end": 78
+            }
+          ],
+          "item_mentions": [
+            "laptop",
+            "book"
+          ],
+          "color_mentions": [
+            "gray"
+          ],
+          "location_mentions": [
+            "shop"
+          ],
+          "brand_mentions": [
+            "Apple",
+            "apple"
+          ],
+          "style_mentions": []
+        },
+        "overall_score": 1,
+        "valid": true,
+        "clarification_questions": []
+      },
+      "voice": null,
+      "cross_modal": {
+        "image_text": {
+          "valid": true,
+          "similarity": 0.7569705247879029,
+          "threshold": 0.6,
+          "feedback": "Image and text are semantically aligned",
+          "mismatch_detection": {
+            "mismatches": [
+              {
+                "type": "color",
+                "message": "Color in text not prominent in image"
+              },
+              {
+                "type": "brand",
+                "message": "Brand in text not prominent in image"
+              }
+            ],
+            "attribute_scores": {
+              "predicted_items": [
+                [
+                  "a photo of a laptop",
+                  0.29117363691329956
+                ],
+                [
+                  "a photo of a cup",
+                  0.25200361013412476
+                ],
+                [
+                  "a photo of a tablet",
+                  0.24217449128627777
+                ]
+              ],
+              "predicted_colors": [
+                [
+                  "brown color",
+                  0.23163314163684845
+                ],
+                [
+                  "black color",
+                  0.22099164128303528
+                ],
+                [
+                  "silver color",
+                  0.21190422773361206
+                ]
+              ],
+              "predicted_brands": [
+                [
+                  "lenovo brand",
+                  0.2819358706474304
+                ],
+                [
+                  "asus brand",
+                  0.2653329074382782
+                ],
+                [
+                  "dell brand",
+                  0.2615509033203125
+                ]
+              ],
+              "mentioned_items": [
+                "laptop",
+                "book"
+              ],
+              "mentioned_colors": [
+                "gray"
+              ],
+              "mentioned_brands": [
+                "apple"
+              ]
+            }
+          },
+          "suggestions": []
+        }
+      },
+      "confidence": {
+        "overall_confidence": 0.3,
+        "raw_confidence": 0.3,
+        "calibration_applied": false,
+        "routing": "low_quality",
+        "action": "return_for_improvement",
+        "individual_scores": {
+          "image": 0.869,
+          "text": 1,
+          "voice": 0
+        },
+        "cross_modal_scores": {
+          "clip_similarity": 0.757
+        },
+        "active_weights": {
+          "image": 0.45,
+          "text": 0.4,
+          "voice": 0,
+          "clip": 0.15,
+          "voice_text": 0
+        }
+      },
+      "feedback": {
+        "suggestions": [],
+        "missing_elements": [],
+        "message": "Validation complete"
+      },
+      "clarification_questions": [],
+      "supabase_id": "fec63d7e-299f-4c04-afc8-92e88b92b77f",
+      "image_url": "https://uhiwsohlaiqiizazprml.supabase.co/storage/v1/object/public/items/found/1a8a18f8-c6a2-4774-9d5f-68ef5906bb9b_c848d4f2-0aa3-4e18-a3b2-ea752df26d8a_20260308002001736066_Found_Lap.jpg"
+    },
+    "correction": {
+      "item_type": "laptop",
+      "color": "dark gray",
+      "location": "coffee shop",
+      "time": "around 3 pm",
+      "brand": "Apple MacBook Pro"
+    },
+    "type": "correction"
   }
 ]

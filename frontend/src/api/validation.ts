@@ -49,6 +49,8 @@ export interface CompleteValidationParams {
     userEmail?: string;
     /** Existing ID to update in the DB instead of creating a new one */
     supabaseId?: string;
+    /** User phone number for contact details in retrieval cards */
+    userPhone?: string;
 }
 
 export const validationApi = {
@@ -69,6 +71,7 @@ export const validationApi = {
         // FIX: backend expects these exact names
         if (params.userId) formData.append('userId', params.userId);
         if (params.userEmail) formData.append('userEmail', params.userEmail);
+        if (params.userPhone) formData.append('userPhone', params.userPhone);
 
         const response = await validationClient.post('/validate/complete', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },

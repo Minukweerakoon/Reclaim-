@@ -9,9 +9,12 @@ interface AuthContextValue {
     user: User | null;
     session: Session | null;
     loading: boolean;
+    phoneNumber: string;
+    phoneRequired: boolean;
     signIn: (email: string, password: string) => Promise<void>;
     signUp: (email: string, password: string) => Promise<void>;
     signOutUser: () => Promise<void>;
+    updatePhoneNumber: (phoneNumber: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -22,6 +25,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true);
     const queryClient = useQueryClient();
     const { reset: resetValidationStore } = useValidationStore();
+
+    const getPhoneNumberFromUser = (authUser: User | null) => {
+        if (!authUser) return '';
+        const metadata = authUser.user_metadata || {};
+        const value = metadata.phone_number || metadata.phone || '';
+        return typeof value === 'string' ? value.trim() : '';
+    };
+
+    const phoneNumber = getPhoneNumberFromUser(user);
+    const phoneRequired = Boolean(user) && !phoneNumber;
 
     useEffect(() => {
         // Restore existing session on mount
@@ -46,6 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             user,
             session,
             loading,
+            phoneNumber,
+            phoneRequired,
             signIn: async (email, password) => {
                 const { error } = await supabase.auth.signInWithPassword({ email, password });
                 if (error) throw error;
@@ -59,8 +74,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 queryClient.clear();
                 resetValidationStore();
             },
+            updatePhoneNumber: async (newPhoneNumber) => {
+                const cleanPhone = String(newPhoneNumber || '').trim();
+                const { data, error } = await supabase.auth.updateUser({
+                    data: {
+                        phone_number: cleanPhone,
+                    },
+                });
+                if (error) throw error;
+                if (data?.user) {
+                    setUser(data.user);
+                }
+            },
         }),
-        [user, session, loading]
+        [user, session, loading, phoneNumber, phoneRequired, queryClient, resetValidationStore]
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

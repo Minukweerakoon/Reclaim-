@@ -1,10 +1,13 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { healthApi } from '../api/health';
 import { useAuth } from '../contexts/AuthContext';
 import { Sparkles } from 'lucide-react';
+import { ProfileDropdown } from './ProfileDropdown';
 
 function Layout() {
+    const [dropdownOpen, setDropdownOpen] = useState(false);
     const location = useLocation();
     const navigate = useNavigate();
     const { user, signOutUser } = useAuth();
@@ -17,10 +20,10 @@ function Layout() {
     });
 
     const navItems = [
-        { path: '/', label: 'Intent', icon: '🧭' },
-        { path: '/chatbot', label: 'Chatbot', icon: '💬' },
-        { path: '/validation', label: 'Validation Hub', icon: '🎯' },
-        { path: '/monitor', label: 'Monitor', icon: '📊' },
+        { path: '/', label: 'Intent' },
+        { path: '/chatbot', label: 'Chatbot' },
+        { path: '/validation', label: 'Validation Hub' },
+        { path: '/monitor', label: 'Monitor' },
     ];
 
     const getStatusColor = () => {
@@ -67,12 +70,11 @@ function Layout() {
                             <Link
                                 key={item.path}
                                 to={item.path}
-                                className={`px-4 py-2 rounded-lg transition-all duration-300 flex items-center gap-2 text-xs uppercase tracking-wider ${location.pathname === item.path
+                                className={`px-4 py-2 rounded-lg transition-all duration-300 flex items-center text-xs uppercase tracking-wider ${location.pathname === item.path
                                     ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/50'
                                     : 'hover:bg-white/5 text-slate-300 hover:text-white'
                                     }`}
                             >
-                                <span>{item.icon}</span>
                                 <span className="font-semibold">{item.label}</span>
                             </Link>
                         ))}
@@ -91,15 +93,24 @@ function Layout() {
                                 <p className="text-xs text-slate-400">Signed in as</p>
                                 <p className="text-sm font-medium text-white">{firstName} {lastInitial}</p>
                             </div>
-                            <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-indigo-500/30">
-                                <img src={avatarUrl} alt={String(displayName)} className="w-full h-full object-cover" />
+                            <div className="relative">
+                                <button
+                                    onClick={() => setDropdownOpen((o) => !o)}
+                                    className="w-9 h-9 rounded-full overflow-hidden border-2 border-indigo-500/30 hover:border-indigo-500/60 transition-all"
+                                >
+                                    <img src={avatarUrl} alt={String(displayName)} className="w-full h-full object-cover" />
+                                </button>
+                                {dropdownOpen ? (
+                                    <ProfileDropdown
+                                        user={user}
+                                        onClose={() => setDropdownOpen(false)}
+                                        onSignOut={() => {
+                                            setDropdownOpen(false);
+                                            signOutUser();
+                                        }}
+                                    />
+                                ) : null}
                             </div>
-                            <button
-                                onClick={() => signOutUser()}
-                                className="text-[10px] uppercase tracking-widest text-indigo-500 border border-indigo-500/40 px-3 py-2 rounded-lg hover:bg-indigo-600/20 transition-colors"
-                            >
-                                Sign out
-                            </button>
                         </div>
                     </div>
                 </div>
