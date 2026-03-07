@@ -65,6 +65,7 @@ class SaveReportRequest(BaseModel):
     color: str = ""
     brand: str = ""
     location: str = ""
+    time: str = ""           # time of incident e.g. "2pm", "morning"
     intention: str = "lost"  # "lost" or "found"
     confidence_score: Optional[float] = None
     routing: str = "manual"
@@ -116,12 +117,17 @@ async def save_report(
         "color": body.color,
         #"brand": body.brand,
         "location": body.location,
+        "time": body.time,
         "confidence_score": body.confidence_score,
         "routing": body.routing,
         "action": body.action,
         "image_url": body.image_url,
         "validation_summary": body.validation_results,
     }
+    
+    # Debug logging
+    logger.info(f"[REPORTS DEBUG] Received time from frontend: '{body.time}'")
+    logger.info(f"[REPORTS DEBUG] Item data keys: {list(item_data.keys())}")
 
     report_id, _ = sb.save_validated_item(
         intention=body.intention,

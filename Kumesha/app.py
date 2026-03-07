@@ -50,6 +50,7 @@ import redis
 
 
 from src.cross_modal.xai_explainer import XAIExplainer
+from src.database.supabase_client import _parse_time_for_db
 # Initialize Redis client
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 redis_client = redis.from_url(REDIS_URL)
@@ -1678,6 +1679,7 @@ async def validate_complete(
     intent: Optional[str] = Form(None),
     userId: Optional[str] = Form(None),
     userEmail: Optional[str] = Form(None),
+    userPhone: Optional[str] = Form(None),
     supabase_id: Optional[str] = Form(None),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     api_key: APIKey = Depends(get_api_key)
@@ -2010,6 +2012,7 @@ async def validate_complete(
                         "input_types": input_types,
                         "individual_scores": confidence_results.get("individual_scores", {}),
                         "request_id": request_id,
+                        "contact_phone": (userPhone or "").strip(),
                     },
                     "item_type": intent,
                     "user_id": userId,
@@ -2022,13 +2025,33 @@ async def validate_complete(
                 if text_result and not text_result.get("degraded"):
                     entities = text_result.get("entities", {}) or {}
                     completeness = text_result.get("completeness", {}).get("entities", {}) or {}
+
+                    def _first_value(value: Any) -> str:
+                        if isinstance(value, list) and value:
+                            first = value[0]
+                            return str(first).strip() if first is not None else ""
+                        if isinstance(value, str):
+                            return value.strip()
+                        return ""
+
                     # Store extracted item category in user_category (NOT item_type)
                     # item_type must remain as intent ("lost"/"found") per DB constraint
-                    item_data["user_category"] = (completeness.get("item_type") or [None])[0] or ""
-                    item_data["color"] = (completeness.get("color") or [None])[0] or ""
+                    item_data["user_category"] = _first_value(completeness.get("item_type"))
+                    item_data["color"] = _first_value(completeness.get("color"))
                     #item_data["brand"] = (completeness.get("brand") or [None])[0] or ""
-                    item_data["location"] = (completeness.get("location") or [None])[0] or ""
-                    #item_data["time"] = (completeness.get("time") or [None])[0] or ""
+                    item_data["location"] = _first_value(completeness.get("location"))
+
+                    # Parse time to proper TIME format for time_of_incident column.
+                    # Fallback order: completeness.time -> entities.time_mentions -> raw text.
+                    raw_time = _first_value(completeness.get("time"))
+                    if not raw_time:
+                        raw_time = _first_value(entities.get("time_mentions"))
+                    if not raw_time:
+                        raw_time = text or ""
+
+                    parsed_time = _parse_time_for_db(raw_time)
+                    item_data["time_of_incident"] = parsed_time
+                    logger.info("[TIME PIPELINE] raw='%s' parsed='%s'", raw_time, parsed_time)
                 
                 # Upload image to Supabase storage if available
                 if image_path and os.path.exists(image_path):
@@ -2086,12 +2109,55 @@ async def validate_complete(
                 
                 # Insert into database
                 table_name = "items"
+                if image_path and not item_data.get("image_url"):
+                    logger.warning("Skipping DB insert because image upload did not produce image_url")
+                    response_data["feedback"]["message"] = "Validation complete, but image upload failed. Please retry."
+                    return ValidationResponse(**response_data)
+
                 logger.error("========== DEBUG INSERT ==========")
                 logger.error(f"TABLE NAME: {table_name}")
                 logger.error(f"IMAGE URL VALUE: {item_data.get('image_url')}")
                 logger.error(f"IMAGE URL TYPE: {type(item_data.get('image_url'))}")
                 logger.error(f"FULL ITEM DATA KEYS: {list(item_data.keys())}")
                 logger.error("==================================")
+
+                # De-duplicate very recent identical submissions (same user/intent/description)
+                existing_same = None
+                try:
+                    desc_value = item_data.get("description", "")
+                    existing_q = (
+                        supabase.table(table_name)
+                        .select("id,image_url,created_at")
+                        .eq("user_id", userId)
+                        .eq("item_type", intent)
+                        .eq("description", desc_value)
+                        .order("created_at", desc=True)
+                        .limit(1)
+                        .execute()
+                    )
+
+                    if existing_q.data and len(existing_q.data) > 0:
+                        candidate = existing_q.data[0]
+                        created_str = candidate.get("created_at")
+                        if created_str:
+                            created_dt = datetime.fromisoformat(str(created_str).replace("Z", "+00:00"))
+                            age_seconds = (datetime.now(created_dt.tzinfo) - created_dt).total_seconds()
+                            if age_seconds <= 180:
+                                existing_same = candidate
+                except Exception as dedupe_err:
+                    logger.warning(f"De-dup check skipped: {dedupe_err}")
+
+                if existing_same:
+                    supabase_saved_id = existing_same.get("id")
+                    response_data["supabase_id"] = supabase_saved_id
+                    if existing_same.get("image_url"):
+                        response_data["image_url"] = existing_same.get("image_url")
+                    logger.info(
+                        "↺ Reused recent identical item instead of inserting duplicate: id=%s",
+                        supabase_saved_id,
+                    )
+                    return ValidationResponse(**response_data)
+
                 result = supabase.table(table_name).insert(item_data).execute()
                 logger.error(f"SUPABASE RETURNED DATA: {result.data}")
                 

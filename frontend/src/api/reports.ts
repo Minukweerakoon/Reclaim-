@@ -7,6 +7,7 @@ export interface SaveReportRequest {
     color?: string;           // item colour extracted from chat
     brand?: string;
     location?: string;
+    time?: string;            // time of incident extracted from chat
     intention: 'lost' | 'found';  // "lost" or "found"
     user_category?: string;   // same as item_type, explicit for items table
     confidence_score?: number;
