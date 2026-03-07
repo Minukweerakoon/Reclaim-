@@ -18,6 +18,14 @@ function Layout() {
         retry: 2,
     });
 
+    // Extract user display information
+    const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+    const email = user?.email || '';
+    const firstName = displayName.split(' ')[0];
+    const lastName = displayName.split(' ')[1];
+    const lastInitial = lastName ? lastName[0].toUpperCase() + '.' : '';
+    const avatarUrl = user?.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=6366f1&color=fff`;
+
     const navItems = [
         { path: '/', label: 'Intent' },
         { path: '/chatbot', label: 'Chatbot' },
