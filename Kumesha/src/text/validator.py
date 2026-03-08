@@ -519,6 +519,99 @@ class TextValidator:
     ]
     TIME_KEYWORDS = ['yesterday', 'today', 'morning', 'afternoon', 'evening', 'night', 'ago', 'last', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'am', 'pm', 'o\'clock']
 
+    def extract_location_phrase(self, text: str, language: str) -> Optional[str]:
+        """Extract full location phrase from text using LLM-first approach.
+        
+        Priority:
+        1. Use LLM (Gemini/Groq) for natural language extraction - best for full phrases
+        2. Use spaCy NER entities (GPE, LOC, FAC) for grammar-based extraction
+        3. Extract context around location keywords as fallback
+        
+        Args:
+            text: The text to extract location from
+            language: Language code ('en', 'si', 'ta')
+            
+        Returns:
+            Full location phrase or None if no location found
+        """
+        try:
+            # First try: Use LLM for natural language extraction (best for full phrases)
+            if self.llm_client and language == 'en':
+                try:
+                    llm_result = self.llm_client.guide_conversation(
+                        user_message=text,
+                        conversation_history=[],
+                        previous_extracted_info=None
+                    )
+                    
+                    if llm_result and isinstance(llm_result.get("extracted_info"), dict):
+                        llm_location = llm_result["extracted_info"].get("location", "").strip()
+                        if llm_location:
+                            # LLM successfully extracted location
+                            if self.enable_logging:
+                                logger.debug(f"LLM extracted location: '{llm_location}' from '{text}'")
+                            return llm_location
+                except Exception as e:
+                    if self.enable_logging:
+                        logger.debug(f"LLM location extraction failed, falling back: {e}")
+            
+            # Second try: Use spaCy NER to find location entities
+            doc = self.nlp_models[language](text)
+            location_entities = []
+            
+            # Collect all location-related entities
+            for ent in doc.ents:
+                if ent.label_ in ['GPE', 'LOC', 'FAC', 'ORG']:  # Geopolitical, Location, Facility, Organization
+                    location_entities.append(ent.text.strip())
+            
+            # Return first substantial location entity (more than just generic words)
+            for loc in location_entities:
+                if len(loc) > 2 and loc.lower() not in ['the', 'at', 'in', 'on', 'near']:
+                    return loc
+            
+            # Third try: Find keywords and extract surrounding context
+            text_lower = text.lower()
+            words = text.split()
+            
+            for keyword in self.LOCATION_KEYWORDS:
+                if keyword in text_lower:
+                    # Find the position of the keyword
+                    keyword_words = keyword.split()
+                    keyword_len = len(keyword_words)
+                    
+                    for i in range(len(words)):
+                        # Check if keyword matches at this position
+                        word_span = ' '.join(words[i:i+keyword_len]).lower()
+                        if word_span == keyword:
+                            # Extract 3 words before and 2 words after keyword
+                            start_idx = max(0, i - 3)
+                            end_idx = min(len(words), i + keyword_len + 2)
+                            location_phrase = ' '.join(words[start_idx:end_idx])
+                            
+                            # Clean up common prefixes/suffixes
+                            location_phrase = location_phrase.strip('.,!?;:')
+                            # Remove leading prepositions
+                            for prep in ['at the', 'in the', 'near the', 'at', 'in', 'near', 'on', 'by']:
+                                if location_phrase.lower().startswith(prep + ' '):
+                                    location_phrase = location_phrase[len(prep) + 1:]
+                            
+                            return location_phrase.strip()
+            
+            # Fourth try: If no keywords found, look for common location patterns
+            # "at X", "in X", "near X" patterns
+            import re
+            location_pattern = r'(?:at|in|near|on|by)\s+([A-Za-z0-9\s\-\']+(?:cafe|restaurant|building|street|st|road|rd|floor|university|college|school|library|park|station|stop))'
+            match = re.search(location_pattern, text, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+            
+            return None
+            
+        except Exception as e:
+            if self.enable_logging:
+                logger.warning(f"Location phrase extraction failed: {str(e)}")
+            return None
+
     def check_completeness(
         self,
         text: str,
@@ -604,7 +697,8 @@ class TextValidator:
         if color_match:
             entities["color"].append(color_match)
 
-        location_match = find_match(self.LOCATION_KEYWORDS)
+        # Extract location using full phrase extraction
+        location_match = self.extract_location_phrase(text, language)
         has_location = bool(location_match)
         if not has_location and location_hint:
             location_match = location_hint
@@ -819,10 +913,10 @@ class TextValidator:
                 if color in text_lower:
                     result["color_mentions"].append(color)
             
-            # Extract location mentions
-            for location in self.locations[language]:
-                if location in text_lower:
-                    result["location_mentions"].append(location)
+            # Extract location using full phrase extraction (not just keywords)
+            location_phrase = self.extract_location_phrase(text, language)
+            if location_phrase:
+                result["location_mentions"].append(location_phrase)
 
             # ------------------------------------------------------------------
             # Enhanced Brand Detection Logic

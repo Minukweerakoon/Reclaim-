@@ -2184,7 +2184,7 @@ async def validate_complete(
                                 "mc_T": 20
                             }
 
-                            logger.info(f"🤖 Triggering AI backend for found item {supabase_saved_id}")
+                            logger.info(f"🤖 Triggering AI backend for {intent} item {supabase_saved_id}")
                             response = requests.post(
                                 AI_BACKEND_URL,
                                 json=ai_payload,
@@ -2192,13 +2192,21 @@ async def validate_complete(
                             )
                             
                             if response.status_code == 200:
+                                ai_result = response.json() if response.content else {}
+                                matches = ai_result.get("results", []) if isinstance(ai_result, dict) else []
+                                
                                 if intent == "found":
-                                    logger.info(f"✓ AI indexing completed for item {supabase_saved_id}")
-                                else:
-                                    ai_result = response.json() if response.content else {}
-                                    matches = ai_result.get("results", []) if isinstance(ai_result, dict) else []
+                                    if matches:
+                                        logger.info(
+                                            "✓ AI indexing + retrieval completed for found item %s (matches=%s lost items)",
+                                            supabase_saved_id,
+                                            len(matches),
+                                        )
+                                    else:
+                                        logger.info(f"✓ AI indexing completed for found item {supabase_saved_id} (no lost items to match)")
+                                else:  # lost
                                     logger.info(
-                                        "✓ AI retrieval completed for lost item %s (matches=%s)",
+                                        "✓ AI indexing + retrieval completed for lost item %s (matches=%s found items)",
                                         supabase_saved_id,
                                         len(matches),
                                     )

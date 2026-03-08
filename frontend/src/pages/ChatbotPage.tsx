@@ -451,24 +451,14 @@ function ChatbotPage() {
                 return;
             }
 
-            if (intent === 'found') {
-                setMessages((prev) => prev.map((msg) => {
-                    if (msg.id !== loadingMessageId) return msg;
-                    return {
-                        ...msg,
-                        loading: false,
-                        content: 'Your found item has been validated and indexed successfully.',
-                    };
-                }));
-                return;
-            }
-
+            // Bidirectional matching: BOTH found and lost items get retrieval results
+            const searchingFor = intent === 'found' ? 'lost' : 'found';
             setMessages((prev) => prev.map((msg) => {
                 if (msg.id !== loadingMessageId) return msg;
                 return {
                     ...msg,
                     loading: true,
-                    content: 'Validation complete. Searching for possible matches...',
+                    content: `Validation complete. Searching for possible ${searchingFor} items...`,
                 };
             }));
 
@@ -503,17 +493,23 @@ function ChatbotPage() {
                 setMessages((prev) => prev.map((msg) => {
                     if (msg.id !== loadingMessageId) return msg;
                     if (!results.length) {
+                        const noMatchMessage = intent === 'found'
+                            ? 'Your found item has been indexed. No lost reports match yet, but we will notify you if someone reports it as lost.'
+                            : 'No matching items were found yet, but we will notify you if something similar appears.';
                         return {
                             ...msg,
                             loading: false,
-                            content: 'No matching items were found yet, but we will notify you if something similar appears.',
+                            content: noMatchMessage,
                             matchResults: [],
                         };
                     }
+                    const matchMessage = intent === 'found'
+                        ? 'We found people who reported similar lost items:'
+                        : 'We found possible matches for your lost item:';
                     return {
                         ...msg,
                         loading: false,
-                        content: 'We found possible matches for your lost item:',
+                        content: matchMessage,
                         matchResults: results,
                         retryMatch: undefined,
                     };

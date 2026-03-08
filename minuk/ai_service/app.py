@@ -1,5 +1,6 @@
 import os
 import io
+import logging
 from typing import Optional, Literal
 from datetime import datetime
 import time
@@ -27,6 +28,13 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 print("SUPABASE_URL:", os.getenv("SUPABASE_URL"))
 print("SUPABASE_SERVICE_ROLE_KEY:", "Loaded" if os.getenv("SUPABASE_SERVICE_ROLE_KEY") else "Missing")
@@ -61,7 +69,8 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup_event():
-    rebuild_faiss()
+    rebuild_faiss_for_type("found")
+    rebuild_faiss_for_type("lost")
 
 # =========================================================
 # MODEL LOADING
@@ -154,45 +163,74 @@ clip_model = clip_model_loaded.to(DEVICE).eval()
 clip_preprocess = clip_val_preprocess
 
 # =========================================================
-# FAISS (built from unified 'items' table where item_type='found')
+# FAISS (bidirectional matching: found ↔ lost)
 # =========================================================
 
-db_index: Optional[faiss.Index] = None
-db_ids = []
-db_urls = []
-db_cats = []
-db_model_cats = []
-db_meta = []
+# Found items index (for lost queries)
+found_index: Optional[faiss.Index] = None
+found_ids = []
+found_urls = []
+found_cats = []
+found_model_cats = []
+found_meta = []
 
-def rebuild_faiss():
-    global db_index, db_ids, db_urls, db_cats, db_model_cats, db_meta
+# Lost items index (for found queries)
+lost_index: Optional[faiss.Index] = None
+lost_ids = []
+lost_urls = []
+lost_cats = []
+lost_model_cats = []
+lost_meta = []
+
+def rebuild_faiss_for_type(item_type: str):
+    """Rebuild FAISS index for specific item type (found or lost)"""
+    # Declare ALL global variables at function start
+    global found_index, found_ids, found_urls, found_cats, found_model_cats, found_meta
+    global lost_index, lost_ids, lost_urls, lost_cats, lost_model_cats, lost_meta
+    
+    if item_type == "found":
+        index_var = "found_index"
+        ids_list, urls_list, cats_list, model_cats_list, meta_list = found_ids, found_urls, found_cats, found_model_cats, found_meta
+    else:  # lost
+        index_var = "lost_index"
+        ids_list, urls_list, cats_list, model_cats_list, meta_list = lost_ids, lost_urls, lost_cats, lost_model_cats, lost_meta
 
     rows = supabase.table("items") \
         .select("id, metric_vec, final_category, model_category, image_url, location, time_of_incident, user_email, user_id, user_category, validation_summary") \
         .eq("status", "pending") \
-        .eq("item_type", "found") \
+        .eq("item_type", item_type) \
         .execute().data
+    
+    logger.info(f"[FAISS] Building {item_type} index from {len(rows)} database items")
 
     if not rows:
-        db_index = None
+        if item_type == "found":
+            found_index = None
+        else:
+            lost_index = None
+        ids_list.clear()
+        urls_list.clear()
+        cats_list.clear()
+        model_cats_list.clear()
+        meta_list.clear()
         return
 
     vecs = []
-    db_ids = []
-    db_urls = []
-    db_cats = []
-    db_model_cats = []
-    db_meta = []
+    ids_list.clear()
+    urls_list.clear()
+    cats_list.clear()
+    model_cats_list.clear()
+    meta_list.clear()
 
     for r in rows:
         if not r["metric_vec"]:
             continue
         vecs.append(np.array(r["metric_vec"], dtype=np.float32))
-        db_ids.append(r["id"])
-        db_urls.append(r["image_url"])
-        db_cats.append(r.get("final_category"))
-        db_model_cats.append(r.get("model_category"))
-        db_meta.append({
+        ids_list.append(r["id"])
+        urls_list.append(r["image_url"])
+        cats_list.append(r.get("final_category"))
+        model_cats_list.append(r.get("model_category"))
+        meta_list.append({
             "location": r.get("location"),
             "reported_time": r.get("time_of_incident"),
             "user_email": r.get("user_email"),
@@ -202,14 +240,23 @@ def rebuild_faiss():
         })
 
     if not vecs:
-        db_index = None
+        if item_type == "found":
+            found_index = None
+        else:
+            lost_index = None
         return
 
     emb = np.stack(vecs).astype("float32")
     faiss.normalize_L2(emb)
     idx = faiss.IndexFlatIP(emb.shape[1])
     idx.add(emb)  # type: ignore[call-arg]
-    db_index = idx
+    
+    if item_type == "found":
+        found_index = idx
+        logger.info(f"[FAISS] ✓ Found index rebuilt: {len(found_ids)} items")
+    else:
+        lost_index = idx
+        logger.info(f"[FAISS] ✓ Lost index rebuilt: {len(lost_ids)} items")
 
 # =========================================================
 # UTILITIES
@@ -303,6 +350,9 @@ class ProcessItemRequest(BaseModel):
 
 @app.post("/items/process")
 async def process_item(payload: ProcessItemRequest):
+    # Declare all global variables at function start
+    global found_index, found_ids, found_urls, found_cats, found_model_cats, found_meta
+    global lost_index, lost_ids, lost_urls, lost_cats, lost_model_cats, lost_meta
 
     query_img = download_image(payload.image_url)
 
@@ -332,76 +382,115 @@ async def process_item(payload: ProcessItemRequest):
         "alpha": alpha
     }).eq("id", payload.item_id).execute()
 
-    # If found → rebuild index and return
+    # ============================================
+    # BIDIRECTIONAL MATCHING
+    # ============================================
+    # 1. Index current item in its type's index (found → found_index, lost → lost_index)
+    # 2. Retrieve from opposite type's index (found → search lost_index, lost → search found_index)
+    
+    # Determine which index to update and which to search
     if payload.item_type == "found":
-        global db_index, db_ids, db_urls, db_cats, db_model_cats, db_meta
+        my_index = found_index
+        my_ids = found_ids
+        my_urls = found_urls
+        my_cats = found_cats
+        my_model_cats = found_model_cats
+        my_meta = found_meta
+        
+        # Search opposite index
+        search_index = lost_index
+        search_ids = lost_ids
+        search_urls = lost_urls
+        search_cats = lost_cats
+        search_model_cats = lost_model_cats
+        search_meta = lost_meta
+    else:  # lost
+        my_index = lost_index
+        my_ids = lost_ids
+        my_urls = lost_urls
+        my_cats = lost_cats
+        my_model_cats = lost_model_cats
+        my_meta = lost_meta
+        
+        # Search opposite index  
+        search_index = found_index
+        search_ids = found_ids
+        search_urls = found_urls
+        search_cats = found_cats
+        search_model_cats = found_model_cats
+        search_meta = found_meta
 
-        if db_index is None:
-            rebuild_faiss()
+    # Index current item
+    if my_index is None:
+        rebuild_faiss_for_type(payload.item_type)
+        my_index = found_index if payload.item_type == "found" else lost_index
+    else:
+        # Check for duplicates
+        if payload.item_id in my_ids:
+            rebuild_faiss_for_type(payload.item_type)
+            my_index = found_index if payload.item_type == "found" else lost_index
         else:
-            # Important: do not append duplicate vectors for the same item id.
-            # If item already exists in the in-memory index, rebuild from DB once
-            # so the index has one unique vector per found item.
-            if payload.item_id in db_ids:
-                rebuild_faiss()
-            else:
-                vec = z.reshape(1, -1).astype("float32")
-                faiss.normalize_L2(vec)
-                db_index.add(vec)  # type: ignore[call-arg]
+            vec = z.reshape(1, -1).astype("float32")
+            faiss.normalize_L2(vec)
+            my_index.add(vec)  # type: ignore[call-arg]
 
-                db_ids.append(payload.item_id)
-                db_urls.append(payload.image_url)
-                db_cats.append(final_category)
-                db_model_cats.append(pred_cat)
-                item_meta = {
-                    "location": None,
-                    "reported_time": None,
-                    "user_email": None,
-                    "user_id": None,
-                    "user_category": payload.user_category,
-                    "phone_number": None,
-                }
-                try:
-                    meta_row = (
-                        supabase.table("items")
-                        .select("location, time_of_incident, user_email, user_id, user_category, validation_summary")
-                        .eq("id", payload.item_id)
-                        .limit(1)
-                        .execute()
-                    )
-                    if meta_row.data and len(meta_row.data) > 0:
-                        row = meta_row.data[0]
-                        item_meta = {
-                            "location": row.get("location"),
-                            "reported_time": row.get("time_of_incident"),
-                            "user_email": row.get("user_email"),
-                            "user_id": row.get("user_id"),
-                            "user_category": row.get("user_category"),
-                            "phone_number": (row.get("validation_summary") or {}).get("contact_phone"),
-                        }
-                except Exception:
-                    pass
-                db_meta.append(item_meta)
+            my_ids.append(payload.item_id)
+            my_urls.append(payload.image_url)
+            my_cats.append(final_category)
+            my_model_cats.append(pred_cat)
+            
+            item_meta = {
+                "location": None,
+                "reported_time": None,
+                "user_email": None,
+                "user_id": None,
+                "user_category": payload.user_category,
+                "phone_number": None,
+            }
+            try:
+                meta_row = (
+                    supabase.table("items")
+                    .select("location, time_of_incident, user_email, user_id, user_category, validation_summary")
+                    .eq("id", payload.item_id)
+                    .limit(1)
+                    .execute()
+                )
+                if meta_row.data and len(meta_row.data) > 0:
+                    row = meta_row.data[0]
+                    item_meta = {
+                        "location": row.get("location"),
+                        "reported_time": row.get("time_of_incident"),
+                        "user_email": row.get("user_email"),
+                        "user_id": row.get("user_id"),
+                        "user_category": row.get("user_category"),
+                        "phone_number": (row.get("validation_summary") or {}).get("contact_phone"),
+                    }
+            except Exception:
+                pass
+            my_meta.append(item_meta)
 
+    # Retrieve from opposite index
+    if search_index is None:
+        rebuild_faiss_for_type("lost" if payload.item_type == "found" else "found")
+        search_index = lost_index if payload.item_type == "found" else found_index
+    
+    opposite_type = "lost" if payload.item_type == "found" else "found"
+    logger.info(f"[SEARCH] Item type='{payload.item_type}' searching '{opposite_type}' index with {len(search_ids)} items")
+
+    # If no items to search, return indexed status only
+    if search_index is None or len(search_ids) == 0:
         return {
             "status": "indexed",
             "final_category": final_category,
             "predicted_category": pred_cat,
             "entropy": entropy,
             "alpha": alpha,
+            "results": [],
         }
 
-    # LOST → retrieve from 'items' where item_type='found'
-    if db_index is None:
-        rebuild_faiss()
-    elif len(db_ids) != len(set(db_ids)):
-        rebuild_faiss()
-
-    if db_index is None:
-        return {"results": []}
-
+    # Perform retrieval
     faiss.normalize_L2(z)
-    D, I = db_index.search(z, payload.k)  # type: ignore[call-arg]
+    D, I = search_index.search(z, payload.k)  # type: ignore[call-arg]
     sims = D[0]
     idxs = I[0]
 
@@ -409,7 +498,14 @@ async def process_item(payload: ProcessItemRequest):
     valid = [(sim, idx) for sim, idx in zip(sims, idxs) if idx >= 0]
 
     if not valid:
-        return {"results": []}
+        return {
+            "status": "indexed",
+            "final_category": final_category,
+            "predicted_category": pred_cat,
+            "entropy": entropy,
+            "alpha": alpha,
+            "results": [],
+        }
 
     sims = np.array([v[0] for v in valid], dtype=np.float32)
     idxs = np.array([v[1] for v in valid], dtype=np.int32)
@@ -417,16 +513,16 @@ async def process_item(payload: ProcessItemRequest):
     # Convert cosine similarity (-1 to 1) into 0-1 range
     metric_scores = (sims + 1.0) / 2.0
 
-    candidate_urls = [db_urls[i] for i in idxs]
+    candidate_urls = [search_urls[i] for i in idxs]
     clip_sims = clip_sim(query_img, candidate_urls)
 
     # CLIP scores are already normalized cosine similarities (0-1 range)
     # Do NOT use minmax normalization as it makes the best match always 100%
     clip_scores = clip_sims
 
-    final = (1 - alpha) * metric_scores + alpha * clip_scores
+    final_scores = (1 - alpha) * metric_scores + alpha * clip_scores
 
-    order = np.argsort(final)[::-1]
+    order = np.argsort(final_scores)[::-1]
 
     # Smart category logic using all category signals.
     # Query side has: model(pred_cat), final(final_category), user(payload.user_category)
@@ -440,15 +536,15 @@ async def process_item(payload: ProcessItemRequest):
     rank = 1
     for j in order:
         i = idxs[j]
-        item_id = db_ids[i]
+        item_id = search_ids[i]
         if item_id in seen_ids:
             continue
         seen_ids.add(item_id)
 
-        meta = db_meta[i] if i < len(db_meta) else {}
+        meta = search_meta[i] if i < len(search_meta) else {}
 
-        cand_model = _norm_cat(db_model_cats[i])
-        cand_final = _norm_cat(db_cats[i])
+        cand_model = _norm_cat(search_model_cats[i])
+        cand_final = _norm_cat(search_cats[i])
         cand_user = _norm_cat(meta.get("user_category"))
         candidate_categories = {c for c in [cand_model, cand_final, cand_user] if c}
 
@@ -458,24 +554,17 @@ async def process_item(payload: ProcessItemRequest):
         if not overlap:
             continue
 
-        # Weighted boost: model match strongest, then final, then user category.
-        cat_boost = 0.0
-        if query_model and cand_model and query_model == cand_model:
-            cat_boost += 0.15
-        if query_final and cand_final and query_final == cand_final:
-            cat_boost += 0.08
-        if query_user and cand_user and query_user == cand_user:
-            cat_boost += 0.05
-
-        adjusted_score = min(1.0, float(final[j]) + cat_boost)
+        # Use raw similarity score without any category boost
+        # This shows the actual CLIP + metric similarity percentage
+        adjusted_score = float(final_scores[j])
 
         results.append({
             "rank": rank,
             "id": item_id,
-            "category": db_model_cats[i] or db_cats[i],
-            "model_category": db_model_cats[i],
-            "final_category": db_cats[i],
-            "image_url": db_urls[i],
+            "category": search_model_cats[i] or search_cats[i],
+            "model_category": search_model_cats[i],
+            "final_category": search_cats[i],
+            "image_url": search_urls[i],
             "score": adjusted_score,
             "location": meta.get("location"),
             "reported_time": meta.get("reported_time"),
@@ -485,6 +574,7 @@ async def process_item(payload: ProcessItemRequest):
             "phone_number": meta.get("phone_number"),
             "category_overlap": sorted(list(overlap)),
         })
+        logger.info(f"[SEARCH] Match #{rank}: ID={item_id}, score={adjusted_score:.2%}, location={meta.get('location')}")
         rank += 1
 
     # Keep highest adjusted-score matches first after category filtering.
@@ -493,6 +583,7 @@ async def process_item(payload: ProcessItemRequest):
         row["rank"] = idx
 
     return {
+        "status": "indexed",
         "predicted_category": pred_cat,
         "final_category": final_category,
         "entropy": entropy,
