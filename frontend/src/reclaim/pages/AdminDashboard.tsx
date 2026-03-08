@@ -595,6 +595,7 @@ export function AdminDashboard({ user, onSignOut }) {
                 <option value="LOITERING">LOITERING</option>
                 <option value="LOITER_NEAR_UNATTENDED">LOITER_NEAR_UNATTENDED</option>
                 <option value="BAG_UNATTENDED">BAG_UNATTENDED</option>
+                <option value="INTERACTION_WITH_BAG">INTERACTION_WITH_BAG</option>
                 <option value="OWNER_RETURNED">OWNER_RETURNED</option>
               </select>
             </label>

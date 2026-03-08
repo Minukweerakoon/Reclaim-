@@ -68,6 +68,15 @@ class AlertManager:
                 "bag_bbox": alert.get("bag_bbox"),
                 "distance_px": alert.get("distance_px", 0)
             }
+        elif alert_type == "INTERACTION_WITH_BAG":
+            formatted["details"] = {
+                "person_id": alert.get("person_id"),
+                "bag_id": alert.get("bag_id"),
+                "item_type": alert.get("item_type", "bag"),
+                "person_bbox": alert.get("person_bbox"),
+                "bag_bbox": alert.get("bag_bbox"),
+                "distance_px": alert.get("distance_px", 0)
+            }
         
         return formatted
     
@@ -78,7 +87,8 @@ class AlertManager:
             "BAG_UNATTENDED": "MEDIUM",
             "LOITER_NEAR_UNATTENDED": "HIGH",
             "RUNNING": "LOW",
-            "OWNER_RETURNED": "INFO"
+            "OWNER_RETURNED": "INFO",
+            "INTERACTION_WITH_BAG": "HIGH"
         }
         return severity_map.get(alert_type, "UNKNOWN")
     

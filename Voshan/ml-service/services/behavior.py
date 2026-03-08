@@ -56,6 +56,9 @@ class BehaviorDetector:
         # Loitering tracking
         self.near_unattend_start = defaultdict(lambda: defaultdict(float))  # person_id -> bag_id -> start time
         
+        # Interaction-with-bag alert throttle (person_id -> bag_id -> last emit time)
+        self._last_interaction_alert = defaultdict(lambda: defaultdict(float))
+        
         # Frame tracking
         self.frame_count = 0
         self.current_time = 0.0  # Current time in seconds
@@ -185,6 +188,40 @@ class BehaviorDetector:
         
         # === Loitering Detection Near Unattended Bags ===
         for person_id, (person_cx, person_cy, person_bbox) in people.items():
+            # Distance to nearest bag (any item) - if within range, suppress false RUNNING (e.g. bending over bag)
+            min_dist_to_bag = float('inf')
+            nearest_bag_id = None
+            nearest_bag_data = None
+            for bag_id, bag_data in bags.items():
+                bag_cx, bag_cy = bag_data[0], bag_data[1]
+                d = math.hypot(person_cx - bag_cx, person_cy - bag_cy)
+                if d < min_dist_to_bag:
+                    min_dist_to_bag = d
+                    nearest_bag_id = bag_id
+                    nearest_bag_data = bag_data
+            
+            person_near_bag = min_dist_to_bag <= self.owner_max_dist
+            
+            # When person is near a bag, emit INTERACTION_WITH_BAG (throttled to once per 2 sec per person-bag pair)
+            if person_near_bag and nearest_bag_id is not None and nearest_bag_data is not None:
+                last_emit = self._last_interaction_alert[person_id][nearest_bag_id]
+                if self.current_time - last_emit >= 2.0:
+                    bag_cx, bag_cy, bag_bbox, item_type = nearest_bag_data
+                    alert = {
+                        "type": "INTERACTION_WITH_BAG",
+                        "person_id": person_id,
+                        "bag_id": nearest_bag_id,
+                        "item_type": item_type,
+                        "person_bbox": person_bbox,
+                        "bag_bbox": bag_bbox,
+                        "distance_px": round(min_dist_to_bag, 1),
+                        "frame": self.frame_count,
+                        "timestamp": time.time()
+                    }
+                    frame_alerts.append(alert)
+                    self.alerts.append(alert)
+                    self._last_interaction_alert[person_id][nearest_bag_id] = self.current_time
+            
             # Track person position history for speed calculation
             hist = self.person_pos_hist[person_id]
             if hist:
@@ -192,8 +229,8 @@ class BehaviorDetector:
                 x0, y0 = hist[-1]
                 speed = math.hypot(person_cx - x0, person_cy - y0) * self.fps
                 
-                # Detect running
-                if speed > self.running_speed:
+                # Detect running ONLY when person is NOT near a bag (bending over a bag causes centroid jump → false running)
+                if not person_near_bag and speed > self.running_speed:
                     alert = {
                         "type": "RUNNING",
                         "person_id": person_id,
@@ -264,6 +301,7 @@ class BehaviorDetector:
         self.unattended_bags = set()
         self.person_pos_hist = defaultdict(lambda: deque(maxlen=int(self.fps * 5)))
         self.near_unattend_start = defaultdict(lambda: defaultdict(float))
+        self._last_interaction_alert = defaultdict(lambda: defaultdict(float))
         self.frame_count = 0
         self.current_time = 0.0
         self.alerts = []
