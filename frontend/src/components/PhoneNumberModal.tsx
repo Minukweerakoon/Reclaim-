@@ -30,10 +30,17 @@ export function PhoneNumberModal({
     if (!open) return null;
 
     const validatePhone = (value: string) => {
-        const clean = value.trim();
+        const clean = value.trim().replace(/[\s()-]/g, '');
         if (!clean) return 'Mobile number is required.';
-        const ok = /^\+?[0-9\s()-]{7,20}$/.test(clean);
-        if (!ok) return 'Enter a valid mobile number.';
+        
+        // Sri Lankan phone validation: must be 10 digits
+        // Can start with 0 (local format) or +94 (international)
+        const localFormat = /^0[0-9]{9}$/;  // 0771234567
+        const intlFormat = /^\+94[0-9]{9}$/;  // +94771234567
+        
+        if (!localFormat.test(clean) && !intlFormat.test(clean)) {
+            return 'Enter a valid 10-digit Sri Lankan mobile number (e.g., 0771234567 or +94771234567)';
+        }
         return '';
     };
 
@@ -71,7 +78,8 @@ export function PhoneNumberModal({
                     <input
                         value={phoneNumber}
                         onChange={(e) => setPhoneNumber(e.target.value)}
-                        placeholder="e.g. +94 77 123 4567"
+                        placeholder="e.g. 0771234567 or +94771234567"
+                        maxLength={13}
                         className="mt-2 w-full rounded-xl bg-white/[0.03] border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                     />
                     {error ? <p className="mt-2 text-xs text-red-400">{error}</p> : null}

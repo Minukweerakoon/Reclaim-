@@ -2170,9 +2170,8 @@ async def validate_complete(
                         response_data["image_url"] = image_url
 
                     # Trigger AI backend processing after successful insert.
-                    # ONLY for found items - indexes immediately so they're searchable.
-                    # Lost items skip this to avoid timeout; retrieval happens separately in chat.
-                    if image_url and intent == "found":
+                    # Found items are indexed; lost items run retrieval against indexed found items.
+                    if image_url and intent in {"found", "lost"}:
                         try:
                             AI_BACKEND_URL = "http://localhost:8001/items/process"
 
@@ -2193,16 +2192,21 @@ async def validate_complete(
                             )
                             
                             if response.status_code == 200:
-                                logger.info(f"✓ AI indexing completed for item {supabase_saved_id}")
+                                if intent == "found":
+                                    logger.info(f"✓ AI indexing completed for item {supabase_saved_id}")
+                                else:
+                                    ai_result = response.json() if response.content else {}
+                                    matches = ai_result.get("results", []) if isinstance(ai_result, dict) else []
+                                    logger.info(
+                                        "✓ AI retrieval completed for lost item %s (matches=%s)",
+                                        supabase_saved_id,
+                                        len(matches),
+                                    )
                             else:
                                 logger.warning(f"AI backend returned status {response.status_code}: {response.text}")
 
                         except Exception as ai_err:
                             logger.warning(f"AI indexing failed (non-fatal): {ai_err}")
-                    elif image_url and intent == "lost":
-                        logger.info(
-                            f"✓ Lost item {supabase_saved_id} saved - retrieval will be triggered by frontend"
-                        )
                 else:
                     logger.warning("Supabase insert returned no data")
                     

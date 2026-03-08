@@ -24,7 +24,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from supabase import create_client  # type: ignore[import-untyped]
 from dotenv import load_dotenv
-import os
 
 # Load environment variables
 load_dotenv()
@@ -421,8 +420,9 @@ async def process_item(payload: ProcessItemRequest):
     candidate_urls = [db_urls[i] for i in idxs]
     clip_sims = clip_sim(query_img, candidate_urls)
 
-    # Normalize CLIP scores safely
-    clip_scores = minmax(clip_sims)
+    # CLIP scores are already normalized cosine similarities (0-1 range)
+    # Do NOT use minmax normalization as it makes the best match always 100%
+    clip_scores = clip_sims
 
     final = (1 - alpha) * metric_scores + alpha * clip_scores
 

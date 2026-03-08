@@ -29,30 +29,44 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[
         )
     access_token = authorization.split("Bearer ", 1)[1]
 
-    try:
-        from supabase import create_client
-        supabase_url = os.getenv("SUPABASE_URL", "")
-        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
-        if not supabase_url or not supabase_key:
-            raise HTTPException(status_code=503, detail="Supabase not configured")
+    supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not supabase_url or not supabase_key:
+        raise HTTPException(status_code=503, detail="Supabase not configured")
 
-        sb = create_client(supabase_url, supabase_key)
-        response = sb.auth.get_user(access_token)
-        user = response.user
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired access token",
-            )
-        return {"id": user.id, "email": user.email, "uid": user.id}
-    except HTTPException:
-        raise
+    try:
+        # Verify token via Supabase Auth REST endpoint. This avoids runtime
+        # coupling to supabase-py/httpx internals in request-time auth checks.
+        resp = requests.get(
+            f"{supabase_url}/auth/v1/user",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "apikey": supabase_key,
+            },
+            timeout=10,
+        )
     except Exception as exc:
-        logger.warning("Supabase token verification failed: %s", exc)
+        logger.warning("Supabase auth endpoint request failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to verify Supabase token right now",
+        )
+
+    if resp.status_code != 200:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired access token",
         )
+
+    payload = resp.json() if resp.content else {}
+    user_id = payload.get("id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired access token",
+        )
+
+    return {"id": user_id, "email": payload.get("email"), "uid": user_id}
 
 
 # ------------------------------------------------------------------ #
