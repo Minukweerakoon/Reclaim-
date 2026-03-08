@@ -388,56 +388,46 @@ async def process_item(payload: ProcessItemRequest):
     # 1. Index current item in its type's index (found → found_index, lost → lost_index)
     # 2. Retrieve from opposite type's index (found → search lost_index, lost → search found_index)
     
-    # Determine which index to update and which to search
-    if payload.item_type == "found":
-        my_index = found_index
-        my_ids = found_ids
-        my_urls = found_urls
-        my_cats = found_cats
-        my_model_cats = found_model_cats
-        my_meta = found_meta
-        
-        # Search opposite index
-        search_index = lost_index
-        search_ids = lost_ids
-        search_urls = lost_urls
-        search_cats = lost_cats
-        search_model_cats = lost_model_cats
-        search_meta = lost_meta
-    else:  # lost
-        my_index = lost_index
-        my_ids = lost_ids
-        my_urls = lost_urls
-        my_cats = lost_cats
-        my_model_cats = lost_model_cats
-        my_meta = lost_meta
-        
-        # Search opposite index  
-        search_index = found_index
-        search_ids = found_ids
-        search_urls = found_urls
-        search_cats = found_cats
-        search_model_cats = found_model_cats
-        search_meta = found_meta
+    logger.info(f"[INDEX] ===== BIDIRECTIONAL MATCH START =====")
+    logger.info(f"[INDEX] Received item_type='{payload.item_type}', item_id={payload.item_id}")
+    
+    # Use direct global references instead of local variables to avoid stale references
+    is_found_item = (payload.item_type == "found")
+    logger.info(f"[INDEX] is_found_item={is_found_item}")
+    logger.info(f"[INDEX] Current database state: found_ids={len(found_ids)} items, lost_ids={len(lost_ids)} items")
+    
+    # Determine which lists to work with using direct global access
+    my_index_ref = found_index if is_found_item else lost_index
+    my_ids_ref = found_ids if is_found_item else lost_ids
+    
+    logger.info(f"[INDEX] Will ADD to: {'found_index' if is_found_item else 'lost_index'} (current size: {len(my_ids_ref)})")
+    logger.info(f"[INDEX] Will SEARCH in: {'lost_index' if is_found_item else 'found_index'} (current size: {len(lost_ids if is_found_item else found_ids)})")
 
-    # Index current item
-    if my_index is None:
+    # Index current item - use globals directly
+    if my_index_ref is None:
         rebuild_faiss_for_type(payload.item_type)
-        my_index = found_index if payload.item_type == "found" else lost_index
+        my_index_ref = found_index if is_found_item else lost_index
     else:
         # Check for duplicates
-        if payload.item_id in my_ids:
+        if payload.item_id in my_ids_ref:
             rebuild_faiss_for_type(payload.item_type)
-            my_index = found_index if payload.item_type == "found" else lost_index
+            my_index_ref = found_index if is_found_item else lost_index
         else:
             vec = z.reshape(1, -1).astype("float32")
             faiss.normalize_L2(vec)
-            my_index.add(vec)  # type: ignore[call-arg]
+            my_index_ref.add(vec)  # type: ignore[call-arg]
 
-            my_ids.append(payload.item_id)
-            my_urls.append(payload.image_url)
-            my_cats.append(final_category)
-            my_model_cats.append(pred_cat)
+            # Append to appropriate global lists directly
+            if is_found_item:
+                found_ids.append(payload.item_id)
+                found_urls.append(payload.image_url)
+                found_cats.append(final_category)
+                found_model_cats.append(pred_cat)
+            else:
+                lost_ids.append(payload.item_id)
+                lost_urls.append(payload.image_url)
+                lost_cats.append(final_category)
+                lost_model_cats.append(pred_cat)
             
             item_meta = {
                 "location": None,
@@ -467,18 +457,43 @@ async def process_item(payload: ProcessItemRequest):
                     }
             except Exception:
                 pass
-            my_meta.append(item_meta)
+            
+            # Append metadata to appropriate list
+            if is_found_item:
+                found_meta.append(item_meta)
+            else:
+                lost_meta.append(item_meta)
 
-    # Retrieve from opposite index
-    if search_index is None:
-        rebuild_faiss_for_type("lost" if payload.item_type == "found" else "found")
-        search_index = lost_index if payload.item_type == "found" else found_index
+    # Search opposite index - use globals directly
+    search_index_ref = lost_index if is_found_item else found_index
+    search_ids_ref = lost_ids if is_found_item else found_ids
+    search_urls_ref = lost_urls if is_found_item else found_urls
+    search_cats_ref = lost_cats if is_found_item else found_cats
+    search_model_cats_ref = lost_model_cats if is_found_item else found_model_cats
+    search_meta_ref = lost_meta if is_found_item else found_meta
     
-    opposite_type = "lost" if payload.item_type == "found" else "found"
-    logger.info(f"[SEARCH] Item type='{payload.item_type}' searching '{opposite_type}' index with {len(search_ids)} items")
+    # Rebuild opposite index if needed
+    if search_index_ref is None:
+        opposite_type = "lost" if is_found_item else "found"
+        rebuild_faiss_for_type(opposite_type)
+        # Re-read globals after rebuild
+        search_index_ref = lost_index if is_found_item else found_index
+        search_ids_ref = lost_ids if is_found_item else found_ids
+        search_urls_ref = lost_urls if is_found_item else found_urls
+        search_cats_ref = lost_cats if is_found_item else found_cats
+        search_model_cats_ref = lost_model_cats if is_found_item else found_model_cats
+        search_meta_ref = lost_meta if is_found_item else found_meta
+    
+    opposite_type = "lost" if is_found_item else "found"
+    logger.info(f"[SEARCH] ===== SEARCH START =====")
+    logger.info(f"[SEARCH] Item type='{payload.item_type}' will search '{opposite_type}' index")
+    logger.info(f"[SEARCH] search_ids_ref has {len(search_ids_ref)} items")
+    logger.info(f"[SEARCH] search_ids_ref IDs: {search_ids_ref[:3]}...")
+    logger.info(f"[SEARCH] Global found_ids: {len(found_ids)} items, Global lost_ids: {len(lost_ids)} items")
+    logger.info(f"[SEARCH] Verifying: search_ids_ref is {'lost_ids' if search_ids_ref is lost_ids else 'found_ids' if search_ids_ref is found_ids else 'UNKNOWN'}")
 
     # If no items to search, return indexed status only
-    if search_index is None or len(search_ids) == 0:
+    if search_index_ref is None or len(search_ids_ref) == 0:
         return {
             "status": "indexed",
             "final_category": final_category,
@@ -488,9 +503,9 @@ async def process_item(payload: ProcessItemRequest):
             "results": [],
         }
 
-    # Perform retrieval
+    # Perform retrieval using the opposite index
     faiss.normalize_L2(z)
-    D, I = search_index.search(z, payload.k)  # type: ignore[call-arg]
+    D, I = search_index_ref.search(z, payload.k)  # type: ignore[call-arg]
     sims = D[0]
     idxs = I[0]
 
@@ -513,7 +528,7 @@ async def process_item(payload: ProcessItemRequest):
     # Convert cosine similarity (-1 to 1) into 0-1 range
     metric_scores = (sims + 1.0) / 2.0
 
-    candidate_urls = [search_urls[i] for i in idxs]
+    candidate_urls = [search_urls_ref[i] for i in idxs]
     clip_sims = clip_sim(query_img, candidate_urls)
 
     # CLIP scores are already normalized cosine similarities (0-1 range)
@@ -536,15 +551,15 @@ async def process_item(payload: ProcessItemRequest):
     rank = 1
     for j in order:
         i = idxs[j]
-        item_id = search_ids[i]
+        item_id = search_ids_ref[i]
         if item_id in seen_ids:
             continue
         seen_ids.add(item_id)
 
-        meta = search_meta[i] if i < len(search_meta) else {}
+        meta = search_meta_ref[i] if i < len(search_meta_ref) else {}
 
-        cand_model = _norm_cat(search_model_cats[i])
-        cand_final = _norm_cat(search_cats[i])
+        cand_model = _norm_cat(search_model_cats_ref[i])
+        cand_final = _norm_cat(search_cats_ref[i])
         cand_user = _norm_cat(meta.get("user_category"))
         candidate_categories = {c for c in [cand_model, cand_final, cand_user] if c}
 
@@ -561,10 +576,10 @@ async def process_item(payload: ProcessItemRequest):
         results.append({
             "rank": rank,
             "id": item_id,
-            "category": search_model_cats[i] or search_cats[i],
-            "model_category": search_model_cats[i],
-            "final_category": search_cats[i],
-            "image_url": search_urls[i],
+            "category": search_model_cats_ref[i] or search_cats_ref[i],
+            "model_category": search_model_cats_ref[i],
+            "final_category": search_cats_ref[i],
+            "image_url": search_urls_ref[i],
             "score": adjusted_score,
             "location": meta.get("location"),
             "reported_time": meta.get("reported_time"),
@@ -581,6 +596,10 @@ async def process_item(payload: ProcessItemRequest):
     results.sort(key=lambda r: r.get("score", 0.0), reverse=True)
     for idx, row in enumerate(results, start=1):
         row["rank"] = idx
+
+    logger.info(f"[SEARCH] ===== RETURNING {len(results)} RESULTS =====")
+    if results:
+        logger.info(f"[SEARCH] Top result: ID={results[0]['id']}, location={results[0].get('location')}")
 
     return {
         "status": "indexed",

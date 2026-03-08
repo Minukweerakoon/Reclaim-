@@ -110,11 +110,11 @@ function ChatbotPage() {
     // Prefer Vite proxy for consistency with dev server/backends.
     const processEndpoint = import.meta.env.VITE_AI_PROCESS_URL || '/items/process';
 
-    const runLostRetrieval = async (payload: {
+    const runRetrieval = async (payload: {
         item_id: string;
         image_url: string;
         user_category?: string;
-    }) => {
+    }, itemType: string) => {
         if (!payload.item_id || !payload.image_url) {
             throw new Error('Missing retrieval metadata (item_id/image_url)');
         }
@@ -132,7 +132,7 @@ function ChatbotPage() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         item_id: payload.item_id,
-                        item_type: 'lost',
+                        item_type: itemType,  // Use the actual item type (found or lost)
                         image_url: payload.image_url,
                         user_category: payload.user_category || undefined,
                         k: 5,
@@ -171,12 +171,12 @@ function ChatbotPage() {
             return {
                 ...msg,
                 loading: true,
-                content: 'Retrying matching for your lost item...',
+                content: `Retrying matching for your ${intent} item...`,
             };
         }));
 
         try {
-            const processData = await runLostRetrieval(retryMatch);
+            const processData = await runRetrieval(retryMatch, intent);
             const results = Array.isArray(processData?.results) ? processData.results : [];
 
             setMessages((prev) => prev.map((msg) => {
@@ -472,7 +472,7 @@ function ChatbotPage() {
             void (async () => {
                 let processData: any = null;
                 try {
-                    processData = await runLostRetrieval(retrievalPayload);
+                    processData = await runRetrieval(retrievalPayload, intent);
                 } catch (err) {
                     const errorText = formatErrorMessage(err);
                     console.error('[ChatbotPage] Retrieval flow failed:', errorText);
