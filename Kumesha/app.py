@@ -1353,7 +1353,9 @@ async def get_enhanced_xai_explanation(
             
             # Brand mismatch
             if image_result and text_result:
-                brand_check = check_brand_mismatch(image_result, text_result)
+                # Pass image_path so CLIP brand detection can run
+                img_path = image_result.get("image_path") or request.image_path
+                brand_check = check_brand_mismatch(image_result, text_result, image_path=img_path)
                 if brand_check.get("has_mismatch"):
                     enhanced_checks["brand_mismatch"] = brand_check
                     discrepancies.append({
@@ -1925,6 +1927,29 @@ async def validate_complete(
                 logger.info("✓ Image-text consistency checked")
             except Exception as e:
                 logger.warning(f"Image-text consistency check failed: {e}")
+        
+        # ============ ENHANCED DISCREPANCY CHECKS ============
+        # Add brand mismatch detection to catch visual vs text conflicts  
+        if image_result and text_result and image_path:
+            try:
+                from src.cross_modal.enhanced_discrepancies import check_brand_mismatch
+                brand_check = check_brand_mismatch(image_result, text_result, image_path=image_path)
+                if brand_check.get("has_mismatch"):
+                    # Add to cross_modal results with proper structure
+                    if "image_text" not in cross_modal_results:
+                        cross_modal_results["image_text"] = {}
+                    if "mismatch_detection" not in cross_modal_results["image_text"]:
+                        cross_modal_results["image_text"]["mismatch_detection"] = {"mismatches": []}
+                    
+                    cross_modal_results["image_text"]["mismatch_detection"]["mismatches"].append({
+                        "type": "brand_mismatch",
+                        "message": brand_check.get("explanation", "Brand mismatch detected"),
+                        "severity": brand_check.get("severity", "high"),
+                        "details": brand_check.get("details", {})
+                    })
+                    logger.info(f"✓ Brand mismatch detected: {brand_check.get('explanation')}")
+            except Exception as e:
+                logger.warning(f"Brand mismatch check failed: {e}")
 
         if voice_result and text_result:
             try:

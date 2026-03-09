@@ -89,11 +89,11 @@ def check_brand_mismatch(image_result: Dict, text_result: Dict, image_path: str 
         if image_path:
             try:
                 from src.cross_modal.advanced_entity_detector import detect_brand_logo
-                brand_result = detect_brand_logo(image_path)
+                brand_result = detect_brand_logo(image_path, threshold=0.20)  # Lowered from 0.25
                 detected_brand = brand_result.get("top_brand")
                 detected_confidence = brand_result.get("top_confidence", 0)
                 
-                if detected_brand and detected_confidence >= 0.25:
+                if detected_brand and detected_confidence >= 0.20:  # Lowered from 0.25
                     # Check if detected brand conflicts with claimed brand
                     for claimed in claimed_brands:
                         if claimed.lower() != detected_brand.lower():
