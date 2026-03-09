@@ -592,7 +592,7 @@ async def process_item(payload: ProcessItemRequest):
         logger.info(f"[SEARCH] Match #{rank}: ID={item_id}, score={adjusted_score:.2%}, location={meta.get('location')}")
         rank += 1
 
-    # Keep highest adjusted-score matches first after category filtering.
+    # Keep highest adjusted-score matches first after category filtering
     results.sort(key=lambda r: r.get("score", 0.0), reverse=True)
     for idx, row in enumerate(results, start=1):
         row["rank"] = idx
