@@ -31,48 +31,54 @@ class AlertManager:
             "severity": AlertManager._get_severity(alert.get("type", "")),
             "details": {},
             "frame_image": alert.get("frame_image"),  # Filename of captured frame (exact frame when alert triggered)
+            "item_type": None,  # Identified item type name (e.g. bag, cell phone, laptop) - set per type below
         }
         
         if camera_id:
             formatted["camera_id"] = camera_id
         
-        # Add type-specific details
+        # Add type-specific details and set item_type for all categories that have an item
         alert_type = alert.get("type", "")
         if alert_type == "BAG_UNATTENDED":
+            formatted["item_type"] = alert.get("item_type", "bag")
             formatted["details"] = {
                 "bag_id": alert.get("bag_id"),
-                "item_type": alert.get("item_type", "bag"),
+                "item_type": formatted["item_type"],
                 "bag_bbox": alert.get("bag_bbox"),
                 "duration_seconds": alert.get("duration_seconds", 0)
             }
         elif alert_type == "LOITER_NEAR_UNATTENDED":
+            formatted["item_type"] = alert.get("item_type", "bag")
             formatted["details"] = {
                 "person_id": alert.get("person_id"),
                 "bag_id": alert.get("bag_id"),
-                "item_type": alert.get("item_type", "bag"),
+                "item_type": formatted["item_type"],
                 "person_bbox": alert.get("person_bbox"),
                 "bag_bbox": alert.get("bag_bbox"),
                 "dwell_time_seconds": alert.get("dwell_time_seconds", 0)
             }
         elif alert_type == "RUNNING":
+            # RUNNING has no item; item_type stays None
             formatted["details"] = {
                 "person_id": alert.get("person_id"),
                 "person_bbox": alert.get("person_bbox"),
                 "speed": alert.get("speed", 0)
             }
         elif alert_type == "OWNER_RETURNED":
+            formatted["item_type"] = alert.get("item_type", "bag")
             formatted["details"] = {
                 "bag_id": alert.get("bag_id"),
-                "item_type": alert.get("item_type", "bag"),
+                "item_type": formatted["item_type"],
                 "person_id": alert.get("person_id"),
                 "bag_bbox": alert.get("bag_bbox"),
                 "distance_px": alert.get("distance_px", 0)
             }
         elif alert_type == "INTERACTION_WITH_BAG":
+            formatted["item_type"] = alert.get("item_type", "bag")
             formatted["details"] = {
                 "person_id": alert.get("person_id"),
                 "bag_id": alert.get("bag_id"),
-                "item_type": alert.get("item_type", "bag"),
+                "item_type": formatted["item_type"],
                 "person_bbox": alert.get("person_bbox"),
                 "bag_bbox": alert.get("bag_bbox"),
                 "distance_px": alert.get("distance_px", 0)

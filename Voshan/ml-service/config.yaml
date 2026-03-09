@@ -8,7 +8,7 @@ model:
 # Your custom model keeps "bag" + "person"; COCO adds handbag, backpack, suitcase, cell phone, laptop, tv, etc.
 # Tablets are often detected as "laptop" or "cell phone" depending on angle. Set enabled: false to use only your model.
 coco_extension:
-  enabled: false
+  enabled: true
   model_path: null   # e.g. "yolo11n.pt" to download; or "models/yolo11s.pt" for local COCO .pt
   confidence: 0.25
   # COCO class names to add as "items" (unattended/loitering). Must match Ultralytics COCO names exactly (lowercase).

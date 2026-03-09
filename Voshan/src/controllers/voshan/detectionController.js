@@ -285,7 +285,9 @@ exports.processVideo = async (req, res) => {
               type: alert.type,
               severity: alert.severity,
               timestamp: alert.timestamp,
-              cameraId: cameraId
+              cameraId: cameraId,
+              details: alert.details || {},
+              itemType: alert.details?.item_type || alert.item_type
             }).catch(notifError => {
               console.error('[processVideo] Notification error:', notifError);
             });
@@ -309,11 +311,17 @@ exports.processVideo = async (req, res) => {
               frameEnd: bucket + FRAME_WINDOW - 1,
               cameraId: cameraId || null,
               count: 0,
-              frameImages: []
+              frameImages: [],
+              item_type: alert.item_type ?? alert.details?.item_type ?? null,
+              itemType: alert.item_type ?? alert.details?.item_type ?? null
             });
           }
           const g = groups.get(key);
           g.count += 1;
+          if (alert.item_type || alert.details?.item_type) {
+            g.item_type = g.item_type || alert.item_type || alert.details?.item_type;
+            g.itemType = g.itemType || g.item_type;
+          }
           if (alert.frame_image && !g.frameImages.includes(alert.frame_image)) {
             g.frameImages.push(alert.frame_image);
           }
@@ -449,7 +457,9 @@ exports.processFrame = async (req, res) => {
               type: alert.type,
               severity: alert.severity,
               timestamp: alert.timestamp,
-              cameraId: cameraId
+              cameraId: cameraId,
+              details: alert.details || {},
+              itemType: alert.details?.item_type || alert.item_type
             }).catch(notifError => {
               console.error('[processFrame] Notification error:', notifError);
             });

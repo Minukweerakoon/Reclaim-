@@ -10,6 +10,8 @@ const TABLE = 'sus_alerts';
 /** Map DB row (snake_case) to API shape (camelCase + _id) */
 function toAlert(row) {
   if (!row) return null;
+  const details = row.details ?? {};
+  const itemType = details.item_type ?? row.item_type ?? null;
   const a = {
     _id: row.id,
     id: row.id,
@@ -19,7 +21,9 @@ function toAlert(row) {
     timestamp: row.timestamp,
     frame: row.frame,
     cameraId: row.camera_id ?? null,
-    details: row.details ?? {},
+    details,
+    item_type: itemType,
+    itemType,
     snapshot: row.snapshot ?? null,
     frameImage: row.frame_image ?? null,
     frame_image: row.frame_image ?? null,

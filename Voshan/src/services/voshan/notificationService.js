@@ -66,14 +66,20 @@ class NotificationService {
     };
 
     const typeMessages = {
-      'BAG_UNATTENDED': 'Unattended bag detected',
-      'LOITER_NEAR_UNATTENDED': 'Person loitering near unattended bag',
+      'BAG_UNATTENDED': 'Unattended item detected',
+      'LOITER_NEAR_UNATTENDED': 'Person loitering near unattended item',
       'RUNNING': 'Person running detected',
-      'OWNER_RETURNED': 'Owner returned to unattended bag'
+      'OWNER_RETURNED': 'Owner returned to unattended item',
+      'INTERACTION_WITH_BAG': 'Person interacting with unattended item'
     };
 
     const emoji = severityEmoji[alert.severity] || '⚠️';
-    const message = typeMessages[alert.type] || 'Suspicious behavior detected';
+    let message = typeMessages[alert.type] || 'Suspicious behavior detected';
+    const itemType = alert.itemType || alert.details?.item_type;
+    if (itemType) {
+      const item = String(itemType).replace(/_/g, ' ');
+      message = message.replace('item', item);
+    }
     const camera = alert.cameraId ? ` (Camera: ${alert.cameraId})` : '';
 
     return `${emoji} ${message}${camera}`;
