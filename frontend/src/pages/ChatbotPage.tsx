@@ -110,11 +110,11 @@ function ChatbotPage() {
     // Prefer Vite proxy for consistency with dev server/backends.
     const processEndpoint = import.meta.env.VITE_AI_PROCESS_URL || '/items/process';
 
-    const runLostRetrieval = async (payload: {
+    const runRetrieval = async (payload: {
         item_id: string;
         image_url: string;
         user_category?: string;
-    }) => {
+    }, itemType: string) => {
         if (!payload.item_id || !payload.image_url) {
             throw new Error('Missing retrieval metadata (item_id/image_url)');
         }
@@ -132,7 +132,7 @@ function ChatbotPage() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         item_id: payload.item_id,
-                        item_type: 'lost',
+                        item_type: itemType,  // Use the actual item type (found or lost)
                         image_url: payload.image_url,
                         user_category: payload.user_category || undefined,
                         k: 5,
@@ -171,12 +171,12 @@ function ChatbotPage() {
             return {
                 ...msg,
                 loading: true,
-                content: 'Retrying matching for your lost item...',
+                content: `Retrying matching for your ${intent} item...`,
             };
         }));
 
         try {
-            const processData = await runLostRetrieval(retryMatch);
+            const processData = await runRetrieval(retryMatch, intent);
             const results = Array.isArray(processData?.results) ? processData.results : [];
 
             setMessages((prev) => prev.map((msg) => {
@@ -451,24 +451,14 @@ function ChatbotPage() {
                 return;
             }
 
-            if (intent === 'found') {
-                setMessages((prev) => prev.map((msg) => {
-                    if (msg.id !== loadingMessageId) return msg;
-                    return {
-                        ...msg,
-                        loading: false,
-                        content: 'Your found item has been validated and indexed successfully.',
-                    };
-                }));
-                return;
-            }
-
+            // Bidirectional matching: BOTH found and lost items get retrieval results
+            const searchingFor = intent === 'found' ? 'lost' : 'found';
             setMessages((prev) => prev.map((msg) => {
                 if (msg.id !== loadingMessageId) return msg;
                 return {
                     ...msg,
                     loading: true,
-                    content: 'Validation complete. Searching for possible matches...',
+                    content: `Validation complete. Searching for possible ${searchingFor} items...`,
                 };
             }));
 
@@ -482,7 +472,7 @@ function ChatbotPage() {
             void (async () => {
                 let processData: any = null;
                 try {
-                    processData = await runLostRetrieval(retrievalPayload);
+                    processData = await runRetrieval(retrievalPayload, intent);
                 } catch (err) {
                     const errorText = formatErrorMessage(err);
                     console.error('[ChatbotPage] Retrieval flow failed:', errorText);
@@ -503,17 +493,23 @@ function ChatbotPage() {
                 setMessages((prev) => prev.map((msg) => {
                     if (msg.id !== loadingMessageId) return msg;
                     if (!results.length) {
+                        const noMatchMessage = intent === 'found'
+                            ? 'Your found item has been indexed. No lost reports match yet, but we will notify you if someone reports it as lost.'
+                            : 'No matching items were found yet, but we will notify you if something similar appears.';
                         return {
                             ...msg,
                             loading: false,
-                            content: 'No matching items were found yet, but we will notify you if something similar appears.',
+                            content: noMatchMessage,
                             matchResults: [],
                         };
                     }
+                    const matchMessage = intent === 'found'
+                        ? 'We found people who reported similar lost items:'
+                        : 'We found possible matches for your lost item:';
                     return {
                         ...msg,
                         loading: false,
-                        content: 'We found possible matches for your lost item:',
+                        content: matchMessage,
                         matchResults: results,
                         retryMatch: undefined,
                     };
@@ -643,59 +639,6 @@ function ChatbotPage() {
                     <div ref={messagesEndRef} />
                 </div>
 
-                {selectedMatch && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-                        <div className="w-full max-w-3xl rounded-2xl border border-white/10 bg-[#111827] shadow-[0_24px_80px_rgba(0,0,0,0.55)] overflow-hidden">
-                            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
-                                <h3 className="text-white font-semibold text-lg">Matched Item Contact Details</h3>
-                                <button
-                                    onClick={() => setSelectedMatch(null)}
-                                    className="text-slate-300 hover:text-white text-sm px-2 py-1 rounded hover:bg-white/10"
-                                >
-                                    Close
-                                </button>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
-                                <div className="p-4 border-r border-white/10">
-                                    <div className="w-full aspect-square rounded-xl overflow-hidden bg-black/30 border border-white/10">
-                                        <img
-                                            src={selectedMatch.image_url}
-                                            alt={selectedMatch.final_category || selectedMatch.category || 'Matched item'}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="p-5 space-y-3">
-                                    <div>
-                                        <div className="text-xs uppercase tracking-wider text-slate-400">Category</div>
-                                        <div className="text-white font-medium">{selectedMatch.final_category || selectedMatch.category || 'Unknown'}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs uppercase tracking-wider text-slate-400">Location</div>
-                                        <div className="text-white">{selectedMatch.location || 'Not provided'}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs uppercase tracking-wider text-slate-400">Time</div>
-                                        <div className="text-white">{selectedMatch.reported_time || 'Not provided'}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs uppercase tracking-wider text-slate-400">Reported By (Email)</div>
-                                        <div className="text-white break-all">{selectedMatch.user_email || 'Not available'}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs uppercase tracking-wider text-slate-400">Reporter Profile</div>
-                                        <div className="text-white break-all">{selectedMatch.user_id || 'Not available'}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs uppercase tracking-wider text-slate-400">Phone Number</div>
-                                        <div className="text-white">{selectedMatch.phone_number || 'Not available'}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
                 {/* Image Preview Area */}
                 {imagePreview && (
                     <div className="mt-4 flex">
@@ -810,6 +753,75 @@ function ChatbotPage() {
                 )}
             </aside>
             </div>
+
+            {/* Global Contact Details Modal */}
+            {selectedMatch && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+                    <div className="w-full max-w-3xl rounded-2xl border border-white/10 bg-[#111827] shadow-[0_24px_80px_rgba(0,0,0,0.55)] overflow-hidden animate-fade-in">
+                        <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
+                            <h3 className="text-white font-semibold text-lg">Matched Item Contact Details</h3>
+                            <button
+                                onClick={() => setSelectedMatch(null)}
+                                className="text-slate-300 hover:text-white text-sm px-2 py-1 rounded hover:bg-white/10"
+                            >
+                                Close
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+                            <div className="p-4 border-r border-white/10">
+                                <div className="w-full aspect-square rounded-xl overflow-hidden bg-black/30 border border-white/10">
+                                    <img
+                                        src={selectedMatch.image_url}
+                                        alt={selectedMatch.final_category || selectedMatch.category || 'Matched item'}
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                            </div>
+                            <div className="p-5 space-y-3">
+                                <div>
+                                    <div className="text-xs uppercase tracking-wider text-slate-400">Category</div>
+                                    <div className="text-white font-medium">{selectedMatch.final_category || selectedMatch.category || 'Unknown'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs uppercase tracking-wider text-slate-400">Location</div>
+                                    <div className="text-white">{selectedMatch.location || 'Not provided'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs uppercase tracking-wider text-slate-400">Time</div>
+                                    <div className="text-white">{selectedMatch.reported_time || 'Not provided'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs uppercase tracking-wider text-slate-400">Reported By (Email)</div>
+                                    <div className="text-white break-all">{selectedMatch.user_email || 'Not available'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs uppercase tracking-wider text-slate-400">Reporter Profile</div>
+                                    <div className="text-white break-all">{selectedMatch.user_id || 'Not available'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs uppercase tracking-wider text-slate-400">Phone Number</div>
+                                    {selectedMatch.phone_number ? (
+                                        <div className="flex items-center gap-2">
+                                            <div className="text-white font-mono">{selectedMatch.phone_number}</div>
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(selectedMatch.phone_number);
+                                                }}
+                                                className="px-2 py-1 text-xs bg-white/10 hover:bg-white/20 text-white rounded transition-colors"
+                                                title="Copy to clipboard"
+                                            >
+                                                Copy
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="text-slate-500">Not available</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

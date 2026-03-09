@@ -2195,9 +2195,8 @@ async def validate_complete(
                         response_data["image_url"] = image_url
 
                     # Trigger AI backend processing after successful insert.
-                    # ONLY for found items - indexes immediately so they're searchable.
-                    # Lost items skip this to avoid timeout; retrieval happens separately in chat.
-                    if image_url and intent == "found":
+                    # Found items are indexed; lost items run retrieval against indexed found items.
+                    if image_url and intent in {"found", "lost"}:
                         try:
                             AI_BACKEND_URL = "http://localhost:8001/items/process"
 
@@ -2210,7 +2209,7 @@ async def validate_complete(
                                 "mc_T": 20
                             }
 
-                            logger.info(f"🤖 Triggering AI backend for found item {supabase_saved_id}")
+                            logger.info(f"🤖 Triggering AI backend for {intent} item {supabase_saved_id}")
                             response = requests.post(
                                 AI_BACKEND_URL,
                                 json=ai_payload,
@@ -2218,16 +2217,29 @@ async def validate_complete(
                             )
                             
                             if response.status_code == 200:
-                                logger.info(f"✓ AI indexing completed for item {supabase_saved_id}")
+                                ai_result = response.json() if response.content else {}
+                                matches = ai_result.get("results", []) if isinstance(ai_result, dict) else []
+                                
+                                if intent == "found":
+                                    if matches:
+                                        logger.info(
+                                            "✓ AI indexing + retrieval completed for found item %s (matches=%s lost items)",
+                                            supabase_saved_id,
+                                            len(matches),
+                                        )
+                                    else:
+                                        logger.info(f"✓ AI indexing completed for found item {supabase_saved_id} (no lost items to match)")
+                                else:  # lost
+                                    logger.info(
+                                        "✓ AI indexing + retrieval completed for lost item %s (matches=%s found items)",
+                                        supabase_saved_id,
+                                        len(matches),
+                                    )
                             else:
                                 logger.warning(f"AI backend returned status {response.status_code}: {response.text}")
 
                         except Exception as ai_err:
                             logger.warning(f"AI indexing failed (non-fatal): {ai_err}")
-                    elif image_url and intent == "lost":
-                        logger.info(
-                            f"✓ Lost item {supabase_saved_id} saved - retrieval will be triggered by frontend"
-                        )
                 else:
                     logger.warning("Supabase insert returned no data")
                     
