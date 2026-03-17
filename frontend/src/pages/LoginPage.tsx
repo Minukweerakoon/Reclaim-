@@ -1,19 +1,32 @@
 // @ts-nocheck
 import React, { useState } from 'react';
 import { Sparkles, Shield } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { supabase, isSupabaseConfigured } from '../supabaseClient';
 
 export function LoginPage({ onBack }) {
     const [loading, setLoading] = useState(false);
+    const [configError, setConfigError] = useState('');
 
     const handleGoogleSignIn = async () => {
+        if (!isSupabaseConfigured) {
+            setConfigError(
+                'Sign-in is not configured. Add your Supabase project URL and anon key to frontend/.env (see .env.example), then enable Google in Supabase Dashboard → Authentication → Providers. Restart the dev server after changing .env.'
+            );
+            return;
+        }
+        setConfigError('');
         setLoading(true);
-        const redirectTo = `${window.location.origin}/reclaim`;
-        await supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: { redirectTo },
-        });
-        setLoading(false);
+        try {
+            const redirectTo = `${window.location.origin}/reclaim`;
+            await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: { redirectTo },
+            });
+        } catch (err) {
+            setConfigError(err?.message || 'Sign-in failed. Check the console.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -48,6 +61,11 @@ export function LoginPage({ onBack }) {
                         Sign in to start your AI-powered search.
                     </p>
 
+                    {configError && (
+                        <div className="w-full mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs text-left">
+                            {configError}
+                        </div>
+                    )}
                     <button onClick={handleGoogleSignIn} disabled={loading}
                         className="w-full flex items-center justify-center gap-3 px-5 py-3.5 bg-white hover:bg-slate-100 text-slate-800 rounded-xl font-medium text-sm transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed shadow-lg">
                         {loading ? (

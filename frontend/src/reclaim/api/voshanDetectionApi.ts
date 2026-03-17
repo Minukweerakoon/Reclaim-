@@ -10,7 +10,12 @@ export const voshanDetectionApi = {
 
   async health() {
     const res = await fetch(`${BASE}/voshan/detection/health`);
-    return res.json();
+    try {
+      const data = await res.json();
+      return data;
+    } catch {
+      return { healthy: false, error: res.ok ? 'Invalid response' : `Server error ${res.status}` };
+    }
   },
 
   async processVideo(file: File, options: { cameraId?: string; saveOutput?: boolean } = {}, onProgress?: (p: number) => void) {
@@ -48,7 +53,12 @@ export const voshanDetectionApi = {
     if (params.startDate) sp.set('startDate', params.startDate);
     if (params.endDate) sp.set('endDate', params.endDate);
     const res = await fetch(`${BASE}/voshan/detection/alerts?${sp}`);
-    return res.json();
+    try {
+      const data = await res.json();
+      return data;
+    } catch {
+      return { success: false, data: { alerts: [], pagination: { page: params.page ?? 1, limit: params.limit ?? 20, total: 0, pages: 0 } } };
+    }
   },
 };
 

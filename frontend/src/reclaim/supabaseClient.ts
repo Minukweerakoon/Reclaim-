@@ -1,16 +1,13 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../supabaseClient';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export { supabase };
 
 export async function processItem({
     status,
     file,
     userCategory = null,
     location = null,
-    time: _time = null,
+    time = null,
     description = null,
     userId = 'demo_user',
     userEmail = 'demo@test.com',

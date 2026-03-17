@@ -9,9 +9,19 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+    dedupe: ['react', 'react-dom', 'react/jsx-runtime'],
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react/jsx-runtime', '@tanstack/react-query'],
   },
   server: {
     proxy: {
+      // Voshan (suspicious behaviour detection) – must come before generic /api
+      '/api/voshan': {
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+        ws: true,
+      },
       '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
@@ -21,8 +31,9 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/health': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:5000',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/health/, '/api/health'),
       },
       '/results': {
         target: 'http://127.0.0.1:8000',
@@ -36,8 +47,20 @@ export default defineConfig({
         target: 'ws://127.0.0.1:8000',
         ws: true,
       },
-      '/items': {
+      '/items/process': {
         target: 'http://127.0.0.1:8001',
+        changeOrigin: true,
+      },
+      '/items': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/xai': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/reports': {
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
     },
