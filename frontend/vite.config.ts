@@ -2,6 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+const voshanTarget = process.env.VITE_VOSHAN_PROXY_TARGET || 'http://127.0.0.1:5000';
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -18,7 +20,7 @@ export default defineConfig({
     proxy: {
       // Voshan (suspicious behaviour detection) – must come before generic /api
       '/api/voshan': {
-        target: 'http://127.0.0.1:5000',
+        target: voshanTarget,
         changeOrigin: true,
         ws: true,
       },
@@ -31,9 +33,8 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/health': {
-        target: 'http://127.0.0.1:5000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/health/, '/api/health'),
       },
       '/results': {
         target: 'http://127.0.0.1:8000',
