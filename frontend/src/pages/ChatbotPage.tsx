@@ -39,6 +39,33 @@ const buildValidationNarrative = (info: Record<string, any>, intentValue: string
 };
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+
+const appendBotNotice = (setMessagesFn: React.Dispatch<React.SetStateAction<ChatMessage[]>>, content: string) => {
+    setMessagesFn((prev) => ([
+        ...prev,
+        {
+            role: 'bot',
+            content,
+            timestamp: new Date(),
+        },
+    ]));
+};
+
+const detectHumanFaceInImage = async (file: File): Promise<boolean> => {
+    const FaceDetectorCtor = (window as any).FaceDetector;
+    if (!FaceDetectorCtor) return false;
+
+    try {
+        const detector = new FaceDetectorCtor({ fastMode: true, maxDetectedFaces: 1 });
+        const bitmap = await createImageBitmap(file);
+        const faces = await detector.detect(bitmap);
+        bitmap.close();
+        return Array.isArray(faces) && faces.length > 0;
+    } catch {
+        return false;
+    }
+};
 
 const detectExplicitIntent = (message: string): 'lost' | 'found' | null => {
     const text = message.toLowerCase();
@@ -57,6 +84,7 @@ function ChatbotPage() {
 
     const [input, setInput] = useState('');
     const [isProcessingReport, setIsProcessingReport] = useState(false);
+    const [isCheckingImage, setIsCheckingImage] = useState(false);
     const [selectedMatch, setSelectedMatch] = useState<any | null>(null);
     const {
         messages, setMessages,
@@ -70,13 +98,88 @@ function ChatbotPage() {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = () => setPendingImage(file, reader.result as string);
-            reader.readAsDataURL(file);
+        if (!file) return;
+
+        const checkMessageId = `img-check-${Date.now()}`;
+        setMessages((prev) => ([
+            ...prev,
+            {
+                id: checkMessageId,
+                role: 'bot',
+                content: 'Checking image...',
+                loading: true,
+                timestamp: new Date(),
+            },
+        ]));
+
+        const finishImageCheck = (content: string) => {
+            setMessages((prev) => prev.map((msg) => {
+                if (msg.id !== checkMessageId) return msg;
+                return {
+                    ...msg,
+                    content,
+                    loading: false,
+                    timestamp: new Date(),
+                };
+            }));
+        };
+
+        if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+            setPendingImage(null, null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            finishImageCheck('File is too large. Maximum allowed upload size is 10MB. Please choose a smaller image.');
+            return;
         }
+
+        const hasHumanFace = await detectHumanFaceInImage(file);
+        if (hasHumanFace) {
+            setPendingImage(null, null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            finishImageCheck('Human images are not allowed. Please upload an image of the item only.');
+            return;
+        }
+
+        // Immediate upload-time validation so users get feedback before confirmation.
+        setIsCheckingImage(true);
+        let preCheckUnavailable = false;
+        try {
+            const preValidation = await validationApi.validateImage(file);
+            const facesDetected = preValidation.image?.privacy?.faces_detected || 0;
+            const personDetected = (preValidation.image?.objects?.detections || []).some((d) => {
+                const cls = String(d.class || d.original_class || '').toLowerCase();
+                return cls === 'person' || cls.includes('human') || cls === 'man' || cls === 'woman';
+            });
+
+            if (facesDetected > 0 || personDetected) {
+                setPendingImage(null, null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+                finishImageCheck('Upload blocked: human images are not allowed. Please upload an image showing only the item.');
+                return;
+            }
+        } catch {
+            // Keep UX smooth: if pre-check is temporarily unavailable, allow attach and enforce again on confirm.
+            preCheckUnavailable = true;
+        } finally {
+            setIsCheckingImage(false);
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            setPendingImage(file, reader.result as string);
+            finishImageCheck(
+                preCheckUnavailable
+                    ? 'Image attached. Pre-check is temporarily unavailable; it will be validated again before processing.'
+                    : 'Image checked and attached successfully.'
+            );
+        };
+        reader.onerror = () => {
+            setPendingImage(null, null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            finishImageCheck('Could not read the selected image. Please try another file.');
+        };
+        reader.readAsDataURL(file);
     };
 
     const removeImage = () => {
@@ -390,6 +493,12 @@ function ChatbotPage() {
         if (!summaryText || !pendingImage || !intent || (intent !== 'lost' && intent !== 'found')) {
             return;
         }
+        if (pendingImage.size > MAX_UPLOAD_SIZE_BYTES) {
+            setPendingImage(null, null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            appendBotNotice(setMessages, 'File is too large. Maximum allowed upload size is 10MB. Please choose a smaller image.');
+            return;
+        }
         if (confirmInFlightRef.current) {
             return;
         }
@@ -434,6 +543,27 @@ function ChatbotPage() {
 
             // Keep ValidationHub in sync with chat-side processing.
             setResult(validationResult);
+
+            const facesDetected = validationResult.image?.privacy?.faces_detected || 0;
+            const personDetected = (validationResult.image?.objects?.detections || []).some((d) => {
+                const cls = String(d.class || d.original_class || '').toLowerCase();
+                return cls === 'person' || cls.includes('human') || cls === 'man' || cls === 'woman';
+            });
+
+            if (facesDetected > 0 || personDetected) {
+                setSummaryConfirmed(false);
+                setPendingImage(null, null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+                setMessages((prev) => prev.map((msg) => {
+                    if (msg.id !== loadingMessageId) return msg;
+                    return {
+                        ...msg,
+                        loading: false,
+                        content: 'Upload blocked: human images are not allowed. Please upload an image showing only the item.',
+                    };
+                }));
+                return;
+            }
 
             const itemId = validationResult.supabase_id;
             const imageUrl = validationResult.image_url;
@@ -668,9 +798,10 @@ function ChatbotPage() {
                     <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
+                        disabled={isCheckingImage}
                         className="h-12 w-12 rounded-xl flex items-center justify-center transition-all duration-200 text-slate-400 hover:text-white"
                         style={{ background: 'var(--bg-input)', border: '1px solid rgba(255,255,255,0.08)' }}
-                        title="Attach image"
+                        title={isCheckingImage ? 'Checking image...' : 'Attach image'}
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
@@ -692,7 +823,7 @@ function ChatbotPage() {
                     <button
                         type="button"
                         onClick={handleSend}
-                        disabled={isTyping || !input.trim()}
+                        disabled={isTyping || isCheckingImage || !input.trim()}
                         className="px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white rounded-xl transition-all duration-200 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                         style={{ background: 'var(--accent-primary)', boxShadow: '0 4px 16px rgba(99,102,241,0.3)' }}
                     >
@@ -702,6 +833,9 @@ function ChatbotPage() {
                         </svg>
                     </button>
                 </div>
+                {isCheckingImage && (
+                    <div className="mt-2 text-[11px] text-slate-400">Checking image safety and size...</div>
+                )}
             </section>
 
             {/* ── Sidebar: Collected Summary ── */}
@@ -749,7 +883,9 @@ function ChatbotPage() {
                     {isProcessingReport ? 'Processing...' : summaryConfirmed ? '✓ Confirmed' : 'Confirm and Process'}
                 </button>
                 {!pendingImage && (
-                    <p className="text-[10px] text-slate-500">Attach an image to run validation and matching.</p>
+                    <p className="text-[10px] text-slate-500">
+                        {isCheckingImage ? 'Checking image...' : 'Attach an image to run validation and matching.'}
+                    </p>
                 )}
             </aside>
             </div>
