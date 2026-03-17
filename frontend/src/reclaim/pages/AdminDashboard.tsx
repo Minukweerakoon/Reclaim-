@@ -18,23 +18,29 @@ const FRAME_WINDOW = 50;
 
 /** Group alerts by 50-frame window and type for display */
 function groupAlertsByWindow(alerts: any[]) {
-  const map = new Map<string, { type: string; severity: string; frameStart: number; frameEnd: number; cameraId?: string; alerts: any[] }>();
+  const map = new Map<string, { type: string; severity: string; frameStart: number; frameEnd: number; cameraId?: string; itemType?: string; alerts: any[] }>();
   for (const a of alerts) {
     const frame = Number(a.frame ?? 0);
     const bucket = Math.floor(frame / FRAME_WINDOW) * FRAME_WINDOW;
     const type = a.type ?? a.alert_type ?? 'Alert';
     const key = `${bucket}_${type}`;
     if (!map.has(key)) {
+      const itemType = a.itemType ?? a.item_type ?? a.details?.item_type ?? null;
       map.set(key, {
         type,
         severity: a.severity ?? 'MEDIUM',
         frameStart: bucket,
         frameEnd: bucket + FRAME_WINDOW - 1,
         cameraId: a.cameraId ?? a.camera_id,
+        itemType: itemType ?? undefined,
         alerts: []
       });
     }
-    map.get(key).alerts.push(a);
+    const g = map.get(key);
+    g.alerts.push(a);
+    if (!g.itemType && (a.itemType ?? a.item_type ?? a.details?.item_type)) {
+      g.itemType = a.itemType ?? a.item_type ?? a.details?.item_type;
+    }
   }
   const list = Array.from(map.values());
   list.sort((a, b) => {
@@ -70,7 +76,7 @@ export function AdminDashboard({ user, onSignOut }) {
   const [toasts, setToasts] = useState<{ id: number; type: string; severity: string; message: string }[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
-  const [health, setHealth] = useState<{ healthy?: boolean } | null>(null);
+  const [health, setHealth] = useState<{ healthy?: boolean; error?: string } | null>(null);
   const socketRef = useRef(null);
   const toastIdRef = useRef(0);
   const notificationPanelRef = useRef<HTMLDivElement>(null);
@@ -167,7 +173,10 @@ export function AdminDashboard({ user, onSignOut }) {
   }, [pagination.page, pagination.limit]);
 
   useEffect(() => {
-    voshanDetectionApi.health().then(setHealth).catch(() => setHealth({ healthy: false }));
+    voshanDetectionApi
+      .health()
+      .then(setHealth)
+      .catch((err) => setHealth({ healthy: false, error: err?.message || 'Health check failed' }));
   }, []);
 
   useEffect(() => {
@@ -196,10 +205,12 @@ export function AdminDashboard({ user, onSignOut }) {
       const count = data?.count ?? 0;
       const frameStart = data?.frameStart ?? 0;
       const frameEnd = data?.frameEnd ?? 0;
+      const itemType = data?.itemType ?? data?.item_type ?? null;
       const frameImages = Array.isArray(data?.frameImages) ? data.frameImages : [];
+      const typeLabel = itemType ? `${type} (${String(itemType).replace(/_/g, ' ')})` : type;
       const msg = count > 0
-        ? (cameraId ? `${count}× ${type} (frames ${frameStart}–${frameEnd}) — Camera ${cameraId}` : `${count}× ${type} (frames ${frameStart}–${frameEnd})`)
-        : (cameraId ? `Alert: ${type} — Camera ${cameraId}` : `Alert: ${type}`);
+        ? (cameraId ? `${count}× ${typeLabel} (frames ${frameStart}–${frameEnd}) — Camera ${cameraId}` : `${count}× ${typeLabel} (frames ${frameStart}–${frameEnd})`)
+        : (cameraId ? `Alert: ${typeLabel} — Camera ${cameraId}` : `Alert: ${typeLabel}`);
       addToast(type, severity, msg);
       addNotification(type, severity, msg, cameraId, frameImages, frameStart, frameEnd, count);
       loadAlerts();
@@ -392,10 +403,19 @@ export function AdminDashboard({ user, onSignOut }) {
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
         {health && (
-          <div className="flex items-center gap-2 text-sm">
-            <span className={health.healthy ? 'text-green-400' : 'text-red-400'}>
-              {health.healthy ? '● ML service connected' : '○ ML service unavailable'}
-            </span>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 text-sm">
+              <span className={health.healthy ? 'text-green-400' : 'text-red-400'}>
+                {health.healthy ? '● ML service connected' : '○ ML service unavailable'}
+              </span>
+            </div>
+            {!health.healthy && health.error && (
+              <p className="text-xs text-red-300/90 max-w-xl" title={health.error}>
+                {health.error.includes('ECONNREFUSED') || health.error.includes('fetch')
+                  ? 'ML service not running. Start it from Voshan/ml-service: python app.py'
+                  : health.error}
+              </p>
+            )}
           </div>
         )}
 
@@ -500,7 +520,7 @@ export function AdminDashboard({ user, onSignOut }) {
                 return (
                   <li key={`${grp.frameStart}-${grp.type}-${idx}`} className="rounded-xl border border-white/10 bg-white/5 p-4">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <span className="font-medium">{grp.count}× {grp.type}</span>
+                      <span className="font-medium">{grp.count}× {grp.type}{grp.itemType ? ` (${String(grp.itemType).replace(/_/g, ' ')})` : ''}</span>
                       <span className={`text-xs px-2 py-0.5 rounded ${
                         grp.severity === 'HIGH' ? 'bg-red-500/20 text-red-300' :
                         grp.severity === 'MEDIUM' ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-500/20 text-slate-300'
@@ -583,6 +603,7 @@ export function AdminDashboard({ user, onSignOut }) {
                 <option value="LOITERING">LOITERING</option>
                 <option value="LOITER_NEAR_UNATTENDED">LOITER_NEAR_UNATTENDED</option>
                 <option value="BAG_UNATTENDED">BAG_UNATTENDED</option>
+                <option value="INTERACTION_WITH_BAG">INTERACTION_WITH_BAG</option>
                 <option value="OWNER_RETURNED">OWNER_RETURNED</option>
               </select>
             </label>
@@ -623,7 +644,7 @@ export function AdminDashboard({ user, onSignOut }) {
                 return (
                   <li key={`f-${grp.frameStart}-${grp.type}-${idx}`} className="rounded-xl border border-white/10 bg-white/5 p-4">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <span className="font-medium">{grp.count}× {grp.type}</span>
+                      <span className="font-medium">{grp.count}× {grp.type}{grp.itemType ? ` (${String(grp.itemType).replace(/_/g, ' ')})` : ''}</span>
                       <span className={`text-xs px-2 py-0.5 rounded ${
                         grp.severity === 'HIGH' ? 'bg-red-500/20 text-red-300' :
                         grp.severity === 'MEDIUM' ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-500/20 text-slate-300'
