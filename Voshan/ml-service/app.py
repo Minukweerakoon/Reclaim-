@@ -87,15 +87,20 @@ def internal_error(error):
 @app.errorhandler(Exception)
 def handle_exception(e):
     """Handle all unhandled exceptions"""
+    # Pass through HTTPException (like 404, 400) without error-level noise.
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        if e.code == 404:
+            return jsonify({
+                "status": "error",
+                "message": "Route not found"
+            }), 404
+        return e
+
     error_trace = traceback.format_exc()
     logger.error(f"Unhandled exception: {str(e)}")
     logger.error(f"Exception type: {type(e).__name__}")
     logger.error(f"Traceback: {error_trace}")
-    
-    # Pass through HTTPException (like 404, 400) to Flask's default handler
-    from werkzeug.exceptions import HTTPException
-    if isinstance(e, HTTPException):
-        return e
     
     return jsonify({
         "status": "error",
@@ -104,6 +109,22 @@ def handle_exception(e):
         "error_type": type(e).__name__,
         "traceback": error_trace if app.debug else None
     }), 500
+
+
+@app.route('/', methods=['GET'])
+def root():
+    """Simple root endpoint so browser checks do not trigger 404 noise."""
+    return jsonify({
+        "status": "ok",
+        "service": "voshan-ml",
+        "health": "/api/v1/detect/status"
+    })
+
+
+@app.route('/favicon.ico', methods=['GET'])
+def favicon():
+    """Return empty favicon response for browser auto-requests."""
+    return ('', 204)
 
 # Before request handler to log requests
 @app.before_request

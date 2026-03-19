@@ -1,12 +1,18 @@
 // @ts-nocheck
-import React from 'react';
+import React, { useState } from 'react';
 import { MapPin, CheckCircle2, ChevronRight, Clock3 } from 'lucide-react';
 
 export function MatchResultCard({ image_url, final_category, score, location, reported_time, isBestMatch, onContact }) {
+    const [revealSensitive, setRevealSensitive] = useState(false);
     const confidence = score ? Math.round(score * 100) : 0;
     const title = final_category || 'Matched Item';
     const category = final_category || 'Unknown';
     const date = reported_time || 'Recently reported';
+    const categoryLower = String(category).toLowerCase();
+    const isSensitiveCard = ['card', 'id', 'license', 'passport', 'credit', 'debit'].some((keyword) => categoryLower.includes(keyword));
+
+    const startReveal = () => setRevealSensitive(true);
+    const stopReveal = () => setRevealSensitive(false);
 
     return (
         <div className={`group relative w-full overflow-hidden rounded-2xl border transition-all duration-300 hover:scale-[1.01] ${isBestMatch
@@ -20,7 +26,29 @@ export function MatchResultCard({ image_url, final_category, score, location, re
             )}
             <div className="flex p-3.5 gap-4">
                 <div className="relative w-24 h-24 flex-shrink-0 rounded-xl overflow-hidden bg-black/40 border border-white/5">
-                    <img src={image_url} alt={title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                    <img
+                        src={image_url}
+                        alt={title}
+                        className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${isSensitiveCard && !revealSensitive ? 'blur-[2px]' : ''}`}
+                    />
+                    {isSensitiveCard && !revealSensitive && (
+                        <div className="absolute inset-x-0 top-0 h-1/2 backdrop-blur-md bg-slate-900/25 pointer-events-none" />
+                    )}
+                    {isSensitiveCard && (
+                        <button
+                            type="button"
+                            onMouseDown={startReveal}
+                            onMouseUp={stopReveal}
+                            onMouseLeave={stopReveal}
+                            onTouchStart={startReveal}
+                            onTouchEnd={stopReveal}
+                            onTouchCancel={stopReveal}
+                            className="absolute bottom-1 right-1 text-[9px] px-1.5 py-0.5 rounded bg-black/60 text-white border border-white/20"
+                            title="Hold to reveal"
+                        >
+                            Hold
+                        </button>
+                    )}
                 </div>
                 <div className="flex-1 min-w-0 flex flex-col justify-between">
                     <div>

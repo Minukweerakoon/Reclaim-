@@ -1,17 +1,43 @@
 // @ts-nocheck
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { Search, ShieldCheck, Zap, ArrowRight, MapPin, ShieldAlert } from 'lucide-react';
+import { reportsApi } from '../api/reports';
 
-const stats = [
-    { label: 'Items Returned', value: '12,405' },
-    { label: 'Success Rate', value: '94%' },
-    { label: 'Avg. Match Time', value: '2.5 hrs' },
-    { label: 'Active Users', value: '50k+' },
-];
+const formatCount = (value) => Number(value || 0).toLocaleString();
 
 export function HomePage({ onNavigate, user, onSignOut, showAdminLink }) {
+    const { data: stats, isLoading: statsLoading } = useQuery({
+        queryKey: ['home-report-stats'],
+        queryFn: async () => {
+            const data = await reportsApi.getReports(5000);
+            const reports = Array.isArray(data?.reports) ? data.reports : [];
+            const total = reports.length;
+            const activeUsers = new Set(
+                reports
+                    .map((r) => String(r?.user_id || '').trim())
+                    .filter(Boolean)
+            ).size;
+
+            return [
+                { label: 'Total Reports', value: formatCount(total) },
+                { label: 'Accuracy', value: '94%' },
+                { label: 'Reporting Users', value: formatCount(activeUsers) },
+            ];
+        },
+        staleTime: 30000,
+        refetchInterval: 60000,
+        retry: 1,
+    });
+
+    const statsCards = stats || [
+        { label: 'Total Reports', value: statsLoading ? '...' : '0' },
+        { label: 'Accuracy', value: '94%' },
+        { label: 'Reporting Users', value: statsLoading ? '...' : '0' },
+    ];
+
     return (
         <div className="min-h-screen w-full bg-[#08080f] text-white relative overflow-x-hidden">
             <div className="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-600/10 blur-[120px] pointer-events-none" />
@@ -56,8 +82,8 @@ export function HomePage({ onNavigate, user, onSignOut, showAdminLink }) {
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-24 max-w-4xl mx-auto">
-                    {stats.map((stat, i) => (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-24 max-w-4xl mx-auto">
+                    {statsCards.map((stat, i) => (
                         <div key={i} className="glass-panel p-6 rounded-2xl text-center">
                             <div className="text-2xl md:text-3xl font-bold text-white mb-1">{stat.value}</div>
                             <div className="text-xs text-slate-400 uppercase tracking-wider">{stat.label}</div>

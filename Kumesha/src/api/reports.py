@@ -8,7 +8,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Header, status, Query
 from pydantic import BaseModel, Field
 
 from src.database.supabase_client import get_supabase_manager
@@ -196,12 +196,12 @@ async def list_my_reports(user: Dict = Depends(get_current_user)):
 
 
 @router.get("/all")
-async def list_all_reports():
+async def list_all_reports(limit: int = Query(default=200, ge=1, le=5000)):
     """List all reports (research access — no auth required for group members)."""
     sb = get_supabase_manager()
     if sb is None:
         raise HTTPException(status_code=503, detail="Supabase unavailable")
-    reports = sb.get_all_items(limit=200)
+    reports = sb.get_all_items(limit=limit)
     return {"reports": reports, "count": len(reports)}
 
 

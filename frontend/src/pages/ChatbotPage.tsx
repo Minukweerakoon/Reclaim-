@@ -52,19 +52,60 @@ const appendBotNotice = (setMessagesFn: React.Dispatch<React.SetStateAction<Chat
     ]));
 };
 
-const detectHumanFaceInImage = async (file: File): Promise<boolean> => {
-    const FaceDetectorCtor = (window as any).FaceDetector;
-    if (!FaceDetectorCtor) return false;
-
+const getImageDimensions = async (file: File): Promise<{ width: number; height: number } | null> => {
     try {
-        const detector = new FaceDetectorCtor({ fastMode: true, maxDetectedFaces: 1 });
         const bitmap = await createImageBitmap(file);
-        const faces = await detector.detect(bitmap);
+        const dims = { width: bitmap.width, height: bitmap.height };
         bitmap.close();
-        return Array.isArray(faces) && faces.length > 0;
+        return dims;
     } catch {
-        return false;
+        return null;
     }
+};
+
+const isPersonClass = (cls: string) => {
+    const c = String(cls || '').toLowerCase();
+    return c === 'person' || c.includes('human') || c === 'man' || c === 'woman';
+};
+
+const getDetectionAreaRatio = (
+    bbox: number[] | undefined,
+    imageDims: { width: number; height: number } | null
+) => {
+    if (!Array.isArray(bbox) || bbox.length < 4) return 0;
+    const [x1, y1, x2, y2] = bbox.map((n) => Number(n) || 0);
+    const w = Math.max(0, Math.abs(x2 - x1));
+    const h = Math.max(0, Math.abs(y2 - y1));
+    const maxCoord = Math.max(Math.abs(x1), Math.abs(y1), Math.abs(x2), Math.abs(y2));
+
+    // Normalized bbox case (0..1)
+    if (maxCoord <= 1.5) return Math.min(1, w * h);
+
+    // Pixel bbox case
+    if (imageDims && imageDims.width > 0 && imageDims.height > 0) {
+        return Math.min(1, (w * h) / (imageDims.width * imageDims.height));
+    }
+
+    return 0;
+};
+
+const isLikelyRealHumanPhoto = (
+    detections: Array<{ class?: string; original_class?: string; confidence?: number; bbox?: number[] }> | undefined,
+    imageDims: { width: number; height: number } | null
+) => {
+    const personDetections = (detections || [])
+        .map((d) => {
+            const cls = String(d.class || d.original_class || '').toLowerCase();
+            const confidence = Number(d.confidence || 0);
+            const areaRatio = getDetectionAreaRatio(d.bbox, imageDims);
+            return { cls, confidence, areaRatio };
+        })
+        .filter((d) => isPersonClass(d.cls));
+
+    const largeConfidentPerson = personDetections.some((d) => d.confidence >= 0.75 && d.areaRatio >= 0.22);
+    const multiPersonScene = personDetections.filter((d) => d.confidence >= 0.6 && d.areaRatio >= 0.08).length >= 2;
+
+    return largeConfidentPerson || multiPersonScene;
 };
 
 const detectExplicitIntent = (message: string): 'lost' | 'found' | null => {
@@ -77,6 +118,11 @@ const detectExplicitIntent = (message: string): 'lost' | 'found' | null => {
     return null;
 };
 
+const isSensitiveCardCategory = (category: string) => {
+    const c = String(category || '').toLowerCase();
+    return ['card', 'id', 'license', 'passport', 'credit', 'debit'].some((keyword) => c.includes(keyword));
+};
+
 function ChatbotPage() {
     const [searchParams] = useSearchParams();
     const initialIntent = searchParams.get('intent') || '';
@@ -86,6 +132,7 @@ function ChatbotPage() {
     const [isProcessingReport, setIsProcessingReport] = useState(false);
     const [isCheckingImage, setIsCheckingImage] = useState(false);
     const [selectedMatch, setSelectedMatch] = useState<any | null>(null);
+    const [revealSensitiveModalImage, setRevealSensitiveModalImage] = useState(false);
     const {
         messages, setMessages,
         isTyping, setIsTyping,
@@ -133,29 +180,20 @@ function ChatbotPage() {
             return;
         }
 
-        const hasHumanFace = await detectHumanFaceInImage(file);
-        if (hasHumanFace) {
-            setPendingImage(null, null);
-            if (fileInputRef.current) fileInputRef.current.value = '';
-            finishImageCheck('Human images are not allowed. Please upload an image of the item only.');
-            return;
-        }
+        const imageDims = await getImageDimensions(file);
 
         // Immediate upload-time validation so users get feedback before confirmation.
         setIsCheckingImage(true);
         let preCheckUnavailable = false;
         try {
             const preValidation = await validationApi.validateImage(file);
-            const facesDetected = preValidation.image?.privacy?.faces_detected || 0;
-            const personDetected = (preValidation.image?.objects?.detections || []).some((d) => {
-                const cls = String(d.class || d.original_class || '').toLowerCase();
-                return cls === 'person' || cls.includes('human') || cls === 'man' || cls === 'woman';
-            });
 
-            if (facesDetected > 0 || personDetected) {
+            const shouldBlockHumanPhoto = isLikelyRealHumanPhoto(preValidation.image?.objects?.detections, imageDims);
+
+            if (shouldBlockHumanPhoto) {
                 setPendingImage(null, null);
                 if (fileInputRef.current) fileInputRef.current.value = '';
-                finishImageCheck('Upload blocked: human images are not allowed. Please upload an image showing only the item.');
+                finishImageCheck('Upload blocked: real-person photos are not allowed. Item photos (including cards) are allowed.');
                 return;
             }
         } catch {
@@ -186,6 +224,10 @@ function ChatbotPage() {
         setPendingImage(null, null);
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
+
+    useEffect(() => {
+        setRevealSensitiveModalImage(false);
+    }, [selectedMatch]);
 
     useEffect(() => {
         if (!initialIntent) return;
@@ -544,13 +586,10 @@ function ChatbotPage() {
             // Keep ValidationHub in sync with chat-side processing.
             setResult(validationResult);
 
-            const facesDetected = validationResult.image?.privacy?.faces_detected || 0;
-            const personDetected = (validationResult.image?.objects?.detections || []).some((d) => {
-                const cls = String(d.class || d.original_class || '').toLowerCase();
-                return cls === 'person' || cls.includes('human') || cls === 'man' || cls === 'woman';
-            });
+            const confirmImageDims = await getImageDimensions(pendingImage);
+            const shouldBlockHumanPhoto = isLikelyRealHumanPhoto(validationResult.image?.objects?.detections, confirmImageDims);
 
-            if (facesDetected > 0 || personDetected) {
+            if (shouldBlockHumanPhoto) {
                 setSummaryConfirmed(false);
                 setPendingImage(null, null);
                 if (fileInputRef.current) fileInputRef.current.value = '';
@@ -559,7 +598,7 @@ function ChatbotPage() {
                     return {
                         ...msg,
                         loading: false,
-                        content: 'Upload blocked: human images are not allowed. Please upload an image showing only the item.',
+                        content: 'Upload blocked: real-person photos are not allowed. Item photos (including cards) are allowed.',
                     };
                 }));
                 return;
@@ -905,12 +944,38 @@ function ChatbotPage() {
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
                             <div className="p-4 border-r border-white/10">
-                                <div className="w-full aspect-square rounded-xl overflow-hidden bg-black/30 border border-white/10">
+                                <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-black/30 border border-white/10">
+                                    {(() => {
+                                        const modalCategory = selectedMatch.final_category || selectedMatch.category || '';
+                                        const sensitiveCard = isSensitiveCardCategory(modalCategory);
+                                        return (
+                                            <>
                                     <img
                                         src={selectedMatch.image_url}
                                         alt={selectedMatch.final_category || selectedMatch.category || 'Matched item'}
-                                        className="w-full h-full object-cover"
+                                        className={`w-full h-full object-cover ${sensitiveCard && !revealSensitiveModalImage ? 'blur-[2px]' : ''}`}
                                     />
+                                                {sensitiveCard && !revealSensitiveModalImage && (
+                                                    <div className="absolute inset-x-0 top-0 h-1/2 backdrop-blur-md bg-slate-900/25 pointer-events-none" />
+                                                )}
+                                                {sensitiveCard && (
+                                                    <button
+                                                        type="button"
+                                                        onMouseDown={() => setRevealSensitiveModalImage(true)}
+                                                        onMouseUp={() => setRevealSensitiveModalImage(false)}
+                                                        onMouseLeave={() => setRevealSensitiveModalImage(false)}
+                                                        onTouchStart={() => setRevealSensitiveModalImage(true)}
+                                                        onTouchEnd={() => setRevealSensitiveModalImage(false)}
+                                                        onTouchCancel={() => setRevealSensitiveModalImage(false)}
+                                                        className="absolute bottom-2 right-2 text-xs px-2 py-1 rounded bg-black/60 text-white border border-white/20"
+                                                        title="Hold to reveal"
+                                                    >
+                                                        Hold to reveal
+                                                    </button>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                             <div className="p-5 space-y-3">
