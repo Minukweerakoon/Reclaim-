@@ -1,0 +1,48 @@
+name: Kumesha Backend CI/CD
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+    paths:
+      - 'Kumesha/**'
+      - 'Dockerfile.kumesha'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'Kumesha/**'
+      - 'Dockerfile.kumesha'
+
+jobs:
+  test_and_build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r Kumesha/requirements.txt
+        
+    - name: Run tests (if any)
+      run: |
+        if [ -d "Kumesha/tests" ]; then pytest Kumesha/tests/ -v; else echo "No tests directory found, skipping."; fi
+
+    - name: Set up Docker Buildx
+      if: github.ref == 'refs/heads/main'
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Build Docker Image
+      if: github.ref == 'refs/heads/main'
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: Dockerfile.kumesha
+        push: false
+        tags: multimodal-validation-kumesha:latest
