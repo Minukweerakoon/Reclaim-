@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-const voshanTarget = process.env.VITE_VOSHAN_PROXY_TARGET || 'http://127.0.0.1:5000';
+const voshanTarget = process.env.VITE_VOSHAN_PROXY_TARGET || 'http://127.0.0.1:5100';
 
 // https://vite.dev/config/
 export default defineConfig({

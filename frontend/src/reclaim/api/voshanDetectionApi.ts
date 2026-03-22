@@ -1,6 +1,6 @@
 /**
  * Voshan detection API client for admin dashboard.
- * Base URL: VITE_VOSHAN_API_URL or /api (same-origin proxy to Node backend on 5000).
+ * Base URL: VITE_VOSHAN_API_URL or /api (same-origin proxy to the configured Voshan backend port).
  */
 
 const BASE = (import.meta.env.VITE_VOSHAN_API_URL as string) || '/api';
