@@ -214,6 +214,7 @@ export interface ChatMessage {
         id?: string;
         rank?: number;
         category?: string;
+        model_category?: string;
         final_category?: string;
         image_url?: string;
         score?: number;

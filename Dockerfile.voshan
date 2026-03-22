@@ -29,6 +29,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Expose ports for backend (5000) and ML service (5001)
 EXPOSE 5000 5001
 
-# Use dev-all to run both Node backend + Python ML service together
+# Use start:all to run both Node backend + Python ML service together
 WORKDIR /app/Voshan
-CMD ["npm", "run", "dev:all"]
+CMD ["npm", "run", "start:all"]

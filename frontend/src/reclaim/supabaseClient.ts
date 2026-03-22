@@ -7,7 +7,7 @@ export async function processItem({
     file,
     userCategory = null,
     location = null,
-    time = null,
+    time: _time = null,
     description = null,
     userId = 'demo_user',
     userEmail = 'demo@test.com',
