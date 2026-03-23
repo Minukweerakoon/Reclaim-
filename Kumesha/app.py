@@ -2072,26 +2072,31 @@ async def validate_complete(
             "degraded": True,
         }
 
-        try:
-            def _calculate_confidence_with_init(img, txt, voice, cross):
-                ce_local = get_consistency_engine()
-                if ce_local is None:
-                    raise Exception("Consistency engine not available")
-                return ce_local.calculate_overall_confidence(img, txt, voice, cross)
+        enable_confidence_engine = os.getenv("ENABLE_CONFIDENCE_ENGINE", "false").lower() == "true"
+        if enable_confidence_engine:
+            try:
+                def _calculate_confidence_with_init(img, txt, voice, cross):
+                    ce_local = get_consistency_engine()
+                    if ce_local is None:
+                        raise Exception("Consistency engine not available")
+                    return ce_local.calculate_overall_confidence(img, txt, voice, cross)
 
-            confidence_results = await validate_with_fallback(
-                _calculate_confidence_with_init,
-                image_result,
-                text_result,
-                voice_result,
-                cross_modal_results,
-                validator_name="confidence_calculation",
-                fallback_result=fallback_confidence,
-            )
-            if confidence_results.get("degraded"):
-                logger.warning("Confidence calculation degraded; fallback confidence applied")
-        except Exception as e:
-            logger.warning(f"Confidence calculation failed, using fallback: {e}")
+                confidence_results = await validate_with_fallback(
+                    _calculate_confidence_with_init,
+                    image_result,
+                    text_result,
+                    voice_result,
+                    cross_modal_results,
+                    validator_name="confidence_calculation",
+                    fallback_result=fallback_confidence,
+                )
+                if confidence_results.get("degraded"):
+                    logger.warning("Confidence calculation degraded; fallback confidence applied")
+            except Exception as e:
+                logger.warning(f"Confidence calculation failed, using fallback: {e}")
+                confidence_results = fallback_confidence
+        else:
+            logger.info("Confidence engine disabled via ENABLE_CONFIDENCE_ENGINE; using fast fallback confidence")
             confidence_results = fallback_confidence
         
         # ============ BUILD RESPONSE ============
