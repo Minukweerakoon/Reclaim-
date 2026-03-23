@@ -698,14 +698,14 @@ function ChatbotPage() {
             })();
         } catch (err) {
             const errorText = formatErrorMessage(err);
-            console.error('[ChatbotPage] Retrieval flow failed:', errorText);
+            console.error('[ChatbotPage] Validation flow failed:', errorText);
             setSummaryConfirmed(false);
             setMessages((prev) => prev.map((msg) => {
                 if (msg.id !== loadingMessageId) return msg;
                 return {
                     ...msg,
                     loading: false,
-                    content: 'Validation completed, but matching is temporarily delayed. Please try again in a moment.',
+                    content: `Validation failed: ${errorText}. Please try again in a moment.`,
                 };
             }));
         } finally {

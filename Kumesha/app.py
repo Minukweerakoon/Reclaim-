@@ -529,6 +529,29 @@ def validate_file_size(file: UploadFile, max_size: int) -> bool:
     file.file.seek(0)  # Reset file pointer
     return file_size <= max_size
 
+
+def trigger_ai_backend_processing(ai_backend_url: str, ai_payload: Dict[str, Any]) -> None:
+    """Trigger AI indexing/retrieval in background so API responses are not blocked."""
+    try:
+        response = requests.post(ai_backend_url, json=ai_payload, timeout=20)
+        if response.status_code == 200:
+            ai_result = response.json() if response.content else {}
+            matches = ai_result.get("results", []) if isinstance(ai_result, dict) else []
+            logger.info(
+                "AI background processing completed for item %s (matches=%s)",
+                ai_payload.get("item_id"),
+                len(matches),
+            )
+        else:
+            logger.warning(
+                "AI background processing returned status %s for item %s: %s",
+                response.status_code,
+                ai_payload.get("item_id"),
+                response.text,
+            )
+    except Exception as ai_err:
+        logger.warning("AI background processing failed for item %s: %s", ai_payload.get("item_id"), ai_err)
+
 # ------------------------------------------------------------------ #
 # Fallback and Graceful Degradation
 # ------------------------------------------------------------------ #
@@ -572,17 +595,20 @@ async def validate_with_fallback(
         if asyncio.iscoroutinefunction(validator_func):
             result = await asyncio.wait_for(
                 validator_func(*args, **kwargs),
-                timeout=30.0  # 30 second timeout
+                timeout=20.0  # Keep request latency bounded for proxied production traffic
             )
         else:
-            result = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: validator_func(*args, **kwargs)
+            result = await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: validator_func(*args, **kwargs)
+                ),
+                timeout=20.0,
             )
         return result
         
     except asyncio.TimeoutError:
-        logger.warning(f"{validator_name} timed out after 30 seconds")
+        logger.warning(f"{validator_name} timed out after 20 seconds")
         fallback = fallback_result or default_fallback.copy()
         fallback["error"] = "Validation timed out. Try with a smaller file."
         fallback["degraded"] = True
@@ -1798,10 +1824,40 @@ async def validate_complete(
                 if iv is None:
                     raise Exception("Image validator not available")
                     
-                image_result = iv.validate_image(image_path, visualText or text)
+                image_result = await validate_with_fallback(
+                    iv.validate_image,
+                    image_path,
+                    visualText or text,
+                    validator_name="image_validator",
+                    fallback_result={
+                        "image_path": image_path,
+                        "sharpness": {
+                            "valid": False,
+                            "score": 0.0,
+                            "threshold": 0.0,
+                            "feedback": "Image sharpness unavailable"
+                        },
+                        "objects": {
+                            "valid": False,
+                            "detections": [],
+                            "feedback": "Object detection unavailable"
+                        },
+                        "privacy": {
+                            "faces_detected": 0,
+                            "privacy_protected": False,
+                            "processed_image": None,
+                            "feedback": "Privacy scan unavailable"
+                        },
+                        "valid": True,
+                        "overall_score": 0.5,
+                    },
+                )
                 image_result["image_path"] = image_path
                 image_result["timestamp"] = datetime.now().isoformat()
-                logger.info("✓ Image validation successful")
+                if image_result.get("degraded"):
+                    logger.warning("Image validation degraded; continuing with fallback result")
+                else:
+                    logger.info("✓ Image validation successful")
                 
             except Exception as e:
                 logger.warning(f"Image validation failed, using fallback: {e}")
@@ -2194,11 +2250,11 @@ async def validate_complete(
                     if image_url:
                         response_data["image_url"] = image_url
 
-                    # Trigger AI backend processing after successful insert.
-                    # Found items are indexed; lost items run retrieval against indexed found items.
+                    # Trigger AI backend processing after successful insert in the background.
+                    # The chat flow already calls retrieval separately; this must not block the API response.
                     if image_url and intent in {"found", "lost"}:
                         try:
-                            AI_BACKEND_URL = "http://localhost:8001/items/process"
+                            AI_BACKEND_URL = os.getenv("AI_BACKEND_URL", "http://localhost:8001/items/process")
 
                             ai_payload = {
                                 "item_id": supabase_saved_id,
@@ -2209,34 +2265,8 @@ async def validate_complete(
                                 "mc_T": 20
                             }
 
-                            logger.info(f"🤖 Triggering AI backend for {intent} item {supabase_saved_id}")
-                            response = requests.post(
-                                AI_BACKEND_URL,
-                                json=ai_payload,
-                                timeout=30
-                            )
-                            
-                            if response.status_code == 200:
-                                ai_result = response.json() if response.content else {}
-                                matches = ai_result.get("results", []) if isinstance(ai_result, dict) else []
-                                
-                                if intent == "found":
-                                    if matches:
-                                        logger.info(
-                                            "✓ AI indexing + retrieval completed for found item %s (matches=%s lost items)",
-                                            supabase_saved_id,
-                                            len(matches),
-                                        )
-                                    else:
-                                        logger.info(f"✓ AI indexing completed for found item {supabase_saved_id} (no lost items to match)")
-                                else:  # lost
-                                    logger.info(
-                                        "✓ AI indexing + retrieval completed for lost item %s (matches=%s found items)",
-                                        supabase_saved_id,
-                                        len(matches),
-                                    )
-                            else:
-                                logger.warning(f"AI backend returned status {response.status_code}: {response.text}")
+                            logger.info(f"🤖 Scheduling background AI processing for {intent} item {supabase_saved_id}")
+                            background_tasks.add_task(trigger_ai_backend_processing, AI_BACKEND_URL, ai_payload)
 
                         except Exception as ai_err:
                             logger.warning(f"AI indexing failed (non-fatal): {ai_err}")
