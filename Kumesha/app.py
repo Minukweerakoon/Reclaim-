@@ -1820,12 +1820,14 @@ async def validate_complete(
                 image_path = save_uploaded_file(image_file)
                 background_tasks.add_task(cleanup_file, image_path)
                 
-                iv = get_image_validator()
-                if iv is None:
-                    raise Exception("Image validator not available")
-                    
+                def _validate_image_with_init(path: str, prompt: Optional[str]):
+                    iv_local = get_image_validator()
+                    if iv_local is None:
+                        raise Exception("Image validator not available")
+                    return iv_local.validate_image(path, prompt)
+
                 image_result = await validate_with_fallback(
-                    iv.validate_image,
+                    _validate_image_with_init,
                     image_path,
                     visualText or text,
                     validator_name="image_validator",
