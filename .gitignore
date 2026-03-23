@@ -30,6 +30,9 @@ npm-debug.log*
 .env
 .env.local
 .env.*.local
+
+# Local runtime DB artifacts
+data/validation.db
 .env.example
 
 # IDE / OS
