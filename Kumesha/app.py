@@ -1940,7 +1940,9 @@ async def validate_complete(
                 }
 
         # ============ CROSS-MODAL CONSISTENCY CHECKS ============
-        if image_path and text:
+        # Hosted environments can be resource-constrained; keep this optional to avoid request timeouts.
+        enable_cross_modal = os.getenv("ENABLE_CROSS_MODAL_VALIDATION", "false").lower() == "true"
+        if image_path and text and enable_cross_modal:
             try:
                 cv = get_clip_validator()
                 if cv is None:
@@ -1979,14 +1981,33 @@ async def validate_complete(
                         clip_text = f"a photo of a {' '.join(parts)}"
                 
                 logger.info(f"[CLIP] Final query for CLIP: '{clip_text}'")
-                cross_modal_results["image_text"] = cv.validate_image_text_alignment(image_path, clip_text, analysis_text=text)
-                logger.info("✓ Image-text consistency checked")
+                clip_result = await validate_with_fallback(
+                    cv.validate_image_text_alignment,
+                    image_path,
+                    clip_text,
+                    validator_name="clip_image_text_alignment",
+                    fallback_result={
+                        "valid": True,
+                        "similarity": 0.0,
+                        "overall_score": 0.0,
+                        "degraded": True,
+                        "feedback": "CLIP alignment unavailable"
+                    },
+                    analysis_text=text,
+                )
+                cross_modal_results["image_text"] = clip_result
+                if clip_result.get("degraded"):
+                    logger.warning("CLIP image-text consistency degraded; continuing without hard failure")
+                else:
+                    logger.info("✓ Image-text consistency checked")
             except Exception as e:
                 logger.warning(f"Image-text consistency check failed: {e}")
+        elif image_path and text and not enable_cross_modal:
+            logger.info("Cross-modal validation disabled via ENABLE_CROSS_MODAL_VALIDATION")
         
         # ============ ENHANCED DISCREPANCY CHECKS ============
         # Add brand mismatch detection to catch visual vs text conflicts  
-        if image_result and text_result and image_path:
+        if image_result and text_result and image_path and enable_cross_modal:
             try:
                 from src.cross_modal.enhanced_discrepancies import check_brand_mismatch
                 brand_check = check_brand_mismatch(image_result, text_result, image_path=image_path)
@@ -2007,7 +2028,7 @@ async def validate_complete(
             except Exception as e:
                 logger.warning(f"Brand mismatch check failed: {e}")
 
-        if voice_result and text_result:
+        if voice_result and text_result and enable_cross_modal:
             try:
                 ce_context = get_consistency_engine()
                 if ce_context is None:

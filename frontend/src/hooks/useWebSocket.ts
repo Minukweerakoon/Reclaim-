@@ -18,6 +18,7 @@ export function useWebSocket({
     maxRetries = 3,
     heartbeatInterval = 30000 // Send heartbeat every 30s to keep connection alive
 }: UseWebSocketOptions) {
+    const wsEnabled = import.meta.env.DEV || String(import.meta.env.VITE_ENABLE_VALIDATION_WS || '').toLowerCase() === 'true';
     const [isConnected, setIsConnected] = useState(false);
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -58,6 +59,10 @@ export function useWebSocket({
     }, [heartbeatInterval, sendHeartbeat]);
 
     const connect = useCallback(() => {
+        if (!wsEnabled) {
+            console.info('[WebSocket] Validation websocket disabled for this environment');
+            return;
+        }
         if (wsRef.current) {
             console.log('[WebSocket] Already connecting or connected');
             return;
@@ -175,7 +180,7 @@ export function useWebSocket({
             console.error(errorMsg);
             onErrorRef.current?.(errorMsg);
         }
-    }, [clientId, autoReconnect, maxRetries, scheduleHeartbeat]);
+    }, [clientId, autoReconnect, maxRetries, scheduleHeartbeat, wsEnabled]);
 
     const disconnect = useCallback(() => {
         manualCloseRef.current = true;
