@@ -23,8 +23,8 @@ RUN npm install
 
 # Install Python dependencies for ML service
 WORKDIR /app/Voshan/ml-service
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN python3 -m pip install --no-cache-dir --upgrade pip --break-system-packages && \
+    python3 -m pip install --no-cache-dir -r requirements.txt --break-system-packages
 
 # Expose ports for backend (5000) and ML service (5001)
 EXPOSE 5000 5001
