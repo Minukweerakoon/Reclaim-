@@ -2625,7 +2625,12 @@ async def serve_root():
     index_path = os.path.join(dist_dir, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    return Response("Frontend not found", status_code=500)
+    return JSONResponse({
+        "status": "ok",
+        "service": "kumesha-api",
+        "health": "/health",
+        "docs": "/docs"
+    })
 
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
