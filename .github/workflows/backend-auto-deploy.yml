@@ -3,6 +3,15 @@ name: Backend Auto Deploy
 on:
   push:
     branches: ["main"]
+    paths:
+      - 'Kumesha/**'
+      - 'minuk/**'
+      - 'Voshan/**'
+      - 'Dockerfile.kumesha'
+      - 'Dockerfile.minuk'
+      - 'Dockerfile.voshan'
+      - 'docker-compose.yml'
+      - '.github/workflows/backend-auto-deploy.yml'
   workflow_dispatch:
 
 concurrency:
@@ -10,18 +19,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    name: Deploy Kumesha + Minuk + Voshan
+  preflight:
+    name: Deploy Preflight
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      VPS_HOST: ${{ secrets.VPS_HOST }}
-      VPS_PORT: ${{ secrets.VPS_PORT }}
-      VPS_USER: ${{ secrets.VPS_USER }}
-      VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+    outputs:
+      can_deploy: ${{ steps.check.outputs.can_deploy }}
 
     steps:
-      - name: Validate required secrets exist
+      - name: Check deploy secrets
+        id: check
         env:
           CHECK_VPS_HOST: ${{ secrets.VPS_HOST }}
           CHECK_VPS_USER: ${{ secrets.VPS_USER }}
@@ -31,15 +37,31 @@ jobs:
         run: |
           set -euo pipefail
           missing=0
-          [ -n "${CHECK_VPS_HOST}" ] || { echo "Missing required secret: VPS_HOST"; missing=1; }
-          [ -n "${CHECK_VPS_USER}" ] || { echo "Missing required secret: VPS_USER"; missing=1; }
-          [ -n "${CHECK_VPS_SSH_KEY}" ] || { echo "Missing required secret: VPS_SSH_KEY"; missing=1; }
-          [ -n "${CHECK_VPS_APP_DIR}" ] || { echo "Missing required secret: VPS_APP_DIR"; missing=1; }
+          [ -n "${CHECK_VPS_HOST}" ] || { echo "Missing secret: VPS_HOST"; missing=1; }
+          [ -n "${CHECK_VPS_USER}" ] || { echo "Missing secret: VPS_USER"; missing=1; }
+          [ -n "${CHECK_VPS_SSH_KEY}" ] || { echo "Missing secret: VPS_SSH_KEY"; missing=1; }
+          [ -n "${CHECK_VPS_APP_DIR}" ] || { echo "Missing secret: VPS_APP_DIR"; missing=1; }
           if [ "$missing" -eq 1 ]; then
-            echo "One or more required deploy secrets are missing."
-            exit 1
+            echo "can_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Auto-deploy skipped until required secrets are configured."
+          else
+            echo "can_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "All required deploy secrets are configured."
           fi
 
+  deploy:
+    name: Deploy Kumesha + Minuk + Voshan
+    needs: preflight
+    if: needs.preflight.outputs.can_deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+
+    steps:
       - name: Set default SSH port
         shell: bash
         run: |
