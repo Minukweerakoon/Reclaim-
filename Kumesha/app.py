@@ -2050,38 +2050,49 @@ async def validate_complete(
                 logger.warning(f"Voice-text/context consistency check failed: {e}")
         
         # ============ CALCULATE CONFIDENCE ============
+        scores = []
+        if image_result:
+            scores.append(image_result.get("overall_score", 0.5))
+        if text_result:
+            scores.append(text_result.get("overall_score", 0.5))
+        if voice_result:
+            scores.append(voice_result.get("overall_score", 0.5))
+
+        avg_confidence = sum(scores) / len(scores) if scores else 0.3
+        fallback_confidence = {
+            "overall_confidence": avg_confidence,
+            "routing": "manual" if avg_confidence < 0.7 else "high_quality",
+            "action": "review",
+            "individual_scores": {
+                "image": image_result.get("overall_score", 0) if image_result else 0,
+                "text": text_result.get("overall_score", 0) if text_result else 0,
+                "voice": voice_result.get("overall_score", 0) if voice_result else 0,
+            },
+            "cross_modal_scores": {},
+            "degraded": True,
+        }
+
         try:
-            ce = get_consistency_engine()
-            if ce is None:
-                raise Exception("Consistency engine not available")
-            confidence_results = ce.calculate_overall_confidence(
-                image_result, text_result, voice_result, cross_modal_results
+            def _calculate_confidence_with_init(img, txt, voice, cross):
+                ce_local = get_consistency_engine()
+                if ce_local is None:
+                    raise Exception("Consistency engine not available")
+                return ce_local.calculate_overall_confidence(img, txt, voice, cross)
+
+            confidence_results = await validate_with_fallback(
+                _calculate_confidence_with_init,
+                image_result,
+                text_result,
+                voice_result,
+                cross_modal_results,
+                validator_name="confidence_calculation",
+                fallback_result=fallback_confidence,
             )
+            if confidence_results.get("degraded"):
+                logger.warning("Confidence calculation degraded; fallback confidence applied")
         except Exception as e:
             logger.warning(f"Confidence calculation failed, using fallback: {e}")
-            # Fallback confidence based on what we have
-            scores = []
-            if image_result:
-                scores.append(image_result.get("overall_score", 0.5))
-            if text_result:
-                scores.append(text_result.get("overall_score", 0.5))
-            if voice_result:
-                scores.append(voice_result.get("overall_score", 0.5))
-            
-            avg_confidence = sum(scores) / len(scores) if scores else 0.3
-            
-            confidence_results = {
-                "overall_confidence": avg_confidence,
-                "routing": "manual" if avg_confidence < 0.7 else "high_quality",
-                "action": "review",
-                "individual_scores": {
-                    "image": image_result.get("overall_score", 0) if image_result else 0,
-                    "text": text_result.get("overall_score", 0) if text_result else 0,
-                    "voice": voice_result.get("overall_score", 0) if voice_result else 0,
-                },
-                "cross_modal_scores": {},
-                "degraded": True
-            }
+            confidence_results = fallback_confidence
         
         # ============ BUILD RESPONSE ============
         response_data = {
