@@ -25,6 +25,10 @@
       "destination": "http://204.168.158.144:8000/metrics"
     },
     {
+      "source": "/items/process",
+      "destination": "http://204.168.158.144:8001/items/process"
+    },
+    {
       "source": "/items/(.*)",
       "destination": "http://204.168.158.144:8000/items/$1"
     },

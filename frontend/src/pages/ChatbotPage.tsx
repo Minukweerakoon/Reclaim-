@@ -253,7 +253,19 @@ function ChatbotPage() {
     } = useValidationStore();
 
     // Prefer Vite proxy for consistency with dev server/backends.
-    const processEndpoint = import.meta.env.VITE_AI_PROCESS_URL || '/items/process';
+    // On HTTPS pages, reject insecure absolute HTTP endpoints to avoid mixed-content blocks.
+    const rawProcessEndpoint = (import.meta.env.VITE_AI_PROCESS_URL as string) || '';
+    const normalizedProcessEndpoint = rawProcessEndpoint.trim();
+    const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const isInsecureAbsoluteProcessEndpoint = isHttpsPage && normalizedProcessEndpoint.startsWith('http://');
+
+    if (isInsecureAbsoluteProcessEndpoint) {
+        console.warn('[ChatbotPage] Ignoring insecure VITE_AI_PROCESS_URL on HTTPS page:', normalizedProcessEndpoint);
+    }
+
+    const processEndpoint = isInsecureAbsoluteProcessEndpoint
+        ? '/items/process'
+        : (normalizedProcessEndpoint || '/items/process');
 
     const runRetrieval = async (payload: {
         item_id: string;

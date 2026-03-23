@@ -3,7 +3,15 @@
  * Base URL: VITE_VOSHAN_API_URL or /api (same-origin proxy to the configured Voshan backend port).
  */
 
-const BASE = (import.meta.env.VITE_VOSHAN_API_URL as string) || '/api';
+const rawVoshanBase = ((import.meta.env.VITE_VOSHAN_API_URL as string) || '').trim();
+const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+const isInsecureAbsoluteBase = isHttpsPage && rawVoshanBase.startsWith('http://');
+
+if (isInsecureAbsoluteBase) {
+  console.warn('[Voshan API] Ignoring insecure VITE_VOSHAN_API_URL on HTTPS page:', rawVoshanBase);
+}
+
+const BASE = isInsecureAbsoluteBase ? '/api' : (rawVoshanBase || '/api');
 
 export const voshanDetectionApi = {
   baseUrl: BASE,
@@ -64,7 +72,7 @@ export const voshanDetectionApi = {
 
 /** WebSocket URL for Voshan alerts (Socket.IO). */
 export function getVoshanWsUrl(): string {
-  const base = import.meta.env.VITE_VOSHAN_API_URL as string;
+  const base = BASE;
   if (base && base.startsWith('http')) {
     const u = new URL(base);
     return `${u.protocol === 'https:' ? 'wss:' : 'ws:'}//${u.host}`;
