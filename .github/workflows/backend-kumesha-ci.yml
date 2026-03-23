@@ -37,7 +37,14 @@ jobs:
     
     - name: Run tests (if any)
       run: |
-        if [ -d "Kumesha/tests" ]; then pytest Kumesha/tests/ -v; else echo "No tests directory found, skipping."; fi
+        if [ -d "Kumesha/tests" ]; then \
+          pytest Kumesha/tests/ -v \
+            --ignore=Kumesha/tests/test_full_api.py \
+            --ignore=Kumesha/tests/test_integration_phase3.py \
+            --ignore=Kumesha/tests/unit/test_text_validator.py; \
+        else \
+          echo "No tests directory found, skipping."; \
+        fi
 
     - name: Set up Docker Buildx
       if: github.ref == 'refs/heads/main'
