@@ -2254,19 +2254,21 @@ async def validate_complete(
                     # The chat flow already calls retrieval separately; this must not block the API response.
                     if image_url and intent in {"found", "lost"}:
                         try:
-                            AI_BACKEND_URL = os.getenv("AI_BACKEND_URL", "http://localhost:8001/items/process")
+                            AI_BACKEND_URL = os.getenv("AI_BACKEND_URL", "").strip()
+                            if not AI_BACKEND_URL:
+                                logger.warning("AI_BACKEND_URL is not set; skipping background AI processing")
+                            else:
+                                ai_payload = {
+                                    "item_id": supabase_saved_id,
+                                    "item_type": intent,  # "lost" or "found"
+                                    "image_url": image_url,
+                                    "user_category": item_data.get("user_category") or None,
+                                    "k": 5,
+                                    "mc_T": 20
+                                }
 
-                            ai_payload = {
-                                "item_id": supabase_saved_id,
-                                "item_type": intent,  # "lost" or "found"
-                                "image_url": image_url,
-                                "user_category": item_data.get("user_category") or None,
-                                "k": 5,
-                                "mc_T": 20
-                            }
-
-                            logger.info(f"🤖 Scheduling background AI processing for {intent} item {supabase_saved_id}")
-                            background_tasks.add_task(trigger_ai_backend_processing, AI_BACKEND_URL, ai_payload)
+                                logger.info(f"🤖 Scheduling background AI processing for {intent} item {supabase_saved_id} via {AI_BACKEND_URL}")
+                                background_tasks.add_task(trigger_ai_backend_processing, AI_BACKEND_URL, ai_payload)
 
                         except Exception as ai_err:
                             logger.warning(f"AI indexing failed (non-fatal): {ai_err}")

@@ -161,23 +161,25 @@ async def save_report(
     # ------------------------------------------------
 
     try:
-        AI_BACKEND_URL = "http://localhost:8001/items/process"
+        AI_BACKEND_URL = os.getenv("AI_BACKEND_URL", "").strip()
+        if not AI_BACKEND_URL:
+            logger.warning("AI_BACKEND_URL is not set; skipping AI processing trigger for report %s", report_id)
+        else:
+            requests.post(
+                AI_BACKEND_URL,
+                json={
+                    "item_id": report_id,
+                    "status": body.intention,
+                    "image_url": body.image_url,
+                    "user_category": body.user_category or body.item_type,
+                    "description": body.description,
+                    "location": body.location,
+                    "color": body.color,
+                },
+                timeout=10,
+            )
 
-        requests.post(
-            AI_BACKEND_URL,
-            json={
-                "item_id": report_id,
-                "status": body.intention,
-                "image_url": body.image_url,
-                "user_category": body.user_category or body.item_type,
-                "description": body.description,
-                "location": body.location,
-                "color": body.color,
-            },
-            timeout=10,
-        )
-
-        logger.info(f"AI processing triggered for item {report_id}")
+            logger.info("AI processing triggered for item %s via %s", report_id, AI_BACKEND_URL)
 
     except Exception as e:
         logger.warning(f"AI backend call failed: {e}")
