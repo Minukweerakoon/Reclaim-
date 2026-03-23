@@ -1,0 +1,109 @@
+name: Backend Auto Deploy
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: backend-auto-deploy-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy Kumesha + Minuk + Voshan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+
+    steps:
+      - name: Validate required secrets exist
+        env:
+          CHECK_VPS_HOST: ${{ secrets.VPS_HOST }}
+          CHECK_VPS_USER: ${{ secrets.VPS_USER }}
+          CHECK_VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          CHECK_VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          [ -n "${CHECK_VPS_HOST}" ] || { echo "Missing required secret: VPS_HOST"; missing=1; }
+          [ -n "${CHECK_VPS_USER}" ] || { echo "Missing required secret: VPS_USER"; missing=1; }
+          [ -n "${CHECK_VPS_SSH_KEY}" ] || { echo "Missing required secret: VPS_SSH_KEY"; missing=1; }
+          [ -n "${CHECK_VPS_APP_DIR}" ] || { echo "Missing required secret: VPS_APP_DIR"; missing=1; }
+          if [ "$missing" -eq 1 ]; then
+            echo "One or more required deploy secrets are missing."
+            exit 1
+          fi
+
+      - name: Set default SSH port
+        shell: bash
+        run: |
+          if [ -z "${VPS_PORT}" ]; then
+            echo "VPS_PORT=22" >> "$GITHUB_ENV"
+          fi
+
+      - name: Configure SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Add server to known_hosts
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh-keyscan -p "${VPS_PORT}" -H "${VPS_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Deploy on VPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -p "${VPS_PORT}" "${VPS_USER}@${VPS_HOST}" "VPS_APP_DIR='${VPS_APP_DIR}' bash -s" << 'EOF'
+            set -euo pipefail
+
+            cd "${VPS_APP_DIR}"
+
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+
+            if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+              DC="docker compose"
+            elif command -v docker-compose >/dev/null 2>&1; then
+              DC="docker-compose"
+            else
+              echo "Docker Compose is not installed on server"
+              exit 1
+            fi
+
+            $DC up -d --build --remove-orphans kumesha-api minuk-api voshan-api
+
+            # Basic service checks with retries
+            retry() {
+              local n=0
+              local max=20
+              local delay=3
+              until "$@"; do
+                n=$((n+1))
+                if [ "$n" -ge "$max" ]; then
+                  echo "Command failed after $max attempts: $*"
+                  return 1
+                fi
+                sleep "$delay"
+              done
+            }
+
+            retry curl -fsS "http://127.0.0.1:8000/health" >/dev/null
+            retry curl -fsS "http://127.0.0.1:8001/openapi.json" >/dev/null
+            retry curl -fsS "http://127.0.0.1:5000/api/health" >/dev/null
+
+            echo "Deployment complete and health checks passed."
+          EOF
