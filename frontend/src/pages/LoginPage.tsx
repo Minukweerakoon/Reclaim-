@@ -49,7 +49,7 @@ export function LoginPage({ onBack }) {
                     style={{ boxShadow: '0 0 60px rgba(99,102,241,0.08), 0 0 0 1px rgba(255,255,255,0.06)' }}>
 
                     <div className="flex items-center gap-2.5 mb-6">
-                        <img src={reclaimLogo} alt="Reclaim logo" className="w-10 h-10 object-contain" />
+                        <img src={reclaimLogo} alt="Reclaim logo" className="w-10 h-10 object-contain rounded-xl" />
                         <span className="text-2xl font-bold text-white tracking-tight">Reclaim</span>
                     </div>
 

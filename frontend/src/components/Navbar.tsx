@@ -28,7 +28,7 @@ export function Navbar({ currentPage = 'chat', onNavigate, user, onSignOut, show
         <nav className="fixed top-0 left-0 right-0 h-16 glass-nav z-50 flex items-center justify-between px-4 md:px-8">
             {/* Logo */}
             <div className="flex items-center gap-2 group cursor-pointer" onClick={() => onNavigate?.('home')}>
-                <img src={reclaimLogo} alt="Reclaim logo" className="w-8 h-8 object-contain" />
+                <img src={reclaimLogo} alt="Reclaim logo" className="w-8 h-8 object-contain rounded-lg" />
                 <span className="text-xl font-bold text-white tracking-tight">Reclaim</span>
             </div>
 

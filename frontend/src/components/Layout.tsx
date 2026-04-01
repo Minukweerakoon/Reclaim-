@@ -55,7 +55,7 @@ function Layout() {
             <header className="fixed top-0 left-0 right-0 z-50 glass-panel-heavy backdrop-blur-xl border-b border-white/10">
                 <div className="px-6 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-2 group cursor-pointer" onClick={() => navigate('/reclaim')}>
-                        <img src={reclaimLogo} alt="Reclaim logo" className="w-8 h-8 object-contain" />
+                        <img src={reclaimLogo} alt="Reclaim logo" className="w-8 h-8 object-contain rounded-lg" />
                         <div>
                             <div className="text-xl font-bold text-white tracking-tight">Reclaim</div>
                             <div className="text-[10px] text-slate-400 uppercase tracking-widest">AI-Powered Lost &amp; Found</div>
