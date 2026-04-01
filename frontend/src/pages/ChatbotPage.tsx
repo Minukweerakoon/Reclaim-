@@ -948,20 +948,20 @@ function ChatbotPage() {
             </section>
 
             {/* ── Sidebar: Collected Summary ── */}
-            <aside className="order-1 lg:order-2 glass-panel rounded-2xl p-4 md:p-6 flex flex-col gap-5">
+            <aside className="order-1 lg:order-2 glass-panel rounded-2xl p-4 md:p-6 flex flex-col gap-3 md:gap-4">
                 {/* Summary */}
                 <div>
-                    <div className="text-[11px] uppercase tracking-[0.3em] text-slate-400 mb-2">Collected Summary</div>
-                    <div className="text-xs text-slate-300 leading-relaxed min-h-[56px]">
+                    <div className="text-[11px] uppercase tracking-[0.3em] text-slate-400 mb-1.5">Collected Summary</div>
+                    <div className="text-xs text-slate-300 leading-relaxed">
                         {summaryText || 'Awaiting details from the conversation.'}
                     </div>
                 </div>
 
                 {/* Field Status */}
-                <div className="rounded-xl p-4 flex-1"
+                <div className="rounded-xl p-3 md:p-4"
                     style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div className="text-[11px] uppercase tracking-[0.3em] text-slate-400 mb-3">Field Status</div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="text-[11px] uppercase tracking-[0.3em] text-slate-400 mb-2.5">Field Status</div>
+                    <div className="flex flex-wrap gap-1.5 md:gap-2">
                         {[
                             { key: 'image_upload', label: 'image upload', isCaptured: !!pendingImage, isHighPriority: true },
                             { key: 'item_type', label: 'item type', isCaptured: !!extractedInfo?.item_type },
@@ -994,7 +994,7 @@ function ChatbotPage() {
                     type="button"
                     onClick={handleConfirm}
                     disabled={isProcessingReport || !summaryText || summaryConfirmed || !pendingImage || (intent !== 'lost' && intent !== 'found')}
-                    className="w-full text-[10px] uppercase tracking-widest py-3 rounded-lg font-semibold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full text-[10px] uppercase tracking-widest py-2.5 md:py-3 rounded-lg font-semibold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{ border: '1px solid rgba(99,102,241,0.45)', color: '#a5b4fc' }}
                     onMouseEnter={e => !summaryConfirmed && ((e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.15)')}
                     onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = 'transparent')}
@@ -1002,7 +1002,7 @@ function ChatbotPage() {
                     {isProcessingReport ? 'Processing...' : summaryConfirmed ? '✓ Confirmed' : 'Confirm and Process'}
                 </button>
                 {!pendingImage && (
-                    <p className="text-[10px] text-slate-500">
+                    <p className="text-[10px] text-slate-500 mt-0.5">
                         {isCheckingImage ? 'Checking image...' : 'Attach an image to run validation and matching.'}
                     </p>
                 )}
