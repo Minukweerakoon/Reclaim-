@@ -125,7 +125,13 @@ class MobileNetV3LargeMCDropout(nn.Module):
         return self.model(x)
 
 clf = MobileNetV3LargeMCDropout(NUM_CLASSES).to(DEVICE)
-clf.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+if os.path.exists(MODEL_PATH):
+    clf.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+else:
+    logger.warning(
+        "Custom classifier weights missing at %s. Using untrained classifier head fallback.",
+        MODEL_PATH,
+    )
 clf.eval()
 
 # Backbone for embeddings
@@ -151,7 +157,13 @@ class Backbone(nn.Module):
         return x
 
 backbone = Backbone(NUM_CLASSES).to(DEVICE)
-backbone.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE), strict=False)
+if os.path.exists(MODEL_PATH):
+    backbone.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE), strict=False)
+else:
+    logger.warning(
+        "Custom backbone weights missing at %s. Using ImageNet backbone fallback.",
+        MODEL_PATH,
+    )
 backbone.eval()
 
 # CLIP
