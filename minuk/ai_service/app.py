@@ -54,6 +54,8 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 CANDIDATE_IMAGE_TIMEOUT = float(os.getenv("CANDIDATE_IMAGE_TIMEOUT", "5"))
 MAX_CLIP_CANDIDATES = int(os.getenv("MAX_CLIP_CANDIDATES", "3"))
+ENABLE_CLIP_RERANK = os.getenv("ENABLE_CLIP_RERANK", "true").lower() == "true"
+DEFAULT_MC_T = int(os.getenv("DEFAULT_MC_T", "5"))
 
 # =========================================================
 # FASTAPI
@@ -320,6 +322,8 @@ def metric_embed(img):
 def clip_sim(query_img, urls):
     if not urls:
         return np.array([], dtype=np.float32)
+    if not ENABLE_CLIP_RERANK or MAX_CLIP_CANDIDATES <= 0:
+        return np.full(len(urls), 0.5, dtype=np.float32)
 
     q = clip_preprocess(query_img).unsqueeze(0).to(DEVICE)  # type: ignore[operator]
     q = clip_model.encode_image(q)  # type: ignore[operator]
@@ -380,7 +384,7 @@ class ProcessItemRequest(BaseModel):
     image_url: str
     user_category: Optional[str] = None
     k: int = 5
-    mc_T: int = 20
+    mc_T: int = DEFAULT_MC_T
 
 # =========================================================
 # ENDPOINT

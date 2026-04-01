@@ -507,7 +507,7 @@ class ItemsProcessRequest(BaseModel):
     image_url: str = Field(..., description="URL of the item image")
     user_category: Optional[str] = Field(None, description="User-specified category")
     k: int = Field(5, description="Number of matches to return")
-    mc_T: int = Field(20, description="Monte Carlo iterations for uncertainty")
+    mc_T: int = Field(5, description="Monte Carlo iterations for uncertainty")
 
 
 # Helper functions
@@ -2303,21 +2303,26 @@ async def validate_complete(
                     # The chat flow already calls retrieval separately; this must not block the API response.
                     if image_url and intent in {"found", "lost"}:
                         try:
-                            AI_BACKEND_URL = os.getenv("AI_BACKEND_URL", "").strip()
-                            if not AI_BACKEND_URL:
-                                logger.warning("AI_BACKEND_URL is not set; skipping background AI processing")
+                            enable_background = os.getenv("ENABLE_BACKGROUND_AI_PROCESSING", "true").lower() == "true"
+                            if not enable_background:
+                                logger.info("Background AI processing disabled; skipping Minuk call")
                             else:
-                                ai_payload = {
-                                    "item_id": supabase_saved_id,
-                                    "item_type": intent,  # "lost" or "found"
-                                    "image_url": image_url,
-                                    "user_category": item_data.get("user_category") or None,
-                                    "k": 5,
-                                    "mc_T": 20
-                                }
+                                AI_BACKEND_URL = os.getenv("AI_BACKEND_URL", "").strip()
+                                if not AI_BACKEND_URL:
+                                    logger.warning("AI_BACKEND_URL is not set; skipping background AI processing")
+                                else:
+                                    default_mc_t = int(os.getenv("DEFAULT_MC_T", "5"))
+                                    ai_payload = {
+                                        "item_id": supabase_saved_id,
+                                        "item_type": intent,  # "lost" or "found"
+                                        "image_url": image_url,
+                                        "user_category": item_data.get("user_category") or None,
+                                        "k": 5,
+                                        "mc_T": default_mc_t
+                                    }
 
-                                logger.info(f"🤖 Scheduling background AI processing for {intent} item {supabase_saved_id} via {AI_BACKEND_URL}")
-                                background_tasks.add_task(trigger_ai_backend_processing, AI_BACKEND_URL, ai_payload)
+                                    logger.info(f"🤖 Scheduling background AI processing for {intent} item {supabase_saved_id} via {AI_BACKEND_URL}")
+                                    background_tasks.add_task(trigger_ai_backend_processing, AI_BACKEND_URL, ai_payload)
 
                         except Exception as ai_err:
                             logger.warning(f"AI indexing failed (non-fatal): {ai_err}")

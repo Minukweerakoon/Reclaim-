@@ -284,6 +284,7 @@ function ChatbotPage() {
             const timeout = window.setTimeout(() => controller.abort(), 90000);
 
             try {
+                const defaultMcT = Number((import.meta.env.VITE_AI_MC_T as string) || 5);
                 const processResponse = await fetch(processEndpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -293,6 +294,7 @@ function ChatbotPage() {
                         image_url: payload.image_url,
                         user_category: payload.user_category || undefined,
                         k: 5,
+                        mc_T: Number.isFinite(defaultMcT) ? defaultMcT : 5,
                     }),
                     signal: controller.signal,
                 });
