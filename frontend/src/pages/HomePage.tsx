@@ -37,6 +37,7 @@ export function HomePage({ onNavigate, user, onSignOut, showAdminLink }) {
         { label: 'Accuracy', value: '94%' },
         { label: 'Reporting Users', value: statsLoading ? '...' : '0' },
     ];
+    const statValueByLabel = Object.fromEntries(statsCards.map((card) => [card.label, card.value]));
 
     return (
         <div className="min-h-screen w-full bg-[#08080f] text-white relative overflow-x-hidden">
@@ -82,13 +83,21 @@ export function HomePage({ onNavigate, user, onSignOut, showAdminLink }) {
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-24 max-w-4xl mx-auto">
-                    {statsCards.map((stat, i) => (
-                        <div key={i} className="glass-panel p-6 rounded-2xl text-center">
-                            <div className="text-2xl md:text-3xl font-bold text-white mb-1">{stat.value}</div>
-                            <div className="text-xs text-slate-400 uppercase tracking-wider">{stat.label}</div>
+                <div className="mb-24 max-w-4xl mx-auto">
+                    <div className="glass-panel p-6 md:p-8 rounded-2xl text-center mb-3 md:mb-4">
+                        <div className="text-2xl md:text-3xl font-bold text-white mb-1">{statValueByLabel['Accuracy']}</div>
+                        <div className="text-xs text-slate-400 uppercase tracking-wider">Accuracy</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 md:gap-4">
+                        <div className="glass-panel p-4 md:p-5 rounded-2xl text-center">
+                            <div className="text-xl md:text-2xl font-bold text-white mb-1">{statValueByLabel['Total Reports']}</div>
+                            <div className="text-[10px] md:text-xs text-slate-400 uppercase tracking-wider">Total Reports</div>
                         </div>
-                    ))}
+                        <div className="glass-panel p-4 md:p-5 rounded-2xl text-center">
+                            <div className="text-xl md:text-2xl font-bold text-white mb-1">{statValueByLabel['Reporting Users']}</div>
+                            <div className="text-[10px] md:text-xs text-slate-400 uppercase tracking-wider">Reporting Users</div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Features */}
