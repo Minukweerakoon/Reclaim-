@@ -230,6 +230,45 @@ function ChatbotPage() {
     }, [selectedMatch]);
 
     useEffect(() => {
+        if (!selectedMatch) return;
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setSelectedMatch(null);
+            }
+        };
+
+        const lockScrollY = window.scrollY;
+        const previousBody = {
+            position: document.body.style.position,
+            top: document.body.style.top,
+            width: document.body.style.width,
+            overflow: document.body.style.overflow,
+        };
+        const previousHtmlOverflow = document.documentElement.style.overflow;
+
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${lockScrollY}px`;
+        document.body.style.width = '100%';
+        document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
+
+        window.addEventListener('keydown', handleEscape);
+
+        return () => {
+            window.removeEventListener('keydown', handleEscape);
+
+            document.body.style.position = previousBody.position;
+            document.body.style.top = previousBody.top;
+            document.body.style.width = previousBody.width;
+            document.body.style.overflow = previousBody.overflow;
+            document.documentElement.style.overflow = previousHtmlOverflow;
+
+            window.scrollTo(0, lockScrollY);
+        };
+    }, [selectedMatch]);
+
+    useEffect(() => {
         if (!initialIntent) return;
 
         // Always trust explicit URL intent. If it differs from the store,
@@ -949,9 +988,15 @@ function ChatbotPage() {
 
             {/* Global Contact Details Modal */}
             {selectedMatch && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-                    <div className="w-full max-w-3xl rounded-2xl border border-white/10 bg-[#111827] shadow-[0_24px_80px_rgba(0,0,0,0.55)] overflow-hidden animate-fade-in">
-                        <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
+                <div
+                    className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4 py-6"
+                    onClick={() => setSelectedMatch(null)}
+                >
+                    <div
+                        className="w-full max-w-3xl max-h-[92vh] rounded-2xl border border-white/10 bg-[#111827] shadow-[0_24px_80px_rgba(0,0,0,0.55)] overflow-hidden animate-fade-in flex flex-col"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b border-white/10 bg-[#111827]">
                             <h3 className="text-white font-semibold text-lg">Matched Item Contact Details</h3>
                             <button
                                 onClick={() => setSelectedMatch(null)}
@@ -960,7 +1005,7 @@ function ChatbotPage() {
                                 Close
                             </button>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-0 overflow-y-auto">
                             <div className="p-4 border-r border-white/10">
                                 <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-black/30 border border-white/10">
                                     {(() => {
