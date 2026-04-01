@@ -52,6 +52,8 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+CANDIDATE_IMAGE_TIMEOUT = float(os.getenv("CANDIDATE_IMAGE_TIMEOUT", "5"))
+MAX_CLIP_CANDIDATES = int(os.getenv("MAX_CLIP_CANDIDATES", "3"))
 
 # =========================================================
 # FASTAPI
@@ -274,19 +276,19 @@ def rebuild_faiss_for_type(item_type: str):
 # UTILITIES
 # =========================================================
 
-def download_image(url: str) -> Image.Image:
+def download_image(url: str, timeout: float = 20, retries: int = 3) -> Image.Image:
     headers = {"User-Agent": "Mozilla/5.0"}
     last_error: Optional[Exception] = None
 
     # Transient network errors to Supabase/CDN do happen; retry before failing.
-    for attempt in range(1, 4):
+    for attempt in range(1, retries + 1):
         try:
-            r = requests.get(url, timeout=20, headers=headers)
+            r = requests.get(url, timeout=timeout, headers=headers)
             r.raise_for_status()
             return Image.open(io.BytesIO(r.content)).convert("RGB")
         except Exception as e:
             last_error = e
-            if attempt < 3:
+            if attempt < retries:
                 time.sleep(0.5 * attempt)
 
     raise HTTPException(
@@ -316,19 +318,43 @@ def metric_embed(img):
 
 @torch.no_grad()
 def clip_sim(query_img, urls):
+    if not urls:
+        return np.array([], dtype=np.float32)
+
     q = clip_preprocess(query_img).unsqueeze(0).to(DEVICE)  # type: ignore[operator]
     q = clip_model.encode_image(q)  # type: ignore[operator]
     q = F.normalize(q, dim=-1)
 
-    sims = []
-    for u in urls:
-        img = download_image(u)
-        x = clip_preprocess(img).unsqueeze(0).to(DEVICE)  # type: ignore[operator]
-        c = clip_model.encode_image(x)  # type: ignore[operator]
-        c = F.normalize(c, dim=-1)
-        sims.append((q @ c.T).item())
+    # Download only a small subset of candidates and keep neutral scores for the rest.
+    # This avoids long network-bound delays when external image URLs are slow.
+    limited_urls = urls[:MAX_CLIP_CANDIDATES]
+    candidate_tensors = []
+    valid_positions = []
 
-    return np.array(sims, dtype=np.float32)
+    for pos, u in enumerate(limited_urls):
+        try:
+            img = download_image(u, timeout=CANDIDATE_IMAGE_TIMEOUT, retries=1)
+            x = clip_preprocess(img).unsqueeze(0).to(DEVICE)  # type: ignore[operator]
+            candidate_tensors.append(x)
+            valid_positions.append(pos)
+        except Exception as e:
+            logger.warning("[CLIP] Candidate download failed for %s: %s", u, e)
+
+    # Neutral fallback score for skipped/failed candidates.
+    sims_full = np.full(len(urls), 0.5, dtype=np.float32)
+
+    if not candidate_tensors:
+        return sims_full
+
+    batch = torch.cat(candidate_tensors, dim=0)
+    c = clip_model.encode_image(batch)  # type: ignore[operator]
+    c = F.normalize(c, dim=-1)
+    batch_sims = (q @ c.T).squeeze(0).detach().cpu().numpy()
+
+    for pos, sim in zip(valid_positions, batch_sims):
+        sims_full[pos] = float(sim)
+
+    return sims_full
 
 def minmax(x):
     if len(x) == 0:
