@@ -719,7 +719,7 @@ function ChatbotPage() {
     return (
         <div className="animate-fade-in">
             {/* Page Title */}
-            <div className="mb-8 text-center">
+            <div className="mb-6 md:mb-8 text-center px-1">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-medium mb-4">
                     <span className="relative flex h-2 w-2">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
@@ -727,17 +727,17 @@ function ChatbotPage() {
                     </span>
                     Conversation Phase
                 </div>
-                <h1 className="text-4xl md:text-5xl font-bold mb-3 tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400">
                     Describe Your Item
                 </h1>
-                <p className="text-slate-400 max-w-2xl mx-auto">
+                <p className="text-slate-400 text-sm md:text-base max-w-2xl mx-auto">
                     Tell me about the {intent === 'lost' ? 'lost' : intent === 'found' ? 'found' : ''} item. I'll guide you through gathering the details.
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4 md:gap-6">
                 {/* ── Chat Panel ── */}
-                <section className="glass-panel rounded-2xl p-6 flex flex-col">
+                <section className="order-2 lg:order-1 glass-panel rounded-2xl p-4 md:p-6 flex flex-col">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-5 pb-4 border-b border-white/10">
                         <div>
@@ -752,11 +752,15 @@ function ChatbotPage() {
                     </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                <div className="flex-1 overflow-y-auto max-h-[56vh] lg:max-h-none space-y-4 pr-1">
                     {messages.map((message, index) => (
                         <div key={message.id || index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
                             <div
-                                className={`${message.role === 'user' ? 'max-w-[72%]' : Array.isArray(message.matchResults) && message.matchResults.length > 0 ? 'max-w-[88%]' : 'max-w-[72%]'} rounded-2xl px-4 py-3 ${message.role === 'user'
+                                className={`${message.role === 'user'
+                                    ? 'max-w-[88%] md:max-w-[72%]'
+                                    : Array.isArray(message.matchResults) && message.matchResults.length > 0
+                                        ? 'w-full max-w-full md:max-w-[94%]'
+                                        : 'max-w-[88%] md:max-w-[72%]'} rounded-2xl px-4 py-3 ${message.role === 'user'
                                     ? 'text-white rounded-br-none'
                                     : 'text-slate-100 rounded-bl-none'
                                     }`}
@@ -840,7 +844,7 @@ function ChatbotPage() {
                 )}
 
                 {/* Input bar */}
-                <div className="mt-3 flex items-end gap-3">
+                <div className="mt-3 flex items-end gap-2 md:gap-3">
                     <input
                         type="file"
                         accept="image/*"
@@ -877,7 +881,7 @@ function ChatbotPage() {
                         type="button"
                         onClick={handleSend}
                         disabled={isTyping || isCheckingImage || !input.trim()}
-                        className="px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white rounded-xl transition-all duration-200 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="px-4 md:px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white rounded-xl transition-all duration-200 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                         style={{ background: 'var(--accent-primary)', boxShadow: '0 4px 16px rgba(99,102,241,0.3)' }}
                     >
                         <span>Send</span>
@@ -892,7 +896,7 @@ function ChatbotPage() {
             </section>
 
             {/* ── Sidebar: Collected Summary ── */}
-            <aside className="glass-panel rounded-2xl p-6 flex flex-col gap-5">
+            <aside className="order-1 lg:order-2 glass-panel rounded-2xl p-4 md:p-6 flex flex-col gap-5">
                 {/* Summary */}
                 <div>
                     <div className="text-[11px] uppercase tracking-[0.3em] text-slate-400 mb-2">Collected Summary</div>
