@@ -123,9 +123,9 @@ jobs:
               done
             }
 
-            retry curl -fsS "http://127.0.0.1:8000/health" >/dev/null
-            retry curl -fsS "http://127.0.0.1:8001/openapi.json" >/dev/null
-            retry curl -fsS "http://127.0.0.1:5000/api/health" >/dev/null
+            retry curl -fsS "https://kumesha-production.up.railway.app/health" >/dev/null
+            retry curl -fsS "https://minuk-production.up.railway.app/openapi.json" >/dev/null
+            retry curl -fsS "https://voshan-production.up.railway.app/api/voshan/detection/health" >/dev/null
 
             echo "Deployment complete and health checks passed."
           EOF

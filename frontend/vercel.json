@@ -1,46 +1,6 @@
 {
   "rewrites": [
     {
-      "source": "/api/voshan/(.*)",
-      "destination": "http://204.168.158.144:5000/api/voshan/$1"
-    },
-    {
-      "source": "/api/(.*)",
-      "destination": "http://204.168.158.144:8000/api/$1"
-    },
-    {
-      "source": "/validate/(.*)",
-      "destination": "http://204.168.158.144:8000/validate/$1"
-    },
-    {
-      "source": "/health",
-      "destination": "http://204.168.158.144:8000/health"
-    },
-    {
-      "source": "/results/(.*)",
-      "destination": "http://204.168.158.144:8000/results/$1"
-    },
-    {
-      "source": "/metrics",
-      "destination": "http://204.168.158.144:8000/metrics"
-    },
-    {
-      "source": "/items/process",
-      "destination": "http://204.168.158.144:8001/items/process"
-    },
-    {
-      "source": "/items/(.*)",
-      "destination": "http://204.168.158.144:8000/items/$1"
-    },
-    {
-      "source": "/xai/(.*)",
-      "destination": "http://204.168.158.144:8000/xai/$1"
-    },
-    {
-      "source": "/reports/(.*)",
-      "destination": "http://204.168.158.144:8000/reports/$1"
-    },
-    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
