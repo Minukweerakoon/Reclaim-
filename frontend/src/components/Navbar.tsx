@@ -31,7 +31,7 @@ export function Navbar({ currentPage = 'chat', onNavigate, user, onSignOut, show
                     <Sparkles className="w-5 h-5 text-indigo-400" />
                     <div className="absolute inset-0 rounded-lg shadow-[0_0_15px_rgba(99,102,241,0.3)] opacity-50 group-hover:opacity-100 transition-opacity" />
                 </div>
-                <span className="text-xl font-bold text-white tracking-tight">Reclaim<span className="text-indigo-400">.AI</span></span>
+                <span className="text-xl font-bold text-white tracking-tight">Reclaim</span>
             </div>
 
             {/* Nav Items — scroll to sections, do NOT navigate to chat */}
