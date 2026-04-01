@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { chatApi } from '../api/chat';
 import { validationApi } from '../api/validation';
 import { formatErrorMessage } from '../components/ErrorMessage';
@@ -116,6 +117,11 @@ const detectExplicitIntent = (message: string): 'lost' | 'found' | null => {
     if (foundMatch && !lostMatch) return 'found';
     if (lostMatch && !foundMatch) return 'lost';
     return null;
+};
+
+const userHasNoImage = (message: string) => {
+    const text = message.toLowerCase();
+    return /\b(no image|no photo|without image|without photo|don'?t have (an )?image|don'?t have (a )?photo|do not have (an )?image|can't upload (an )?image|cannot upload (an )?image)\b/.test(text);
 };
 
 const isSensitiveCardCategory = (category: string) => {
@@ -413,10 +419,10 @@ function ChatbotPage() {
     useEffect(() => {
         if (messages.length === 0) {
             const greeting = intent === 'found'
-                ? "You found something. Tell me what it is and where you picked it up."
+                ? "You found something. First, upload an image of the item. If you don't have one, upload a similar image from Google. Then tell me what it is and where you picked it up."
                 : intent === 'lost'
-                    ? "I'm here to help. Describe what you lost and where you last saw it."
-                    : "Describe the lost or found item, and I'll guide you through the report.";
+                    ? "I'm here to help. First, upload an image of the item. If you don't have one, upload a similar image from Google. Then describe what you lost and where you last saw it."
+                    : "First, upload an image of the item. If you don't have one, upload a similar image from Google. Then describe the lost or found item and I'll guide you through the report.";
 
             setMessages([{
                 role: 'bot',
@@ -453,8 +459,8 @@ function ChatbotPage() {
             setIntent(explicitIntent);
 
             const restartMessage = explicitIntent === 'found'
-                ? "Starting a fresh found-item report. Tell me what you found and where you picked it up."
-                : "Starting a fresh lost-item report. Tell me what you lost and where you last saw it.";
+                ? "Starting a fresh found-item report. First upload an image (or a similar Google image), then tell me what you found and where."
+                : "Starting a fresh lost-item report. First upload an image (or a similar Google image), then tell me what you lost and where you last saw it.";
 
             setMessages([
                 {
@@ -507,9 +513,16 @@ function ChatbotPage() {
             const userText = userMessage.content.toLowerCase().trim();
             const dontKnowPatterns = /^(no|nope|nah|not?|don'?t know|not sure|can'?t remember|no idea|don'?t have|unknown|forgot|unsure|not found|nothing|none|i don'?t|don'?t remember)$/i;
             const userDoesntKnow = dontKnowPatterns.test(userText) || /\b(don'?t know|not sure|can'?t remember|no idea|don'?t have|unknown|forgot|unsure|not found|nothing)\b/i.test(userText);
+            const missingImage = !pendingImage;
+            const noImageFromUser = userHasNoImage(userText);
 
             // Generate follow-up question if fields are missing (but skip if user doesn't know)
             let followUpQuestion = '';
+            if (missingImage) {
+                followUpQuestion = noImageFromUser
+                    ? ' Please upload a similar reference image from Google (a screenshot is fine), then continue.'
+                    : " Please upload an image of the item first. If you don't have one, upload a similar reference image from Google.";
+            }
             if (response.intention) {
                 const requiredFields = [
                     { key: 'item_type', label: 'What kind of item is this?', critical: true },
@@ -524,7 +537,7 @@ function ChatbotPage() {
                     .filter(f => f.critical)
                     .every(f => updatedExtractedInfo[f.key] && updatedExtractedInfo[f.key].trim() !== '');
 
-                if (!userDoesntKnow) {
+                if (!userDoesntKnow && !followUpQuestion) {
                     // Find first missing field
                     for (const field of requiredFields) {
                         if (!updatedExtractedInfo[field.key] || updatedExtractedInfo[field.key].trim() === '') {
@@ -532,7 +545,7 @@ function ChatbotPage() {
                             break;
                         }
                     }
-                } else {
+                } else if (!followUpQuestion) {
                     // User doesn't know current field, skip to next missing one
                     let skippedOne = false;
                     for (const field of requiredFields) {
@@ -949,17 +962,27 @@ function ChatbotPage() {
                     style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                     <div className="text-[11px] uppercase tracking-[0.3em] text-slate-400 mb-3">Field Status</div>
                     <div className="flex flex-wrap gap-2">
-                        {['item_type', 'color', 'brand', 'location', 'time'].map((field) => {
-                            const isCaptured = !!extractedInfo?.[field];
+                        {[
+                            { key: 'image_upload', label: 'image upload', isCaptured: !!pendingImage, isHighPriority: true },
+                            { key: 'item_type', label: 'item type', isCaptured: !!extractedInfo?.item_type },
+                            { key: 'color', label: 'color', isCaptured: !!extractedInfo?.color },
+                            { key: 'brand', label: 'brand', isCaptured: !!extractedInfo?.brand },
+                            { key: 'location', label: 'location', isCaptured: !!extractedInfo?.location },
+                            { key: 'time', label: 'time', isCaptured: !!extractedInfo?.time },
+                        ].map((field) => {
                             return (
                                 <span
-                                    key={field}
+                                    key={field.key}
                                     className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full font-medium transition-colors"
-                                    style={isCaptured
-                                        ? { background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.35)' }
-                                        : { background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.08)' }}
+                                    style={field.isHighPriority
+                                        ? (field.isCaptured
+                                            ? { background: 'rgba(239,68,68,0.2)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.5)' }
+                                            : { background: 'rgba(239,68,68,0.12)', color: 'rgba(252,165,165,0.95)', border: '1px solid rgba(239,68,68,0.45)' })
+                                        : (field.isCaptured
+                                            ? { background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.35)' }
+                                            : { background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.08)' })}
                                 >
-                                    {isCaptured ? '✓ ' : '× '}{field.replace('_', ' ')}
+                                    {field.isCaptured ? '✓ ' : '× '}{field.label}
                                 </span>
                             );
                         })}
@@ -987,9 +1010,9 @@ function ChatbotPage() {
             </div>
 
             {/* Global Contact Details Modal */}
-            {selectedMatch && (
+            {selectedMatch && typeof document !== 'undefined' && createPortal((
                 <div
-                    className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4 py-6"
+                    className="fixed inset-0 z-[220] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4 py-6"
                     onClick={() => setSelectedMatch(null)}
                 >
                     <div
@@ -1085,7 +1108,7 @@ function ChatbotPage() {
                         </div>
                     </div>
                 </div>
-            )}
+            ), document.body)}
         </div>
     );
 }
