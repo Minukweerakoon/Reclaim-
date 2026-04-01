@@ -507,6 +507,7 @@ class ItemsProcessRequest(BaseModel):
     image_url: str = Field(..., description="URL of the item image")
     user_category: Optional[str] = Field(None, description="User-specified category")
     k: int = Field(5, description="Number of matches to return")
+    mc_T: int = Field(20, description="Monte Carlo iterations for uncertainty")
 
 
 # Helper functions
@@ -2710,6 +2711,7 @@ async def items_process(req: ItemsProcessRequest):
             "item_type": req.item_type,
             "image_url": req.image_url,
             "k": req.k,
+            "mc_T": req.mc_T,
         }
         if req.user_category:
             payload["user_category"] = req.user_category
