@@ -2716,7 +2716,7 @@ async def items_process(req: ItemsProcessRequest):
         if req.user_category:
             payload["user_category"] = req.user_category
 
-        response = requests.post(AI_BACKEND_URL, json=payload, timeout=30)
+        response = requests.post(AI_BACKEND_URL, json=payload, timeout=90)
         
         if response.status_code != 200:
             logger.error(f"[ITEMS/PROCESS] Minuk returned {response.status_code}: {response.text}")

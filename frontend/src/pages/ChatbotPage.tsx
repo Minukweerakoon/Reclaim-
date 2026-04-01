@@ -281,7 +281,7 @@ function ChatbotPage() {
 
         for (let attempt = 1; attempt <= 2; attempt += 1) {
             const controller = new AbortController();
-            const timeout = window.setTimeout(() => controller.abort(), 20000);
+            const timeout = window.setTimeout(() => controller.abort(), 90000);
 
             try {
                 const processResponse = await fetch(processEndpoint, {
