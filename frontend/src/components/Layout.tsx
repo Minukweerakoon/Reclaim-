@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { healthApi } from '../api/health';
 import { useAuth } from '../contexts/AuthContext';
-import { Sparkles } from 'lucide-react';
 import { ProfileDropdown } from './ProfileDropdown';
+import reclaimLogo from '../assets/reclaim-logo.png';
 
 function Layout() {
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -55,10 +55,7 @@ function Layout() {
             <header className="fixed top-0 left-0 right-0 z-50 glass-panel-heavy backdrop-blur-xl border-b border-white/10">
                 <div className="px-6 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-2 group cursor-pointer" onClick={() => navigate('/reclaim')}>
-                        <div className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-500/10 group-hover:bg-indigo-500/20 transition-colors">
-                            <Sparkles className="w-5 h-5 text-indigo-400" />
-                            <div className="absolute inset-0 rounded-lg shadow-[0_0_15px_rgba(99,102,241,0.3)] opacity-50 group-hover:opacity-100 transition-opacity" />
-                        </div>
+                        <img src={reclaimLogo} alt="Reclaim logo" className="w-8 h-8 object-contain" />
                         <div>
                             <div className="text-xl font-bold text-white tracking-tight">Reclaim</div>
                             <div className="text-[10px] text-slate-400 uppercase tracking-widest">AI-Powered Lost &amp; Found</div>

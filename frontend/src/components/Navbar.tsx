@@ -1,8 +1,9 @@
 // @ts-nocheck
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Sparkles } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { ProfileDropdown } from './ProfileDropdown';
+import reclaimLogo from '../assets/reclaim-logo.png';
 
 export function Navbar({ currentPage = 'chat', onNavigate, user, onSignOut, showAdminLink }) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -27,10 +28,7 @@ export function Navbar({ currentPage = 'chat', onNavigate, user, onSignOut, show
         <nav className="fixed top-0 left-0 right-0 h-16 glass-nav z-50 flex items-center justify-between px-4 md:px-8">
             {/* Logo */}
             <div className="flex items-center gap-2 group cursor-pointer" onClick={() => onNavigate?.('home')}>
-                <div className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-500/10 group-hover:bg-indigo-500/20 transition-colors">
-                    <Sparkles className="w-5 h-5 text-indigo-400" />
-                    <div className="absolute inset-0 rounded-lg shadow-[0_0_15px_rgba(99,102,241,0.3)] opacity-50 group-hover:opacity-100 transition-opacity" />
-                </div>
+                <img src={reclaimLogo} alt="Reclaim logo" className="w-8 h-8 object-contain" />
                 <span className="text-xl font-bold text-white tracking-tight">Reclaim</span>
             </div>
 
