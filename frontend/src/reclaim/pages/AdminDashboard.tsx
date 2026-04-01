@@ -1,9 +1,10 @@
 // @ts-nocheck
 import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Upload, Bell, History, ShieldAlert, Filter } from 'lucide-react';
+import { ArrowLeft, Upload, Bell, History, Filter } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { voshanDetectionApi, getVoshanWsUrl } from '../api/voshanDetectionApi';
+import reclaimLogo from '../../assets/reclaim-logo.png';
 
 /** Build URL for alert frame image (ML service saves to alert_frames/; Node serves at /api/voshan/detection/alert-frames/) */
 function getAlertFrameUrl(alert: { frame_url?: string; frame_image?: string; frameImage?: string }): string | null {
@@ -262,109 +263,120 @@ export function AdminDashboard({ user, onSignOut }) {
   };
 
   const displayName = user?.user_metadata?.full_name || user?.email || 'Admin';
+  const avatarUrl = user?.user_metadata?.avatar_url ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(String(displayName))}`;
 
   return (
     <div className="min-h-screen bg-[#08080f] text-white">
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#08080f]/90 backdrop-blur flex items-center justify-between px-4 md:px-8 h-16">
-        <div className="flex items-center gap-4">
-          <Link to="/reclaim" className="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white">
+      <header className="fixed top-0 left-0 right-0 z-50 glass-panel-heavy backdrop-blur-xl border-b border-white/10">
+        <div className="h-16 flex items-center justify-between px-4 md:px-6 gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <Link to="/reclaim" className="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="w-6 h-6 text-amber-400" />
-            <h1 className="text-lg font-semibold">Suspicious Behavior – Admin</h1>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative" ref={notificationPanelRef}>
-            <button
-              type="button"
-              onClick={() => setNotificationPanelOpen((o) => !o)}
-              className="relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
-              aria-label="Notifications"
-            >
-              <Bell className="w-5 h-5" />
-              {notifications.some((n) => !n.read) && (
-                <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-black">
-                  {notifications.filter((n) => !n.read).length > 99 ? '99+' : notifications.filter((n) => !n.read).length}
-                </span>
-              )}
-            </button>
-            {notificationPanelOpen && (
-              <div className="absolute right-0 top-full mt-1 w-80 max-h-[70vh] overflow-hidden rounded-xl border border-white/10 bg-[#0f0f18] shadow-xl z-50 flex flex-col">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-                  <span className="font-medium text-sm">Notifications</span>
-                  <div className="flex gap-1">
-                    {notifications.some((n) => !n.read) && (
-                      <button
-                        type="button"
-                        onClick={markAllNotificationsRead}
-                        className="text-xs text-amber-400 hover:text-amber-300"
-                      >
-                        Mark read
-                      </button>
-                    )}
-                    {notifications.length > 0 && (
-                      <>
-                        <span className="text-white/30">·</span>
-                        <button type="button" onClick={clearNotifications} className="text-xs text-slate-400 hover:text-white">
-                          Clear
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <ul className="overflow-y-auto flex-1">
-                  {notifications.length === 0 ? (
-                    <li className="px-4 py-6 text-center text-sm text-slate-500">No notifications yet</li>
-                  ) : (
-                    notifications.map((n) => (
-                      <li
-                        key={n.id}
-                        className={`px-4 py-3 border-b border-white/5 last:border-0 ${n.read ? 'opacity-70' : 'bg-amber-500/5'}`}
-                      >
-                        <p className="font-medium text-sm">{n.type}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">{n.message}</p>
-                        {n.frameImages && n.frameImages.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {n.frameImages.slice(0, 6).map((fn, i) => {
-                              const src = `${voshanDetectionApi.baseUrl}/voshan/detection/alert-frames/${fn}`;
-                              return (
-                                <button key={i} type="button" onClick={() => setLightboxImage(src)} className="rounded overflow-hidden focus:ring-2 ring-amber-400">
-                                  <img src={src} alt="" className="w-12 h-9 object-cover bg-black/20" />
-                                </button>
-                              );
-                            })}
-                            {n.frameImages.length > 6 && (
-                              <span className="text-[10px] text-slate-500 self-center">+{n.frameImages.length - 6}</span>
-                            )}
-                          </div>
-                        )}
-                        <p className="text-[10px] text-slate-500 mt-1">
-                          {new Date(n.timestamp).toLocaleTimeString()}
-                          {n.cameraId ? ` · ${n.cameraId}` : ''}
-                        </p>
-                        <span
-                          className={`inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded ${
-                            n.severity === 'HIGH' ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300'
-                          }`}
-                        >
-                          {n.severity}
-                        </span>
-                      </li>
-                    ))
-                  )}
-                </ul>
+            <div className="flex items-center gap-2 min-w-0">
+              <img src={reclaimLogo} alt="Reclaim logo" className="w-8 h-8 object-contain rounded-lg" />
+              <div className="min-w-0">
+                <div className="text-xl font-bold text-white tracking-tight leading-none">Reclaim</div>
+                <div className="text-[10px] text-slate-400 uppercase tracking-[0.2em] mt-1">Admin Dashboard</div>
               </div>
-            )}
+            </div>
           </div>
-          <span className="text-sm text-slate-400 hidden sm:block">{displayName}</span>
-          <button
-            onClick={onSignOut}
-            className="px-3 py-1.5 text-sm rounded-lg bg-white/10 hover:bg-white/20"
-          >
-            Sign out
-          </button>
+          <div className="flex items-center gap-3 md:gap-4">
+            <div className="w-2.5 h-2.5 rounded-full bg-neon-green animate-pulse" />
+            <div className="relative" ref={notificationPanelRef}>
+              <button
+                type="button"
+                onClick={() => setNotificationPanelOpen((o) => !o)}
+                className="relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+                aria-label="Notifications"
+              >
+                <Bell className="w-5 h-5" />
+                {notifications.some((n) => !n.read) && (
+                  <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-black">
+                    {notifications.filter((n) => !n.read).length > 99 ? '99+' : notifications.filter((n) => !n.read).length}
+                  </span>
+                )}
+              </button>
+              {notificationPanelOpen && (
+                <div className="absolute right-0 top-full mt-1 w-80 max-h-[70vh] overflow-hidden rounded-xl border border-white/10 bg-[#0f0f18] shadow-xl z-50 flex flex-col">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                    <span className="font-medium text-sm">Notifications</span>
+                    <div className="flex gap-1">
+                      {notifications.some((n) => !n.read) && (
+                        <button
+                          type="button"
+                          onClick={markAllNotificationsRead}
+                          className="text-xs text-amber-400 hover:text-amber-300"
+                        >
+                          Mark read
+                        </button>
+                      )}
+                      {notifications.length > 0 && (
+                        <>
+                          <span className="text-white/30">·</span>
+                          <button type="button" onClick={clearNotifications} className="text-xs text-slate-400 hover:text-white">
+                            Clear
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <ul className="overflow-y-auto flex-1">
+                    {notifications.length === 0 ? (
+                      <li className="px-4 py-6 text-center text-sm text-slate-500">No notifications yet</li>
+                    ) : (
+                      notifications.map((n) => (
+                        <li
+                          key={n.id}
+                          className={`px-4 py-3 border-b border-white/5 last:border-0 ${n.read ? 'opacity-70' : 'bg-amber-500/5'}`}
+                        >
+                          <p className="font-medium text-sm">{n.type}</p>
+                          <p className="text-xs text-slate-400 mt-0.5">{n.message}</p>
+                          {n.frameImages && n.frameImages.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {n.frameImages.slice(0, 6).map((fn, i) => {
+                                const src = `${voshanDetectionApi.baseUrl}/voshan/detection/alert-frames/${fn}`;
+                                return (
+                                  <button key={i} type="button" onClick={() => setLightboxImage(src)} className="rounded overflow-hidden focus:ring-2 ring-amber-400">
+                                    <img src={src} alt="" className="w-12 h-9 object-cover bg-black/20" />
+                                  </button>
+                                );
+                              })}
+                              {n.frameImages.length > 6 && (
+                                <span className="text-[10px] text-slate-500 self-center">+{n.frameImages.length - 6}</span>
+                              )}
+                            </div>
+                          )}
+                          <p className="text-[10px] text-slate-500 mt-1">
+                            {new Date(n.timestamp).toLocaleTimeString()}
+                            {n.cameraId ? ` · ${n.cameraId}` : ''}
+                          </p>
+                          <span
+                            className={`inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded ${
+                              n.severity === 'HIGH' ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300'
+                            }`}
+                          >
+                            {n.severity}
+                          </span>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <span className="text-sm text-slate-400 hidden md:block">{displayName}</span>
+            <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-indigo-500/30">
+              <img src={avatarUrl} alt={String(displayName)} className="w-full h-full object-cover" />
+            </div>
+            <button
+              onClick={onSignOut}
+              className="px-3 py-1.5 text-sm rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </header>
 
@@ -401,7 +413,7 @@ export function AdminDashboard({ user, onSignOut }) {
         ))}
       </div>
 
-      <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
+      <main className="max-w-5xl mx-auto px-4 pt-24 pb-8 space-y-8">
         {health && (
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2 text-sm">
