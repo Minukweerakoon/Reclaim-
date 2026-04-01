@@ -1,5 +1,6 @@
 // @ts-nocheck
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Shield } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabaseClient';
 import reclaimLogo from '../assets/reclaim-logo.png';
@@ -90,7 +91,7 @@ export function LoginPage({ onBack }) {
                     </div>
                 </div>
                 <p className="text-center text-[11px] text-slate-600 mt-4">
-                    By continuing, you agree to our <a href="#" className="text-slate-400 hover:text-white transition-colors">Terms</a> and <a href="#" className="text-slate-400 hover:text-white transition-colors">Privacy Policy</a>
+                    By continuing, you agree to our <Link to="/terms" className="text-slate-400 hover:text-white transition-colors">Terms</Link> and <Link to="/privacy" className="text-slate-400 hover:text-white transition-colors">Privacy Policy</Link>
                 </p>
             </div>
         </div>

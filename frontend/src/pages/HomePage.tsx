@@ -136,9 +136,9 @@ export function HomePage({ onNavigate, user, onSignOut, showAdminLink }) {
                 <div className="max-w-7xl mx-auto px-4 md:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="text-slate-500 text-sm">© 2026 Reclaim AI. All rights reserved.</div>
                     <div className="flex gap-6 text-sm text-slate-400">
-                        <a href="#" className="hover:text-white transition-colors">Privacy</a>
-                        <a href="#" className="hover:text-white transition-colors">Terms</a>
-                        <a href="#" className="hover:text-white transition-colors">Support</a>
+                        <Link to="/privacy" className="hover:text-white transition-colors">Privacy</Link>
+                        <Link to="/terms" className="hover:text-white transition-colors">Terms</Link>
+                        <a href="mailto:support@reclaim.ai" className="hover:text-white transition-colors">Support</a>
                     </div>
                 </div>
             </footer>

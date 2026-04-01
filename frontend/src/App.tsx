@@ -5,6 +5,8 @@ import Chat from './pages/Chat';
 import ChatbotPage from './pages/ChatbotPage';
 import IntentSelectionPage from './pages/IntentSelectionPage';
 import Monitor from './pages/Monitor';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import TermsPage from './pages/TermsPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import ReclaimApp from './reclaim/ReclaimApp';
@@ -18,6 +20,10 @@ function App() {
         <PhoneNumberGate />
         <Routes>
           <Route path="/login" element={<Navigate to="/reclaim" replace />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/reclaim/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/reclaim/terms" element={<TermsPage />} />
 
 
           {/* Group project Reclaim UI — manages its own auth flow internally */}
