@@ -500,6 +500,15 @@ class EnhancedXAIRequest(BaseModel):
     include_discrepancies: bool = Field(True, description="Include multi-dimensional discrepancy checks")
 
 
+class ItemsProcessRequest(BaseModel):
+    """Request for items/process endpoint (AI retrieval/matching)"""
+    item_id: str = Field(..., description="Unique identifier for the item")
+    item_type: str = Field(..., description="Type of item: 'lost' or 'found'")
+    image_url: str = Field(..., description="URL of the item image")
+    user_category: Optional[str] = Field(None, description="User-specified category")
+    k: int = Field(5, description="Number of matches to return")
+
+
 # Helper functions
 def save_uploaded_file(upload_file: UploadFile) -> str:
     """
@@ -2677,6 +2686,61 @@ from fastapi.responses import HTMLResponse
 # Serve static files (React build)
 # Use absolute paths to avoid working directory issues
 current_dir = os.path.dirname(os.path.abspath(__file__))
+# ============ ITEMS/PROCESS ENDPOINT — Proxy to Minuk ============
+@app.post("/items/process")
+async def items_process(req: ItemsProcessRequest):
+    """
+    Proxy endpoint that forwards retrieval requests to Minuk AI service.
+    Called by frontend for image matching and lost/found item retrieval.
+    """
+    try:
+        AI_BACKEND_URL = os.getenv("AI_BACKEND_URL", "").strip()
+        if not AI_BACKEND_URL:
+            logger.error("AI_BACKEND_URL not configured; cannot call Minuk")
+            return JSONResponse(
+                status_code=503,
+                content={"error": "AI backend not configured", "results": []},
+            )
+
+        # Forward request to Minuk
+        logger.info(f"[ITEMS/PROCESS] Forwarding to Minuk: item_id={req.item_id}, type={req.item_type}, k={req.k}")
+        
+        payload = {
+            "item_id": req.item_id,
+            "item_type": req.item_type,
+            "image_url": req.image_url,
+            "k": req.k,
+        }
+        if req.user_category:
+            payload["user_category"] = req.user_category
+
+        response = requests.post(AI_BACKEND_URL, json=payload, timeout=30)
+        
+        if response.status_code != 200:
+            logger.error(f"[ITEMS/PROCESS] Minuk returned {response.status_code}: {response.text}")
+            return JSONResponse(
+                status_code=response.status_code,
+                content={"error": f"AI service error: {response.status_code}", "results": []},
+            )
+
+        result = response.json()
+        logger.info(f"[ITEMS/PROCESS] Minuk returned {len(result.get('results', []))} matches")
+        return result
+
+    except requests.exceptions.Timeout:
+        logger.error("[ITEMS/PROCESS] Minuk request timeout")
+        return JSONResponse(
+            status_code=504,
+            content={"error": "AI service timeout", "results": []},
+        )
+    except Exception as e:
+        logger.error(f"[ITEMS/PROCESS] Exception: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "results": []},
+        )
+
+
 dist_dir = os.path.join(current_dir, "frontend", "dist")
 assets_dir = os.path.join(dist_dir, "assets")
 
