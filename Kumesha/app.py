@@ -2722,7 +2722,11 @@ async def items_process(req: ItemsProcessRequest):
             logger.error(f"[ITEMS/PROCESS] Minuk returned {response.status_code}: {response.text}")
             return JSONResponse(
                 status_code=response.status_code,
-                content={"error": f"AI service error: {response.status_code}", "results": []},
+                content={
+                    "error": f"AI service error: {response.status_code}",
+                    "upstream_error": response.text,
+                    "results": [],
+                },
             )
 
         result = response.json()
