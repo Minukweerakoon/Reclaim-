@@ -15,6 +15,7 @@ export interface SaveReportRequest {
     action?: string;
     image_url?: string;
     validation_results?: Record<string, unknown>;
+    item_status?: string;
 }
 
 export const reportsApi = {
@@ -67,6 +68,16 @@ export const reportsApi = {
      */
     async getReport(id: string): Promise<Report> {
         const response = await apiClient.get(`/reports/${id}`);
+        return response.data;
+    },
+
+    /**
+     * Update workflow status for a report
+     */
+    async updateReportStatus(id: string, itemStatus: string): Promise<Report> {
+        const response = await apiClient.patch(`/reports/${id}/status`, {
+            item_status: itemStatus,
+        });
         return response.data;
     },
 };

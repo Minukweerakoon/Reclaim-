@@ -237,6 +237,7 @@ class SupabaseManager:
             "location": item_data.get("location", ""),
             "time_of_incident": parsed_time,
             "status": "active",
+            "item_status": item_data.get("item_status", "open"),
             # Additional Kumesha tracking fields
             "color": item_data.get("color", ""),
             "confidence_score": item_data.get("confidence_score"),
@@ -351,6 +352,27 @@ class SupabaseManager:
             return None
         except Exception as exc:
             logger.error("Failed to fetch item %s: %s", item_id, exc)
+            return None
+
+    def update_item_status(
+        self, item_id: str, user_id: str, item_status: str
+    ) -> Optional[Dict[str, Any]]:
+        """Update the workflow status for a user's item."""
+        try:
+            result = (
+                self.client.table(self.TABLE)
+                .update({"item_status": item_status})
+                .eq("id", item_id)
+                .eq("user_id", user_id)
+                .execute()
+            )
+            if result.data and len(result.data) > 0:
+                row = result.data[0]
+                row["intention"] = row.get("item_type", "lost")
+                return row
+            return None
+        except Exception as exc:
+            logger.error("Failed to update item status for %s: %s", item_id, exc)
             return None
 
     def _get_items_by_type(

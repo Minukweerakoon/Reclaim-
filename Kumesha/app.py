@@ -2205,6 +2205,7 @@ async def validate_complete(
                     "user_id": userId,
                     "user_email": userEmail or "",
                     "status": "pending",
+                    "item_status": "open",
                     "created_at": datetime.utcnow().isoformat(),
                 }
                 

@@ -108,6 +108,11 @@ class ReportResponse(BaseModel):
     created_at: Optional[str] = None
 
 
+class UpdateReportStatusRequest(BaseModel):
+    """Request body for updating report workflow status."""
+    item_status: str = "open"
+
+
 # ------------------------------------------------------------------ #
 # Endpoints
 # ------------------------------------------------------------------ #
@@ -217,3 +222,29 @@ async def get_report(report_id: str, intention: str = "lost"):
     if report is None:
         raise HTTPException(status_code=404, detail="Report not found")
     return report
+
+
+@router.patch("/{report_id}/status")
+async def update_report_status(
+    report_id: str,
+    body: UpdateReportStatusRequest,
+    user: Dict = Depends(get_current_user),
+):
+    """Update workflow status (open/claimed/returned/closed) for a report."""
+    allowed = {"open", "claimed", "returned", "closed"}
+    status_value = (body.item_status or "").strip().lower()
+    if status_value not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid item_status. Allowed: {', '.join(sorted(allowed))}",
+        )
+
+    sb = get_supabase_manager()
+    if sb is None:
+        raise HTTPException(status_code=503, detail="Supabase unavailable")
+
+    updated = sb.update_item_status(report_id, user["id"], status_value)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Report not found or not owned by user")
+
+    return updated
