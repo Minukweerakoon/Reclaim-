@@ -615,23 +615,31 @@ class ImageValidator:
             }
 
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        
-        # Detect frontal faces
-        faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
-        faces_list = [list(f) for f in faces]
-        
-        # Detect profile faces
-        profile_faces = self.profile_face_cascade.detectMultiScale(gray, 1.1, 4)
-        for f in profile_faces:
-            # Avoid duplicates (simple overlap check)
-            is_duplicate = False
-            fx, fy, fw, fh = f
-            for (x, y, w, h) in faces_list:
-                if abs(fx - x) < 20 and abs(fy - y) < 20:
-                    is_duplicate = True
-                    break
-            if not is_duplicate:
-                faces_list.append(list(f))
+
+        def _detect_faces(gray_frame: np.ndarray, scale: float, neighbors: int, min_size: tuple) -> List[List[int]]:
+            faces = self.face_cascade.detectMultiScale(gray_frame, scale, neighbors, minSize=min_size)
+            faces_list = [list(f) for f in faces]
+
+            profile_faces = self.profile_face_cascade.detectMultiScale(gray_frame, scale, neighbors, minSize=min_size)
+            for f in profile_faces:
+                # Avoid duplicates (simple overlap check)
+                is_duplicate = False
+                fx, fy, fw, fh = f
+                for (x, y, w, h) in faces_list:
+                    if abs(fx - x) < 20 and abs(fy - y) < 20:
+                        is_duplicate = True
+                        break
+                if not is_duplicate:
+                    faces_list.append(list(f))
+            return faces_list
+
+        # Standard pass
+        faces_list = _detect_faces(gray, 1.1, 4, (30, 30))
+
+        # Fallback pass: more sensitive (handles mobile selfies and low contrast)
+        if len(faces_list) == 0:
+            gray_eq = cv2.equalizeHist(gray)
+            faces_list = _detect_faces(gray_eq, 1.05, 3, (20, 20))
         
         if len(faces_list) == 0:
             return {
