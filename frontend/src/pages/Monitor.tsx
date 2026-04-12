@@ -123,6 +123,7 @@ function Monitor() {
                             const reportTimestamp = getReportTimestamp(report);
                             const reportIntent = getReportIntent(report);
                             const reportCategory = getReportCategory(report);
+                            const reportStatus = getReportItemStatus(report);
                             return (
                                 <button
                                     key={report.id}
@@ -146,6 +147,9 @@ function Monitor() {
                                         <span className="font-mono">
                                             {reportTimestamp ? new Date(reportTimestamp).toLocaleString() : 'Unknown'}
                                         </span>
+                                    </div>
+                                    <div className="mt-2 text-[10px] text-slate-500 uppercase tracking-widest">
+                                        Status: <span className="text-slate-300">{reportStatus}</span>
                                     </div>
                                 </button>
                             );

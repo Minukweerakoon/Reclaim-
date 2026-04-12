@@ -553,7 +553,8 @@ def should_reject_raw_human_photo(
 
     privacy = image_result.get("privacy", {}) or {}
     faces_detected = int(privacy.get("faces_detected") or 0)
-    if faces_detected <= 0:
+    largest_face_ratio = float(privacy.get("largest_face_ratio") or 0.0)
+    if faces_detected <= 0 or (largest_face_ratio and largest_face_ratio < 0.01):
         return False
 
     objects = image_result.get("objects", {}) or {}

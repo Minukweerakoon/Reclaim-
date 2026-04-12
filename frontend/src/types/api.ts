@@ -78,6 +78,7 @@ export interface ImageValidationResult {
         privacy_protected: boolean;
         processed_image: string;
         feedback: string;
+        largest_face_ratio?: number;
     };
     overall_score: number;            // 0-100
     valid: boolean;

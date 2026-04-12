@@ -94,8 +94,14 @@ const isLikelyRealHumanPhoto = (
     detections: Array<{ class?: string; original_class?: string; confidence?: number; bbox?: number[] }> | undefined,
     imageDims: { width: number; height: number } | null,
     facesDetected: number,
-    textHint?: string
+    textHint?: string,
+    largestFaceRatio?: number
 ) => {
+    const normalizedFaceRatio = Number(largestFaceRatio || 0);
+    const hasSignificantFace = facesDetected > 0 && (normalizedFaceRatio === 0 || normalizedFaceRatio >= 0.01);
+    if (!hasSignificantFace) {
+        return false;
+    }
     const normalizedHint = String(textHint || '').toLowerCase();
     const idHints = [
         'id card', 'identity card', 'national id', 'student id', 'passport',
@@ -229,7 +235,8 @@ function ChatbotPage() {
                 preValidation.image?.objects?.detections,
                 imageDims,
                 Number(preValidation.image?.privacy?.faces_detected || 0),
-                undefined
+                undefined,
+                Number(preValidation.image?.privacy?.largest_face_ratio || 0)
             );
 
             if (shouldBlockHumanPhoto) {
@@ -699,7 +706,8 @@ function ChatbotPage() {
                 validationResult.image?.objects?.detections,
                 confirmImageDims,
                 Number(validationResult.image?.privacy?.faces_detected || 0),
-                `${validationText || ''} ${visualSeed || ''}`
+                `${validationText || ''} ${visualSeed || ''}`,
+                Number(validationResult.image?.privacy?.largest_face_ratio || 0)
             );
 
             if (shouldBlockHumanPhoto) {
