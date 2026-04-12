@@ -540,6 +540,55 @@ def validate_file_size(file: UploadFile, max_size: int) -> bool:
     return file_size <= max_size
 
 
+def should_reject_raw_human_photo(
+    image_result: Optional[Dict[str, Any]],
+    text: Optional[str] = None,
+    visual_text: Optional[str] = None,
+) -> bool:
+    """
+    Reject raw human photos while allowing ID/document images that may include a face.
+    """
+    if not image_result:
+        return False
+
+    privacy = image_result.get("privacy", {}) or {}
+    faces_detected = int(privacy.get("faces_detected") or 0)
+    if faces_detected <= 0:
+        return False
+
+    objects = image_result.get("objects", {}) or {}
+    detections = objects.get("detections", []) or []
+
+    combined_text = f"{text or ''} {visual_text or ''}".lower()
+    id_keywords = (
+        "id card", "identity card", "national id", "student id", "passport",
+        "driver license", "driving license", "driving licence", "license card", "licence card"
+    )
+    has_id_text_signal = any(keyword in combined_text for keyword in id_keywords)
+
+    id_detection_tokens = {"id", "card", "id_card", "passport", "license", "licence", "document"}
+    has_id_detection_signal = False
+    has_clear_item_signal = False
+
+    for detection in detections:
+        cls = str(detection.get("class") or "").lower()
+        original_cls = str(detection.get("original_class") or "").lower()
+        confidence = float(detection.get("confidence") or 0.0)
+        merged = f"{cls} {original_cls}"
+
+        if any(token in merged for token in id_detection_tokens):
+            has_id_detection_signal = True
+
+        is_person_like = cls in {"person", "human", "man", "woman"} or original_cls in {"person", "human", "man", "woman"}
+        if confidence >= 0.45 and not is_person_like:
+            has_clear_item_signal = True
+
+    has_id_signal = has_id_text_signal or has_id_detection_signal
+
+    # Block only when a face is present and there is no ID/document signal and no clear item signal.
+    return bool(faces_detected > 0 and not has_id_signal and not has_clear_item_signal)
+
+
 def trigger_ai_backend_processing(ai_backend_url: str, ai_payload: Dict[str, Any]) -> None:
     """Trigger AI indexing/retrieval in background so API responses are not blocked."""
     try:
@@ -2125,6 +2174,14 @@ async def validate_complete(
                 "message": "Validation complete (some validators unavailable)" if confidence_results.get("degraded") else "Validation complete"
             }
         }
+
+        # Enforce image policy before any persistence: reject raw human photos,
+        # but allow ID/document card images that may include a face.
+        if should_reject_raw_human_photo(image_result, text=text, visual_text=visualText):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Upload blocked: real-person photos are not allowed. Item photos (including ID/document cards) are allowed.",
+            )
         
         # ============ SAVE TO SUPABASE (ALWAYS ATTEMPT) ============
         supabase_saved_id = None

@@ -92,8 +92,34 @@ const getDetectionAreaRatio = (
 
 const isLikelyRealHumanPhoto = (
     detections: Array<{ class?: string; original_class?: string; confidence?: number; bbox?: number[] }> | undefined,
-    imageDims: { width: number; height: number } | null
+    imageDims: { width: number; height: number } | null,
+    facesDetected: number,
+    textHint?: string
 ) => {
+    const normalizedHint = String(textHint || '').toLowerCase();
+    const idHints = [
+        'id card', 'identity card', 'national id', 'student id', 'passport',
+        'driver license', 'driving license', 'driving licence', 'license card', 'licence card'
+    ];
+    const hasIdTextSignal = idHints.some((hint) => normalizedHint.includes(hint));
+
+    const hasIdDetectionSignal = (detections || []).some((d) => {
+        const cls = String(d.class || d.original_class || '').toLowerCase();
+        return ['id', 'card', 'id_card', 'passport', 'license', 'licence', 'document'].some((token) => cls.includes(token));
+    });
+
+    const hasClearItemSignal = (detections || []).some((d) => {
+        const cls = String(d.class || d.original_class || '').toLowerCase();
+        const confidence = Number(d.confidence || 0);
+        return confidence >= 0.45 && !isPersonClass(cls);
+    });
+
+    // Primary gate: if face exists and there is no ID/document signal and no clear item signal, block.
+    if (facesDetected > 0 && !hasIdTextSignal && !hasIdDetectionSignal && !hasClearItemSignal) {
+        return true;
+    }
+
+    // Keep the legacy person-detection safety net when available.
     const personDetections = (detections || [])
         .map((d) => {
             const cls = String(d.class || d.original_class || '').toLowerCase();
@@ -107,6 +133,11 @@ const isLikelyRealHumanPhoto = (
     const multiPersonScene = personDetections.filter((d) => d.confidence >= 0.6 && d.areaRatio >= 0.08).length >= 2;
 
     return largeConfidentPerson || multiPersonScene;
+};
+
+const isHumanPhotoRejectionError = (error: unknown) => {
+    const message = formatErrorMessage(error).toLowerCase();
+    return message.includes('real-person photos are not allowed') || message.includes('upload blocked');
 };
 
 const detectExplicitIntent = (message: string): 'lost' | 'found' | null => {
@@ -194,7 +225,12 @@ function ChatbotPage() {
         try {
             const preValidation = await validationApi.validateImage(file);
 
-            const shouldBlockHumanPhoto = isLikelyRealHumanPhoto(preValidation.image?.objects?.detections, imageDims);
+            const shouldBlockHumanPhoto = isLikelyRealHumanPhoto(
+                preValidation.image?.objects?.detections,
+                imageDims,
+                Number(preValidation.image?.privacy?.faces_detected || 0),
+                undefined
+            );
 
             if (shouldBlockHumanPhoto) {
                 setPendingImage(null, null);
@@ -202,7 +238,13 @@ function ChatbotPage() {
                 finishImageCheck('Upload blocked: real-person photos are not allowed. Item photos (including cards) are allowed.');
                 return;
             }
-        } catch {
+        } catch (error) {
+            if (isHumanPhotoRejectionError(error)) {
+                setPendingImage(null, null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+                finishImageCheck('Upload blocked: real-person photos are not allowed. Item photos (including cards) are allowed.');
+                return;
+            }
             // Keep UX smooth: if pre-check is temporarily unavailable, allow attach and enforce again on confirm.
             preCheckUnavailable = true;
         } finally {
@@ -653,7 +695,12 @@ function ChatbotPage() {
             setResult(validationResult);
 
             const confirmImageDims = await getImageDimensions(pendingImage);
-            const shouldBlockHumanPhoto = isLikelyRealHumanPhoto(validationResult.image?.objects?.detections, confirmImageDims);
+            const shouldBlockHumanPhoto = isLikelyRealHumanPhoto(
+                validationResult.image?.objects?.detections,
+                confirmImageDims,
+                Number(validationResult.image?.privacy?.faces_detected || 0),
+                `${validationText || ''} ${visualSeed || ''}`
+            );
 
             if (shouldBlockHumanPhoto) {
                 setSummaryConfirmed(false);
