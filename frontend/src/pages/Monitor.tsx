@@ -12,10 +12,6 @@ const normalizeScore = (value?: number) => {
     return Math.max(0, Math.min(1, value));
 };
 
-const average = (values: number[]) => {
-    if (!values.length) return 0;
-    return values.reduce((sum, value) => sum + value, 0) / values.length;
-};
 
 const getReportTimestamp = (report: Record<string, any>) => {
     return report.timestamp || report.created_at || report.createdAt || null;
@@ -85,6 +81,7 @@ function Monitor() {
                 return new Date(bTime || 0).getTime() - new Date(aTime || 0).getTime();
             });
     }, [reports]);
+    const listReports = sortedReports.length ? sortedReports : reports;
     const selectedTimestamp = selectedReport ? getReportTimestamp(selectedReport) : null;
     const selectedIntent = selectedReport ? getReportIntent(selectedReport) : '';
     const selectedCategory = selectedReport ? getReportCategory(selectedReport) : '';
@@ -117,10 +114,10 @@ function Monitor() {
                                 size="sm"
                             />
                         </div>
-                    ) : reports.length === 0 ? (
+                    ) : listReports.length === 0 ? (
                         <div className="p-4 text-center text-slate-400">No reports found</div>
                     ) : (
-                        reports.map((report) => {
+                        listReports.map((report) => {
                             const reportConfidence = getReportConfidence(report);
                             const riskClass = reportConfidence >= 0.8 ? 'bg-accent-emerald' : reportConfidence >= 0.5 ? 'bg-accent-amber' : 'bg-accent-rose';
                             const reportTimestamp = getReportTimestamp(report);
