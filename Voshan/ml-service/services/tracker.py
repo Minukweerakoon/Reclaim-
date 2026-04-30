@@ -6,6 +6,8 @@ Uses BoTSORT tracker for consistent object IDs across frames
 from ultralytics import YOLO
 from typing import List, Dict, Tuple
 import numpy as np
+import math
+import importlib.util
 
 
 class ObjectTracker:
@@ -22,6 +24,73 @@ class ObjectTracker:
         self.model = model
         self.tracker_config = tracker_config
         self.track_history = {}  # Track ID -> list of positions over time
+        self._lap_available = importlib.util.find_spec("lap") is not None
+        self._warned_no_lap = False
+        self._next_track_id = 1
+        self._active_tracks = {}  # Track ID -> last known object state
+        self._frame_index = 0
+
+    def _predict_only(self, frame: np.ndarray):
+        return self.model.predict(
+            frame,
+            verbose=False,
+            imgsz=640
+        )
+
+    def _assign_fallback_track_ids(self, detections: List[Dict]) -> List[Dict]:
+        """
+        Assign stable IDs using nearest-centroid matching when BoT-SORT dependencies
+        are unavailable in hosted environments.
+        """
+        self._frame_index += 1
+        max_match_dist = 120.0
+        max_missing_frames = 30
+        used_track_ids = set()
+
+        for det in detections:
+            bbox = det["bbox"]
+            cx = (bbox[0] + bbox[2]) / 2
+            cy = (bbox[1] + bbox[3]) / 2
+            cls_id = det["class_id"]
+
+            best_id = None
+            best_dist = float("inf")
+            for track_id, track in self._active_tracks.items():
+                if track_id in used_track_ids:
+                    continue
+                if track["class_id"] != cls_id:
+                    continue
+                if self._frame_index - track["last_seen"] > max_missing_frames:
+                    continue
+
+                tx, ty = track["center"]
+                dist = math.hypot(cx - tx, cy - ty)
+                if dist < best_dist and dist <= max_match_dist:
+                    best_id = track_id
+                    best_dist = dist
+
+            if best_id is None:
+                best_id = self._next_track_id
+                self._next_track_id += 1
+
+            det["track_id"] = best_id
+            used_track_ids.add(best_id)
+            self._active_tracks[best_id] = {
+                "center": (cx, cy),
+                "bbox": bbox,
+                "class_id": cls_id,
+                "last_seen": self._frame_index,
+            }
+
+        stale_ids = [
+            track_id
+            for track_id, track in self._active_tracks.items()
+            if self._frame_index - track["last_seen"] > max_missing_frames
+        ]
+        for track_id in stale_ids:
+            self._active_tracks.pop(track_id, None)
+
+        return detections
     
     def track(self, frame: np.ndarray, persist: bool = True) -> List[Dict]:
         """
@@ -47,24 +116,28 @@ class ObjectTracker:
         if len(frame.shape) != 3 or frame.shape[2] != 3:
             return []
         
-        # Run tracking with error handling
+        # Run tracking with error handling. BoT-SORT requires the optional "lap"
+        # package. Some hosted Python images block Ultralytics' runtime auto-install,
+        # so avoid model.track entirely when lap is unavailable.
         try:
-            results = self.model.track(
-                frame,
-                persist=persist,
-                tracker=self.tracker_config,
-                verbose=False,
-                imgsz=640
-            )
+            if self._lap_available:
+                results = self.model.track(
+                    frame,
+                    persist=persist,
+                    tracker=self.tracker_config,
+                    verbose=False,
+                    imgsz=640
+                )
+            else:
+                if not self._warned_no_lap:
+                    print("lap package not available; using YOLO predict + centroid fallback tracker")
+                    self._warned_no_lap = True
+                results = self._predict_only(frame)
         except Exception as e:
             error_msg = str(e).lower()
-            if "optical flow" in error_msg or "lkpyramid" in error_msg or "prevpyr" in error_msg or "lvlstep" in error_msg or "215" in error_msg or "assertion failed" in error_msg:
+            if "optical flow" in error_msg or "lkpyramid" in error_msg or "prevpyr" in error_msg or "lvlstep" in error_msg or "215" in error_msg or "assertion failed" in error_msg or "lap" in error_msg or "externally-managed-environment" in error_msg:
                 try:
-                    results = self.model.predict(
-                        frame,
-                        verbose=False,
-                        imgsz=640
-                    )
+                    results = self._predict_only(frame)
                     if len(results) > 0 and results[0].boxes is not None:
                         results[0].boxes.id = None
                 except Exception:
@@ -115,6 +188,9 @@ class ObjectTracker:
                     "class_id": cls_id,
                     "class_name": cls_name
                 })
+
+        if not self._lap_available:
+            tracked_objects = self._assign_fallback_track_ids(tracked_objects)
         
         return tracked_objects
     
