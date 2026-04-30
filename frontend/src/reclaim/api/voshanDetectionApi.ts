@@ -3,15 +3,12 @@
  * Base URL: VITE_VOSHAN_API_URL or /api (same-origin proxy to the configured Voshan backend port).
  */
 
-const rawVoshanBase = ((import.meta.env.VITE_VOSHAN_API_URL as string) || '').trim();
-const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
-const isInsecureAbsoluteBase = isHttpsPage && rawVoshanBase.startsWith('http://');
-
-if (isInsecureAbsoluteBase) {
-  console.warn('[Voshan API] Ignoring insecure VITE_VOSHAN_API_URL on HTTPS page:', rawVoshanBase);
+function normalizeApiBase(rawBase?: string): string {
+  const base = (rawBase || '/api').replace(/\/+$/, '');
+  return base.endsWith('/api') ? base : `${base}/api`;
 }
 
-const BASE = isInsecureAbsoluteBase ? '/api' : (rawVoshanBase || '/api');
+const BASE = normalizeApiBase(import.meta.env.VITE_VOSHAN_API_URL as string | undefined);
 
 export const voshanDetectionApi = {
   baseUrl: BASE,
