@@ -3,7 +3,12 @@
  * Base URL: VITE_VOSHAN_API_URL or /api (same-origin proxy to Node backend on 5000).
  */
 
-const BASE = (import.meta.env.VITE_VOSHAN_API_URL as string) || '/api';
+function normalizeApiBase(rawBase?: string): string {
+  const base = (rawBase || '/api').replace(/\/+$/, '');
+  return base.endsWith('/api') ? base : `${base}/api`;
+}
+
+const BASE = normalizeApiBase(import.meta.env.VITE_VOSHAN_API_URL as string | undefined);
 
 export const voshanDetectionApi = {
   baseUrl: BASE,
