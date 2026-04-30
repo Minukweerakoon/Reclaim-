@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+const kuameshaTarget = process.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+const voshanTarget = process.env.VITE_VOSHAN_API_URL || 'http://127.0.0.1:5100';
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -18,49 +21,48 @@ export default defineConfig({
     proxy: {
       // Voshan (suspicious behaviour detection) – must come before generic /api
       '/api/voshan': {
-        target: 'http://127.0.0.1:5000',
+        target: voshanTarget,
         changeOrigin: true,
         ws: true,
       },
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: kuameshaTarget,
         changeOrigin: true,
       },
       '/validate': {
-        target: 'http://127.0.0.1:8000',
+        target: kuameshaTarget,
         changeOrigin: true,
       },
       '/health': {
-        target: 'http://127.0.0.1:5000',
+        target: kuameshaTarget,
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/health/, '/api/health'),
       },
       '/results': {
-        target: 'http://127.0.0.1:8000',
+        target: kuameshaTarget,
         changeOrigin: true,
       },
       '/metrics': {
-        target: 'http://127.0.0.1:8000',
+        target: kuameshaTarget,
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://127.0.0.1:8000',
+        target: kuameshaTarget.replace('http://', 'ws://'),
         ws: true,
       },
       '/items/process': {
-        target: 'http://127.0.0.1:8001',
+        target: kuameshaTarget,
         changeOrigin: true,
       },
       '/items': {
-        target: 'http://127.0.0.1:8000',
+        target: kuameshaTarget,
         changeOrigin: true,
       },
       '/xai': {
-        target: 'http://127.0.0.1:8000',
+        target: kuameshaTarget,
         changeOrigin: true,
       },
       '/reports': {
-        target: 'http://127.0.0.1:8000',
+        target: kuameshaTarget,
         changeOrigin: true,
       },
     },

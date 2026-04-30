@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { chatApi } from '../api/chat';
 import { validationApi } from '../api/validation';
 import { formatErrorMessage } from '../components/ErrorMessage';
@@ -39,6 +40,111 @@ const buildValidationNarrative = (info: Record<string, any>, intentValue: string
 };
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+
+const appendBotNotice = (setMessagesFn: React.Dispatch<React.SetStateAction<ChatMessage[]>>, content: string) => {
+    setMessagesFn((prev) => ([
+        ...prev,
+        {
+            role: 'bot',
+            content,
+            timestamp: new Date(),
+        },
+    ]));
+};
+
+const getImageDimensions = async (file: File): Promise<{ width: number; height: number } | null> => {
+    try {
+        const bitmap = await createImageBitmap(file);
+        const dims = { width: bitmap.width, height: bitmap.height };
+        bitmap.close();
+        return dims;
+    } catch {
+        return null;
+    }
+};
+
+const isPersonClass = (cls: string) => {
+    const c = String(cls || '').toLowerCase();
+    return c === 'person' || c.includes('human') || c === 'man' || c === 'woman';
+};
+
+const getDetectionAreaRatio = (
+    bbox: number[] | undefined,
+    imageDims: { width: number; height: number } | null
+) => {
+    if (!Array.isArray(bbox) || bbox.length < 4) return 0;
+    const [x1, y1, x2, y2] = bbox.map((n) => Number(n) || 0);
+    const w = Math.max(0, Math.abs(x2 - x1));
+    const h = Math.max(0, Math.abs(y2 - y1));
+    const maxCoord = Math.max(Math.abs(x1), Math.abs(y1), Math.abs(x2), Math.abs(y2));
+
+    // Normalized bbox case (0..1)
+    if (maxCoord <= 1.5) return Math.min(1, w * h);
+
+    // Pixel bbox case
+    if (imageDims && imageDims.width > 0 && imageDims.height > 0) {
+        return Math.min(1, (w * h) / (imageDims.width * imageDims.height));
+    }
+
+    return 0;
+};
+
+const isLikelyRealHumanPhoto = (
+    detections: Array<{ class?: string; original_class?: string; confidence?: number; bbox?: number[] }> | undefined,
+    imageDims: { width: number; height: number } | null,
+    facesDetected: number,
+    textHint?: string,
+    largestFaceRatio?: number
+) => {
+    const normalizedFaceRatio = Number(largestFaceRatio || 0);
+    const hasSignificantFace = facesDetected > 0 && (normalizedFaceRatio === 0 || normalizedFaceRatio >= 0.01);
+    if (!hasSignificantFace) {
+        return false;
+    }
+    const normalizedHint = String(textHint || '').toLowerCase();
+    const idHints = [
+        'id card', 'identity card', 'national id', 'student id', 'passport',
+        'driver license', 'driving license', 'driving licence', 'license card', 'licence card'
+    ];
+    const hasIdTextSignal = idHints.some((hint) => normalizedHint.includes(hint));
+
+    const hasIdDetectionSignal = (detections || []).some((d) => {
+        const cls = String(d.class || d.original_class || '').toLowerCase();
+        return ['id', 'card', 'id_card', 'passport', 'license', 'licence', 'document'].some((token) => cls.includes(token));
+    });
+
+    const hasClearItemSignal = (detections || []).some((d) => {
+        const cls = String(d.class || d.original_class || '').toLowerCase();
+        const confidence = Number(d.confidence || 0);
+        return confidence >= 0.45 && !isPersonClass(cls);
+    });
+
+    // Primary gate: if face exists and there is no ID/document signal and no clear item signal, block.
+    if (facesDetected > 0 && !hasIdTextSignal && !hasIdDetectionSignal && !hasClearItemSignal) {
+        return true;
+    }
+
+    // Keep the legacy person-detection safety net when available.
+    const personDetections = (detections || [])
+        .map((d) => {
+            const cls = String(d.class || d.original_class || '').toLowerCase();
+            const confidence = Number(d.confidence || 0);
+            const areaRatio = getDetectionAreaRatio(d.bbox, imageDims);
+            return { cls, confidence, areaRatio };
+        })
+        .filter((d) => isPersonClass(d.cls));
+
+    const largeConfidentPerson = personDetections.some((d) => d.confidence >= 0.75 && d.areaRatio >= 0.22);
+    const multiPersonScene = personDetections.filter((d) => d.confidence >= 0.6 && d.areaRatio >= 0.08).length >= 2;
+
+    return largeConfidentPerson || multiPersonScene;
+};
+
+const isHumanPhotoRejectionError = (error: unknown) => {
+    const message = formatErrorMessage(error).toLowerCase();
+    return message.includes('real-person photos are not allowed') || message.includes('upload blocked');
+};
 
 const detectExplicitIntent = (message: string): 'lost' | 'found' | null => {
     const text = message.toLowerCase();
@@ -50,6 +156,16 @@ const detectExplicitIntent = (message: string): 'lost' | 'found' | null => {
     return null;
 };
 
+const userHasNoImage = (message: string) => {
+    const text = message.toLowerCase();
+    return /\b(no image|no photo|without image|without photo|don'?t have (an )?image|don'?t have (a )?photo|do not have (an )?image|can't upload (an )?image|cannot upload (an )?image)\b/.test(text);
+};
+
+const isSensitiveCardCategory = (category: string) => {
+    const c = String(category || '').toLowerCase();
+    return ['card', 'id', 'license', 'passport', 'credit', 'debit'].some((keyword) => c.includes(keyword));
+};
+
 function ChatbotPage() {
     const [searchParams] = useSearchParams();
     const initialIntent = searchParams.get('intent') || '';
@@ -57,7 +173,9 @@ function ChatbotPage() {
 
     const [input, setInput] = useState('');
     const [isProcessingReport, setIsProcessingReport] = useState(false);
+    const [isCheckingImage, setIsCheckingImage] = useState(false);
     const [selectedMatch, setSelectedMatch] = useState<any | null>(null);
+    const [revealSensitiveModalImage, setRevealSensitiveModalImage] = useState(false);
     const {
         messages, setMessages,
         isTyping, setIsTyping,
@@ -70,19 +188,140 @@ function ChatbotPage() {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = () => setPendingImage(file, reader.result as string);
-            reader.readAsDataURL(file);
+        if (!file) return;
+
+        const checkMessageId = `img-check-${Date.now()}`;
+        setMessages((prev) => ([
+            ...prev,
+            {
+                id: checkMessageId,
+                role: 'bot',
+                content: 'Checking image...',
+                loading: true,
+                timestamp: new Date(),
+            },
+        ]));
+
+        const finishImageCheck = (content: string) => {
+            setMessages((prev) => prev.map((msg) => {
+                if (msg.id !== checkMessageId) return msg;
+                return {
+                    ...msg,
+                    content,
+                    loading: false,
+                    timestamp: new Date(),
+                };
+            }));
+        };
+
+        if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+            setPendingImage(null, null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            finishImageCheck('File is too large. Maximum allowed upload size is 10MB. Please choose a smaller image.');
+            return;
         }
+
+        const imageDims = await getImageDimensions(file);
+
+        // Immediate upload-time validation so users get feedback before confirmation.
+        setIsCheckingImage(true);
+        let preCheckUnavailable = false;
+        try {
+            const preValidation = await validationApi.validateImage(file);
+
+            const shouldBlockHumanPhoto = isLikelyRealHumanPhoto(
+                preValidation.image?.objects?.detections,
+                imageDims,
+                Number(preValidation.image?.privacy?.faces_detected || 0),
+                undefined,
+                Number(preValidation.image?.privacy?.largest_face_ratio || 0)
+            );
+
+            if (shouldBlockHumanPhoto) {
+                setPendingImage(null, null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+                finishImageCheck('Upload blocked: real-person photos are not allowed. Item photos (including cards) are allowed.');
+                return;
+            }
+        } catch (error) {
+            if (isHumanPhotoRejectionError(error)) {
+                setPendingImage(null, null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+                finishImageCheck('Upload blocked: real-person photos are not allowed. Item photos (including cards) are allowed.');
+                return;
+            }
+            // Keep UX smooth: if pre-check is temporarily unavailable, allow attach and enforce again on confirm.
+            preCheckUnavailable = true;
+        } finally {
+            setIsCheckingImage(false);
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            setPendingImage(file, reader.result as string);
+            finishImageCheck(
+                preCheckUnavailable
+                    ? 'Image attached. Pre-check is temporarily unavailable; it will be validated again before processing.'
+                    : 'Image checked and attached successfully.'
+            );
+        };
+        reader.onerror = () => {
+            setPendingImage(null, null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            finishImageCheck('Could not read the selected image. Please try another file.');
+        };
+        reader.readAsDataURL(file);
     };
 
     const removeImage = () => {
         setPendingImage(null, null);
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
+
+    useEffect(() => {
+        setRevealSensitiveModalImage(false);
+    }, [selectedMatch]);
+
+    useEffect(() => {
+        if (!selectedMatch) return;
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setSelectedMatch(null);
+            }
+        };
+
+        const lockScrollY = window.scrollY;
+        const previousBody = {
+            position: document.body.style.position,
+            top: document.body.style.top,
+            width: document.body.style.width,
+            overflow: document.body.style.overflow,
+        };
+        const previousHtmlOverflow = document.documentElement.style.overflow;
+
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${lockScrollY}px`;
+        document.body.style.width = '100%';
+        document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
+
+        window.addEventListener('keydown', handleEscape);
+
+        return () => {
+            window.removeEventListener('keydown', handleEscape);
+
+            document.body.style.position = previousBody.position;
+            document.body.style.top = previousBody.top;
+            document.body.style.width = previousBody.width;
+            document.body.style.overflow = previousBody.overflow;
+            document.documentElement.style.overflow = previousHtmlOverflow;
+
+            window.scrollTo(0, lockScrollY);
+        };
+    }, [selectedMatch]);
 
     useEffect(() => {
         if (!initialIntent) return;
@@ -108,7 +347,19 @@ function ChatbotPage() {
     } = useValidationStore();
 
     // Prefer Vite proxy for consistency with dev server/backends.
-    const processEndpoint = import.meta.env.VITE_AI_PROCESS_URL || '/items/process';
+    // On HTTPS pages, reject insecure absolute HTTP endpoints to avoid mixed-content blocks.
+    const rawProcessEndpoint = (import.meta.env.VITE_AI_PROCESS_URL as string) || '';
+    const normalizedProcessEndpoint = rawProcessEndpoint.trim();
+    const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const isInsecureAbsoluteProcessEndpoint = isHttpsPage && normalizedProcessEndpoint.startsWith('http://');
+
+    if (isInsecureAbsoluteProcessEndpoint) {
+        console.warn('[ChatbotPage] Ignoring insecure VITE_AI_PROCESS_URL on HTTPS page:', normalizedProcessEndpoint);
+    }
+
+    const processEndpoint = isInsecureAbsoluteProcessEndpoint
+        ? '/items/process'
+        : (normalizedProcessEndpoint || '/items/process');
 
     const runRetrieval = async (payload: {
         item_id: string;
@@ -124,9 +375,10 @@ function ChatbotPage() {
 
         for (let attempt = 1; attempt <= 2; attempt += 1) {
             const controller = new AbortController();
-            const timeout = window.setTimeout(() => controller.abort(), 20000);
+            const timeout = window.setTimeout(() => controller.abort(), 90000);
 
             try {
+                const defaultMcT = Number((import.meta.env.VITE_AI_MC_T as string) || 5);
                 const processResponse = await fetch(processEndpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -136,6 +388,7 @@ function ChatbotPage() {
                         image_url: payload.image_url,
                         user_category: payload.user_category || undefined,
                         k: 5,
+                        mc_T: Number.isFinite(defaultMcT) ? defaultMcT : 5,
                     }),
                     signal: controller.signal,
                 });
@@ -215,10 +468,10 @@ function ChatbotPage() {
     useEffect(() => {
         if (messages.length === 0) {
             const greeting = intent === 'found'
-                ? "You found something. Tell me what it is and where you picked it up."
+                ? "You found something. First, upload an image of the item. If you don't have one, upload a similar image from Google. Then tell me what it is and where you picked it up."
                 : intent === 'lost'
-                    ? "I'm here to help. Describe what you lost and where you last saw it."
-                    : "Describe the lost or found item, and I'll guide you through the report.";
+                    ? "I'm here to help. First, upload an image of the item. If you don't have one, upload a similar image from Google. Then describe what you lost and where you last saw it."
+                    : "First, upload an image of the item. If you don't have one, upload a similar image from Google. Then describe the lost or found item and I'll guide you through the report.";
 
             setMessages([{
                 role: 'bot',
@@ -255,8 +508,8 @@ function ChatbotPage() {
             setIntent(explicitIntent);
 
             const restartMessage = explicitIntent === 'found'
-                ? "Starting a fresh found-item report. Tell me what you found and where you picked it up."
-                : "Starting a fresh lost-item report. Tell me what you lost and where you last saw it.";
+                ? "Starting a fresh found-item report. First upload an image (or a similar Google image), then tell me what you found and where."
+                : "Starting a fresh lost-item report. First upload an image (or a similar Google image), then tell me what you lost and where you last saw it.";
 
             setMessages([
                 {
@@ -309,9 +562,16 @@ function ChatbotPage() {
             const userText = userMessage.content.toLowerCase().trim();
             const dontKnowPatterns = /^(no|nope|nah|not?|don'?t know|not sure|can'?t remember|no idea|don'?t have|unknown|forgot|unsure|not found|nothing|none|i don'?t|don'?t remember)$/i;
             const userDoesntKnow = dontKnowPatterns.test(userText) || /\b(don'?t know|not sure|can'?t remember|no idea|don'?t have|unknown|forgot|unsure|not found|nothing)\b/i.test(userText);
+            const missingImage = !pendingImage;
+            const noImageFromUser = userHasNoImage(userText);
 
             // Generate follow-up question if fields are missing (but skip if user doesn't know)
             let followUpQuestion = '';
+            if (missingImage) {
+                followUpQuestion = noImageFromUser
+                    ? ' Please upload a similar reference image from Google (a screenshot is fine), then continue.'
+                    : " Please upload an image of the item first. If you don't have one, upload a similar reference image from Google.";
+            }
             if (response.intention) {
                 const requiredFields = [
                     { key: 'item_type', label: 'What kind of item is this?', critical: true },
@@ -326,7 +586,7 @@ function ChatbotPage() {
                     .filter(f => f.critical)
                     .every(f => updatedExtractedInfo[f.key] && updatedExtractedInfo[f.key].trim() !== '');
 
-                if (!userDoesntKnow) {
+                if (!userDoesntKnow && !followUpQuestion) {
                     // Find first missing field
                     for (const field of requiredFields) {
                         if (!updatedExtractedInfo[field.key] || updatedExtractedInfo[field.key].trim() === '') {
@@ -334,7 +594,7 @@ function ChatbotPage() {
                             break;
                         }
                     }
-                } else {
+                } else if (!followUpQuestion) {
                     // User doesn't know current field, skip to next missing one
                     let skippedOne = false;
                     for (const field of requiredFields) {
@@ -390,6 +650,12 @@ function ChatbotPage() {
         if (!summaryText || !pendingImage || !intent || (intent !== 'lost' && intent !== 'found')) {
             return;
         }
+        if (pendingImage.size > MAX_UPLOAD_SIZE_BYTES) {
+            setPendingImage(null, null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            appendBotNotice(setMessages, 'File is too large. Maximum allowed upload size is 10MB. Please choose a smaller image.');
+            return;
+        }
         if (confirmInFlightRef.current) {
             return;
         }
@@ -434,6 +700,30 @@ function ChatbotPage() {
 
             // Keep ValidationHub in sync with chat-side processing.
             setResult(validationResult);
+
+            const confirmImageDims = await getImageDimensions(pendingImage);
+            const shouldBlockHumanPhoto = isLikelyRealHumanPhoto(
+                validationResult.image?.objects?.detections,
+                confirmImageDims,
+                Number(validationResult.image?.privacy?.faces_detected || 0),
+                `${validationText || ''} ${visualSeed || ''}`,
+                Number(validationResult.image?.privacy?.largest_face_ratio || 0)
+            );
+
+            if (shouldBlockHumanPhoto) {
+                setSummaryConfirmed(false);
+                setPendingImage(null, null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+                setMessages((prev) => prev.map((msg) => {
+                    if (msg.id !== loadingMessageId) return msg;
+                    return {
+                        ...msg,
+                        loading: false,
+                        content: 'Upload blocked: real-person photos are not allowed. Item photos (including cards) are allowed.',
+                    };
+                }));
+                return;
+            }
 
             const itemId = validationResult.supabase_id;
             const imageUrl = validationResult.image_url;
@@ -517,14 +807,14 @@ function ChatbotPage() {
             })();
         } catch (err) {
             const errorText = formatErrorMessage(err);
-            console.error('[ChatbotPage] Retrieval flow failed:', errorText);
+            console.error('[ChatbotPage] Validation flow failed:', errorText);
             setSummaryConfirmed(false);
             setMessages((prev) => prev.map((msg) => {
                 if (msg.id !== loadingMessageId) return msg;
                 return {
                     ...msg,
                     loading: false,
-                    content: 'Validation completed, but matching is temporarily delayed. Please try again in a moment.',
+                    content: `Validation failed: ${errorText}. Please try again in a moment.`,
                 };
             }));
         } finally {
@@ -536,7 +826,7 @@ function ChatbotPage() {
     return (
         <div className="animate-fade-in">
             {/* Page Title */}
-            <div className="mb-8 text-center">
+            <div className="mb-6 md:mb-8 text-center px-1">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-medium mb-4">
                     <span className="relative flex h-2 w-2">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
@@ -544,17 +834,17 @@ function ChatbotPage() {
                     </span>
                     Conversation Phase
                 </div>
-                <h1 className="text-4xl md:text-5xl font-bold mb-3 tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400">
                     Describe Your Item
                 </h1>
-                <p className="text-slate-400 max-w-2xl mx-auto">
+                <p className="text-slate-400 text-sm md:text-base max-w-2xl mx-auto">
                     Tell me about the {intent === 'lost' ? 'lost' : intent === 'found' ? 'found' : ''} item. I'll guide you through gathering the details.
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4 md:gap-6">
                 {/* ── Chat Panel ── */}
-                <section className="glass-panel rounded-2xl p-6 flex flex-col">
+                <section className="order-2 lg:order-1 glass-panel rounded-2xl p-4 md:p-6 flex flex-col">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-5 pb-4 border-b border-white/10">
                         <div>
@@ -569,11 +859,15 @@ function ChatbotPage() {
                     </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                <div className="flex-1 overflow-y-auto max-h-[56vh] lg:max-h-none space-y-4 pr-1">
                     {messages.map((message, index) => (
                         <div key={message.id || index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
                             <div
-                                className={`${message.role === 'user' ? 'max-w-[72%]' : Array.isArray(message.matchResults) && message.matchResults.length > 0 ? 'max-w-[88%]' : 'max-w-[72%]'} rounded-2xl px-4 py-3 ${message.role === 'user'
+                                className={`${message.role === 'user'
+                                    ? 'max-w-[88%] md:max-w-[72%]'
+                                    : Array.isArray(message.matchResults) && message.matchResults.length > 0
+                                        ? 'w-full max-w-full md:max-w-[94%]'
+                                        : 'max-w-[88%] md:max-w-[72%]'} rounded-2xl px-4 py-3 ${message.role === 'user'
                                     ? 'text-white rounded-br-none'
                                     : 'text-slate-100 rounded-bl-none'
                                     }`}
@@ -657,7 +951,7 @@ function ChatbotPage() {
                 )}
 
                 {/* Input bar */}
-                <div className="mt-3 flex items-end gap-3">
+                <div className="mt-3 flex items-end gap-2 md:gap-3">
                     <input
                         type="file"
                         accept="image/*"
@@ -668,9 +962,10 @@ function ChatbotPage() {
                     <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
+                        disabled={isCheckingImage}
                         className="h-12 w-12 rounded-xl flex items-center justify-center transition-all duration-200 text-slate-400 hover:text-white"
                         style={{ background: 'var(--bg-input)', border: '1px solid rgba(255,255,255,0.08)' }}
-                        title="Attach image"
+                        title={isCheckingImage ? 'Checking image...' : 'Attach image'}
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
@@ -692,8 +987,8 @@ function ChatbotPage() {
                     <button
                         type="button"
                         onClick={handleSend}
-                        disabled={isTyping || !input.trim()}
-                        className="px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white rounded-xl transition-all duration-200 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled={isTyping || isCheckingImage || !input.trim()}
+                        className="px-4 md:px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white rounded-xl transition-all duration-200 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                         style={{ background: 'var(--accent-primary)', boxShadow: '0 4px 16px rgba(99,102,241,0.3)' }}
                     >
                         <span>Send</span>
@@ -702,34 +997,47 @@ function ChatbotPage() {
                         </svg>
                     </button>
                 </div>
+                {isCheckingImage && (
+                    <div className="mt-2 text-[11px] text-slate-400">Checking image safety and size...</div>
+                )}
             </section>
 
             {/* ── Sidebar: Collected Summary ── */}
-            <aside className="glass-panel rounded-2xl p-6 flex flex-col gap-5">
+            <aside className="order-1 lg:order-2 glass-panel rounded-2xl p-4 md:p-6 flex flex-col gap-3 md:gap-4">
                 {/* Summary */}
                 <div>
-                    <div className="text-[11px] uppercase tracking-[0.3em] text-slate-400 mb-2">Collected Summary</div>
-                    <div className="text-xs text-slate-300 leading-relaxed min-h-[56px]">
+                    <div className="text-[11px] uppercase tracking-[0.3em] text-slate-400 mb-1.5">Collected Summary</div>
+                    <div className="text-xs text-slate-300 leading-relaxed">
                         {summaryText || 'Awaiting details from the conversation.'}
                     </div>
                 </div>
 
                 {/* Field Status */}
-                <div className="rounded-xl p-4 flex-1"
+                <div className="rounded-xl p-3 md:p-4"
                     style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div className="text-[11px] uppercase tracking-[0.3em] text-slate-400 mb-3">Field Status</div>
-                    <div className="flex flex-wrap gap-2">
-                        {['item_type', 'color', 'brand', 'location', 'time'].map((field) => {
-                            const isCaptured = !!extractedInfo?.[field];
+                    <div className="text-[11px] uppercase tracking-[0.3em] text-slate-400 mb-2.5">Field Status</div>
+                    <div className="flex flex-wrap gap-1.5 md:gap-2">
+                        {[
+                            { key: 'image_upload', label: 'image upload', isCaptured: !!pendingImage, isHighPriority: true },
+                            { key: 'item_type', label: 'item type', isCaptured: !!extractedInfo?.item_type },
+                            { key: 'color', label: 'color', isCaptured: !!extractedInfo?.color },
+                            { key: 'brand', label: 'brand', isCaptured: !!extractedInfo?.brand },
+                            { key: 'location', label: 'location', isCaptured: !!extractedInfo?.location },
+                            { key: 'time', label: 'time', isCaptured: !!extractedInfo?.time },
+                        ].map((field) => {
                             return (
                                 <span
-                                    key={field}
+                                    key={field.key}
                                     className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full font-medium transition-colors"
-                                    style={isCaptured
-                                        ? { background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.35)' }
-                                        : { background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.08)' }}
+                                    style={field.isHighPriority
+                                        ? (field.isCaptured
+                                            ? { background: 'rgba(239,68,68,0.2)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.5)' }
+                                            : { background: 'rgba(239,68,68,0.12)', color: 'rgba(252,165,165,0.95)', border: '1px solid rgba(239,68,68,0.45)' })
+                                        : (field.isCaptured
+                                            ? { background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.35)' }
+                                            : { background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.08)' })}
                                 >
-                                    {isCaptured ? '✓ ' : '× '}{field.replace('_', ' ')}
+                                    {field.isCaptured ? '✓ ' : '× '}{field.label}
                                 </span>
                             );
                         })}
@@ -741,7 +1049,7 @@ function ChatbotPage() {
                     type="button"
                     onClick={handleConfirm}
                     disabled={isProcessingReport || !summaryText || summaryConfirmed || !pendingImage || (intent !== 'lost' && intent !== 'found')}
-                    className="w-full text-[10px] uppercase tracking-widest py-3 rounded-lg font-semibold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full text-[10px] uppercase tracking-widest py-2.5 md:py-3 rounded-lg font-semibold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{ border: '1px solid rgba(99,102,241,0.45)', color: '#a5b4fc' }}
                     onMouseEnter={e => !summaryConfirmed && ((e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.15)')}
                     onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = 'transparent')}
@@ -749,16 +1057,24 @@ function ChatbotPage() {
                     {isProcessingReport ? 'Processing...' : summaryConfirmed ? '✓ Confirmed' : 'Confirm and Process'}
                 </button>
                 {!pendingImage && (
-                    <p className="text-[10px] text-slate-500">Attach an image to run validation and matching.</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                        {isCheckingImage ? 'Checking image...' : 'Attach an image to run validation and matching.'}
+                    </p>
                 )}
             </aside>
             </div>
 
             {/* Global Contact Details Modal */}
-            {selectedMatch && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-                    <div className="w-full max-w-3xl rounded-2xl border border-white/10 bg-[#111827] shadow-[0_24px_80px_rgba(0,0,0,0.55)] overflow-hidden animate-fade-in">
-                        <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
+            {selectedMatch && typeof document !== 'undefined' && createPortal((
+                <div
+                    className="fixed inset-0 z-[220] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4 py-6"
+                    onClick={() => setSelectedMatch(null)}
+                >
+                    <div
+                        className="w-full max-w-3xl max-h-[92vh] rounded-2xl border border-white/10 bg-[#111827] shadow-[0_24px_80px_rgba(0,0,0,0.55)] overflow-hidden animate-fade-in flex flex-col"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b border-white/10 bg-[#111827]">
                             <h3 className="text-white font-semibold text-lg">Matched Item Contact Details</h3>
                             <button
                                 onClick={() => setSelectedMatch(null)}
@@ -767,14 +1083,40 @@ function ChatbotPage() {
                                 Close
                             </button>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-0 overflow-y-auto">
                             <div className="p-4 border-r border-white/10">
-                                <div className="w-full aspect-square rounded-xl overflow-hidden bg-black/30 border border-white/10">
+                                <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-black/30 border border-white/10">
+                                    {(() => {
+                                        const modalCategory = selectedMatch.final_category || selectedMatch.category || '';
+                                        const sensitiveCard = isSensitiveCardCategory(modalCategory);
+                                        return (
+                                            <>
                                     <img
                                         src={selectedMatch.image_url}
                                         alt={selectedMatch.final_category || selectedMatch.category || 'Matched item'}
-                                        className="w-full h-full object-cover"
+                                        className={`w-full h-full object-cover ${sensitiveCard && !revealSensitiveModalImage ? 'blur-[2px]' : ''}`}
                                     />
+                                                {sensitiveCard && !revealSensitiveModalImage && (
+                                                    <div className="absolute inset-x-0 top-0 h-1/2 backdrop-blur-md bg-slate-900/25 pointer-events-none" />
+                                                )}
+                                                {sensitiveCard && (
+                                                    <button
+                                                        type="button"
+                                                        onMouseDown={() => setRevealSensitiveModalImage(true)}
+                                                        onMouseUp={() => setRevealSensitiveModalImage(false)}
+                                                        onMouseLeave={() => setRevealSensitiveModalImage(false)}
+                                                        onTouchStart={() => setRevealSensitiveModalImage(true)}
+                                                        onTouchEnd={() => setRevealSensitiveModalImage(false)}
+                                                        onTouchCancel={() => setRevealSensitiveModalImage(false)}
+                                                        className="absolute bottom-2 right-2 text-xs px-2 py-1 rounded bg-black/60 text-white border border-white/20"
+                                                        title="Hold to reveal"
+                                                    >
+                                                        Hold to reveal
+                                                    </button>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                             <div className="p-5 space-y-3">
@@ -821,7 +1163,7 @@ function ChatbotPage() {
                         </div>
                     </div>
                 </div>
-            )}
+            ), document.body)}
         </div>
     );
 }

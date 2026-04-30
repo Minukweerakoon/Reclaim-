@@ -1,7 +1,9 @@
 // @ts-nocheck
 import React, { useState } from 'react';
-import { Sparkles, Shield } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Shield } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabaseClient';
+import reclaimLogo from '../assets/reclaim-logo.png';
 
 export function LoginPage({ onBack }) {
     const [loading, setLoading] = useState(false);
@@ -48,10 +50,7 @@ export function LoginPage({ onBack }) {
                     style={{ boxShadow: '0 0 60px rgba(99,102,241,0.08), 0 0 0 1px rgba(255,255,255,0.06)' }}>
 
                     <div className="flex items-center gap-2.5 mb-6">
-                        <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-                            <Sparkles className="w-5 h-5 text-indigo-400" />
-                            <div className="absolute inset-0 rounded-xl shadow-[0_0_20px_rgba(99,102,241,0.3)]" />
-                        </div>
+                        <img src={reclaimLogo} alt="Reclaim logo" className="w-10 h-10 object-contain rounded-xl" />
                         <span className="text-2xl font-bold text-white tracking-tight">Reclaim</span>
                     </div>
 
@@ -92,10 +91,9 @@ export function LoginPage({ onBack }) {
                     </div>
                 </div>
                 <p className="text-center text-[11px] text-slate-600 mt-4">
-                    By continuing, you agree to our <a href="#" className="text-slate-400 hover:text-white transition-colors">Terms</a> and <a href="#" className="text-slate-400 hover:text-white transition-colors">Privacy Policy</a>
+                    By continuing, you agree to our <Link to="/terms" className="text-slate-400 hover:text-white transition-colors">Terms</Link> and <Link to="/privacy" className="text-slate-400 hover:text-white transition-colors">Privacy Policy</Link>
                 </p>
             </div>
         </div>
     );
 }
-

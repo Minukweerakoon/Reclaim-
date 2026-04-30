@@ -1,10 +1,10 @@
 import axios from 'axios';
 import { supabase } from '../supabaseClient';
+import { apiBaseUrl } from './config';
 
 // Create axios instance with base configuration
-// Use direct URL to backend to avoid Vite proxy issues
 const apiClient = axios.create({
-    baseURL: 'http://127.0.0.1:8000/api',
+    baseURL: apiBaseUrl,
     headers: {
         'Content-Type': 'application/json',
         'X-API-Key': 'test-api-key',

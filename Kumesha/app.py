@@ -500,6 +500,16 @@ class EnhancedXAIRequest(BaseModel):
     include_discrepancies: bool = Field(True, description="Include multi-dimensional discrepancy checks")
 
 
+class ItemsProcessRequest(BaseModel):
+    """Request for items/process endpoint (AI retrieval/matching)"""
+    item_id: str = Field(..., description="Unique identifier for the item")
+    item_type: str = Field(..., description="Type of item: 'lost' or 'found'")
+    image_url: str = Field(..., description="URL of the item image")
+    user_category: Optional[str] = Field(None, description="User-specified category")
+    k: int = Field(5, description="Number of matches to return")
+    mc_T: int = Field(5, description="Monte Carlo iterations for uncertainty")
+
+
 # Helper functions
 def save_uploaded_file(upload_file: UploadFile) -> str:
     """
@@ -528,6 +538,79 @@ def validate_file_size(file: UploadFile, max_size: int) -> bool:
     file_size = file.file.tell()
     file.file.seek(0)  # Reset file pointer
     return file_size <= max_size
+
+
+def should_reject_raw_human_photo(
+    image_result: Optional[Dict[str, Any]],
+    text: Optional[str] = None,
+    visual_text: Optional[str] = None,
+) -> bool:
+    """
+    Reject raw human photos while allowing ID/document images that may include a face.
+    """
+    if not image_result:
+        return False
+
+    privacy = image_result.get("privacy", {}) or {}
+    faces_detected = int(privacy.get("faces_detected") or 0)
+    largest_face_ratio = float(privacy.get("largest_face_ratio") or 0.0)
+    if faces_detected <= 0 or (largest_face_ratio and largest_face_ratio < 0.01):
+        return False
+
+    objects = image_result.get("objects", {}) or {}
+    detections = objects.get("detections", []) or []
+
+    combined_text = f"{text or ''} {visual_text or ''}".lower()
+    id_keywords = (
+        "id card", "identity card", "national id", "student id", "passport",
+        "driver license", "driving license", "driving licence", "license card", "licence card"
+    )
+    has_id_text_signal = any(keyword in combined_text for keyword in id_keywords)
+
+    id_detection_tokens = {"id", "card", "id_card", "passport", "license", "licence", "document"}
+    has_id_detection_signal = False
+    has_clear_item_signal = False
+
+    for detection in detections:
+        cls = str(detection.get("class") or "").lower()
+        original_cls = str(detection.get("original_class") or "").lower()
+        confidence = float(detection.get("confidence") or 0.0)
+        merged = f"{cls} {original_cls}"
+
+        if any(token in merged for token in id_detection_tokens):
+            has_id_detection_signal = True
+
+        is_person_like = cls in {"person", "human", "man", "woman"} or original_cls in {"person", "human", "man", "woman"}
+        if confidence >= 0.45 and not is_person_like:
+            has_clear_item_signal = True
+
+    has_id_signal = has_id_text_signal or has_id_detection_signal
+
+    # Block only when a face is present and there is no ID/document signal and no clear item signal.
+    return bool(faces_detected > 0 and not has_id_signal and not has_clear_item_signal)
+
+
+def trigger_ai_backend_processing(ai_backend_url: str, ai_payload: Dict[str, Any]) -> None:
+    """Trigger AI indexing/retrieval in background so API responses are not blocked."""
+    try:
+        response = requests.post(ai_backend_url, json=ai_payload, timeout=20)
+        if response.status_code == 200:
+            ai_result = response.json() if response.content else {}
+            matches = ai_result.get("results", []) if isinstance(ai_result, dict) else []
+            logger.info(
+                "AI background processing completed for item %s (matches=%s)",
+                ai_payload.get("item_id"),
+                len(matches),
+            )
+        else:
+            logger.warning(
+                "AI background processing returned status %s for item %s: %s",
+                response.status_code,
+                ai_payload.get("item_id"),
+                response.text,
+            )
+    except Exception as ai_err:
+        logger.warning("AI background processing failed for item %s: %s", ai_payload.get("item_id"), ai_err)
 
 # ------------------------------------------------------------------ #
 # Fallback and Graceful Degradation
@@ -572,17 +655,20 @@ async def validate_with_fallback(
         if asyncio.iscoroutinefunction(validator_func):
             result = await asyncio.wait_for(
                 validator_func(*args, **kwargs),
-                timeout=30.0  # 30 second timeout
+                timeout=20.0  # Keep request latency bounded for proxied production traffic
             )
         else:
-            result = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: validator_func(*args, **kwargs)
+            result = await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: validator_func(*args, **kwargs)
+                ),
+                timeout=20.0,
             )
         return result
         
     except asyncio.TimeoutError:
-        logger.warning(f"{validator_name} timed out after 30 seconds")
+        logger.warning(f"{validator_name} timed out after 20 seconds")
         fallback = fallback_result or default_fallback.copy()
         fallback["error"] = "Validation timed out. Try with a smaller file."
         fallback["degraded"] = True
@@ -1794,14 +1880,46 @@ async def validate_complete(
                 image_path = save_uploaded_file(image_file)
                 background_tasks.add_task(cleanup_file, image_path)
                 
-                iv = get_image_validator()
-                if iv is None:
-                    raise Exception("Image validator not available")
-                    
-                image_result = iv.validate_image(image_path, visualText or text)
+                def _validate_image_with_init(path: str, prompt: Optional[str]):
+                    iv_local = get_image_validator()
+                    if iv_local is None:
+                        raise Exception("Image validator not available")
+                    return iv_local.validate_image(path, prompt)
+
+                image_result = await validate_with_fallback(
+                    _validate_image_with_init,
+                    image_path,
+                    visualText or text,
+                    validator_name="image_validator",
+                    fallback_result={
+                        "image_path": image_path,
+                        "sharpness": {
+                            "valid": False,
+                            "score": 0.0,
+                            "threshold": 0.0,
+                            "feedback": "Image sharpness unavailable"
+                        },
+                        "objects": {
+                            "valid": False,
+                            "detections": [],
+                            "feedback": "Object detection unavailable"
+                        },
+                        "privacy": {
+                            "faces_detected": 0,
+                            "privacy_protected": False,
+                            "processed_image": None,
+                            "feedback": "Privacy scan unavailable"
+                        },
+                        "valid": True,
+                        "overall_score": 0.5,
+                    },
+                )
                 image_result["image_path"] = image_path
                 image_result["timestamp"] = datetime.now().isoformat()
-                logger.info("✓ Image validation successful")
+                if image_result.get("degraded"):
+                    logger.warning("Image validation degraded; continuing with fallback result")
+                else:
+                    logger.info("✓ Image validation successful")
                 
             except Exception as e:
                 logger.warning(f"Image validation failed, using fallback: {e}")
@@ -1884,7 +2002,9 @@ async def validate_complete(
                 }
 
         # ============ CROSS-MODAL CONSISTENCY CHECKS ============
-        if image_path and text:
+        # Hosted environments can be resource-constrained; keep this optional to avoid request timeouts.
+        enable_cross_modal = os.getenv("ENABLE_CROSS_MODAL_VALIDATION", "false").lower() == "true"
+        if image_path and text and enable_cross_modal:
             try:
                 cv = get_clip_validator()
                 if cv is None:
@@ -1923,14 +2043,33 @@ async def validate_complete(
                         clip_text = f"a photo of a {' '.join(parts)}"
                 
                 logger.info(f"[CLIP] Final query for CLIP: '{clip_text}'")
-                cross_modal_results["image_text"] = cv.validate_image_text_alignment(image_path, clip_text, analysis_text=text)
-                logger.info("✓ Image-text consistency checked")
+                clip_result = await validate_with_fallback(
+                    cv.validate_image_text_alignment,
+                    image_path,
+                    clip_text,
+                    validator_name="clip_image_text_alignment",
+                    fallback_result={
+                        "valid": True,
+                        "similarity": 0.0,
+                        "overall_score": 0.0,
+                        "degraded": True,
+                        "feedback": "CLIP alignment unavailable"
+                    },
+                    analysis_text=text,
+                )
+                cross_modal_results["image_text"] = clip_result
+                if clip_result.get("degraded"):
+                    logger.warning("CLIP image-text consistency degraded; continuing without hard failure")
+                else:
+                    logger.info("✓ Image-text consistency checked")
             except Exception as e:
                 logger.warning(f"Image-text consistency check failed: {e}")
+        elif image_path and text and not enable_cross_modal:
+            logger.info("Cross-modal validation disabled via ENABLE_CROSS_MODAL_VALIDATION")
         
         # ============ ENHANCED DISCREPANCY CHECKS ============
         # Add brand mismatch detection to catch visual vs text conflicts  
-        if image_result and text_result and image_path:
+        if image_result and text_result and image_path and enable_cross_modal:
             try:
                 from src.cross_modal.enhanced_discrepancies import check_brand_mismatch
                 brand_check = check_brand_mismatch(image_result, text_result, image_path=image_path)
@@ -1951,7 +2090,7 @@ async def validate_complete(
             except Exception as e:
                 logger.warning(f"Brand mismatch check failed: {e}")
 
-        if voice_result and text_result:
+        if voice_result and text_result and enable_cross_modal:
             try:
                 ce_context = get_consistency_engine()
                 if ce_context is None:
@@ -1971,38 +2110,54 @@ async def validate_complete(
                 logger.warning(f"Voice-text/context consistency check failed: {e}")
         
         # ============ CALCULATE CONFIDENCE ============
-        try:
-            ce = get_consistency_engine()
-            if ce is None:
-                raise Exception("Consistency engine not available")
-            confidence_results = ce.calculate_overall_confidence(
-                image_result, text_result, voice_result, cross_modal_results
-            )
-        except Exception as e:
-            logger.warning(f"Confidence calculation failed, using fallback: {e}")
-            # Fallback confidence based on what we have
-            scores = []
-            if image_result:
-                scores.append(image_result.get("overall_score", 0.5))
-            if text_result:
-                scores.append(text_result.get("overall_score", 0.5))
-            if voice_result:
-                scores.append(voice_result.get("overall_score", 0.5))
-            
-            avg_confidence = sum(scores) / len(scores) if scores else 0.3
-            
-            confidence_results = {
-                "overall_confidence": avg_confidence,
-                "routing": "manual" if avg_confidence < 0.7 else "high_quality",
-                "action": "review",
-                "individual_scores": {
-                    "image": image_result.get("overall_score", 0) if image_result else 0,
-                    "text": text_result.get("overall_score", 0) if text_result else 0,
-                    "voice": voice_result.get("overall_score", 0) if voice_result else 0,
-                },
-                "cross_modal_scores": {},
-                "degraded": True
-            }
+        scores = []
+        if image_result:
+            scores.append(image_result.get("overall_score", 0.5))
+        if text_result:
+            scores.append(text_result.get("overall_score", 0.5))
+        if voice_result:
+            scores.append(voice_result.get("overall_score", 0.5))
+
+        avg_confidence = sum(scores) / len(scores) if scores else 0.3
+        fallback_confidence = {
+            "overall_confidence": avg_confidence,
+            "routing": "manual" if avg_confidence < 0.7 else "high_quality",
+            "action": "review",
+            "individual_scores": {
+                "image": image_result.get("overall_score", 0) if image_result else 0,
+                "text": text_result.get("overall_score", 0) if text_result else 0,
+                "voice": voice_result.get("overall_score", 0) if voice_result else 0,
+            },
+            "cross_modal_scores": {},
+            "degraded": True,
+        }
+
+        enable_confidence_engine = os.getenv("ENABLE_CONFIDENCE_ENGINE", "false").lower() == "true"
+        if enable_confidence_engine:
+            try:
+                def _calculate_confidence_with_init(img, txt, voice, cross):
+                    ce_local = get_consistency_engine()
+                    if ce_local is None:
+                        raise Exception("Consistency engine not available")
+                    return ce_local.calculate_overall_confidence(img, txt, voice, cross)
+
+                confidence_results = await validate_with_fallback(
+                    _calculate_confidence_with_init,
+                    image_result,
+                    text_result,
+                    voice_result,
+                    cross_modal_results,
+                    validator_name="confidence_calculation",
+                    fallback_result=fallback_confidence,
+                )
+                if confidence_results.get("degraded"):
+                    logger.warning("Confidence calculation degraded; fallback confidence applied")
+            except Exception as e:
+                logger.warning(f"Confidence calculation failed, using fallback: {e}")
+                confidence_results = fallback_confidence
+        else:
+            logger.info("Confidence engine disabled via ENABLE_CONFIDENCE_ENGINE; using fast fallback confidence")
+            confidence_results = fallback_confidence
         
         # ============ BUILD RESPONSE ============
         response_data = {
@@ -2020,6 +2175,14 @@ async def validate_complete(
                 "message": "Validation complete (some validators unavailable)" if confidence_results.get("degraded") else "Validation complete"
             }
         }
+
+        # Enforce image policy before any persistence: reject raw human photos,
+        # but allow ID/document card images that may include a face.
+        if should_reject_raw_human_photo(image_result, text=text, visual_text=visualText):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Upload blocked: real-person photos are not allowed. Item photos (including ID/document cards) are allowed.",
+            )
         
         # ============ SAVE TO SUPABASE (ALWAYS ATTEMPT) ============
         supabase_saved_id = None
@@ -2043,6 +2206,7 @@ async def validate_complete(
                     "user_id": userId,
                     "user_email": userEmail or "",
                     "status": "pending",
+                    "item_status": "open",
                     "created_at": datetime.utcnow().isoformat(),
                 }
                 
@@ -2194,49 +2358,30 @@ async def validate_complete(
                     if image_url:
                         response_data["image_url"] = image_url
 
-                    # Trigger AI backend processing after successful insert.
-                    # Found items are indexed; lost items run retrieval against indexed found items.
+                    # Trigger AI backend processing after successful insert in the background.
+                    # The chat flow already calls retrieval separately; this must not block the API response.
                     if image_url and intent in {"found", "lost"}:
                         try:
-                            AI_BACKEND_URL = "http://localhost:8001/items/process"
-
-                            ai_payload = {
-                                "item_id": supabase_saved_id,
-                                "item_type": intent,  # "lost" or "found"
-                                "image_url": image_url,
-                                "user_category": item_data.get("user_category") or None,
-                                "k": 5,
-                                "mc_T": 20
-                            }
-
-                            logger.info(f"🤖 Triggering AI backend for {intent} item {supabase_saved_id}")
-                            response = requests.post(
-                                AI_BACKEND_URL,
-                                json=ai_payload,
-                                timeout=30
-                            )
-                            
-                            if response.status_code == 200:
-                                ai_result = response.json() if response.content else {}
-                                matches = ai_result.get("results", []) if isinstance(ai_result, dict) else []
-                                
-                                if intent == "found":
-                                    if matches:
-                                        logger.info(
-                                            "✓ AI indexing + retrieval completed for found item %s (matches=%s lost items)",
-                                            supabase_saved_id,
-                                            len(matches),
-                                        )
-                                    else:
-                                        logger.info(f"✓ AI indexing completed for found item {supabase_saved_id} (no lost items to match)")
-                                else:  # lost
-                                    logger.info(
-                                        "✓ AI indexing + retrieval completed for lost item %s (matches=%s found items)",
-                                        supabase_saved_id,
-                                        len(matches),
-                                    )
+                            enable_background = os.getenv("ENABLE_BACKGROUND_AI_PROCESSING", "true").lower() == "true"
+                            if not enable_background:
+                                logger.info("Background AI processing disabled; skipping Minuk call")
                             else:
-                                logger.warning(f"AI backend returned status {response.status_code}: {response.text}")
+                                AI_BACKEND_URL = os.getenv("AI_BACKEND_URL", "").strip()
+                                if not AI_BACKEND_URL:
+                                    logger.warning("AI_BACKEND_URL is not set; skipping background AI processing")
+                                else:
+                                    default_mc_t = int(os.getenv("DEFAULT_MC_T", "5"))
+                                    ai_payload = {
+                                        "item_id": supabase_saved_id,
+                                        "item_type": intent,  # "lost" or "found"
+                                        "image_url": image_url,
+                                        "user_category": item_data.get("user_category") or None,
+                                        "k": 5,
+                                        "mc_T": default_mc_t
+                                    }
+
+                                    logger.info(f"🤖 Scheduling background AI processing for {intent} item {supabase_saved_id} via {AI_BACKEND_URL}")
+                                    background_tasks.add_task(trigger_ai_backend_processing, AI_BACKEND_URL, ai_payload)
 
                         except Exception as ai_err:
                             logger.warning(f"AI indexing failed (non-fatal): {ai_err}")
@@ -2606,6 +2751,66 @@ from fastapi.responses import HTMLResponse
 # Serve static files (React build)
 # Use absolute paths to avoid working directory issues
 current_dir = os.path.dirname(os.path.abspath(__file__))
+# ============ ITEMS/PROCESS ENDPOINT — Proxy to Minuk ============
+@app.post("/items/process")
+async def items_process(req: ItemsProcessRequest):
+    """
+    Proxy endpoint that forwards retrieval requests to Minuk AI service.
+    Called by frontend for image matching and lost/found item retrieval.
+    """
+    try:
+        AI_BACKEND_URL = os.getenv("AI_BACKEND_URL", "").strip()
+        if not AI_BACKEND_URL:
+            logger.error("AI_BACKEND_URL not configured; cannot call Minuk")
+            return JSONResponse(
+                status_code=503,
+                content={"error": "AI backend not configured", "results": []},
+            )
+
+        # Forward request to Minuk
+        logger.info(f"[ITEMS/PROCESS] Forwarding to Minuk: item_id={req.item_id}, type={req.item_type}, k={req.k}")
+        
+        payload = {
+            "item_id": req.item_id,
+            "item_type": req.item_type,
+            "image_url": req.image_url,
+            "k": req.k,
+            "mc_T": req.mc_T,
+        }
+        if req.user_category:
+            payload["user_category"] = req.user_category
+
+        response = requests.post(AI_BACKEND_URL, json=payload, timeout=90)
+        
+        if response.status_code != 200:
+            logger.error(f"[ITEMS/PROCESS] Minuk returned {response.status_code}: {response.text}")
+            return JSONResponse(
+                status_code=response.status_code,
+                content={
+                    "error": f"AI service error: {response.status_code}",
+                    "upstream_error": response.text,
+                    "results": [],
+                },
+            )
+
+        result = response.json()
+        logger.info(f"[ITEMS/PROCESS] Minuk returned {len(result.get('results', []))} matches")
+        return result
+
+    except requests.exceptions.Timeout:
+        logger.error("[ITEMS/PROCESS] Minuk request timeout")
+        return JSONResponse(
+            status_code=504,
+            content={"error": "AI service timeout", "results": []},
+        )
+    except Exception as e:
+        logger.error(f"[ITEMS/PROCESS] Exception: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "results": []},
+        )
+
+
 dist_dir = os.path.join(current_dir, "frontend", "dist")
 assets_dir = os.path.join(dist_dir, "assets")
 
@@ -2625,7 +2830,12 @@ async def serve_root():
     index_path = os.path.join(dist_dir, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    return Response("Frontend not found", status_code=500)
+    return JSONResponse({
+        "status": "ok",
+        "service": "kumesha-api",
+        "health": "/health",
+        "docs": "/docs"
+    })
 
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):

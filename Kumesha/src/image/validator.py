@@ -615,35 +615,59 @@ class ImageValidator:
             }
 
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        
-        # Detect frontal faces
-        faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
-        faces_list = [list(f) for f in faces]
-        
-        # Detect profile faces
-        profile_faces = self.profile_face_cascade.detectMultiScale(gray, 1.1, 4)
-        for f in profile_faces:
-            # Avoid duplicates (simple overlap check)
-            is_duplicate = False
-            fx, fy, fw, fh = f
-            for (x, y, w, h) in faces_list:
-                if abs(fx - x) < 20 and abs(fy - y) < 20:
-                    is_duplicate = True
-                    break
-            if not is_duplicate:
-                faces_list.append(list(f))
-        
+        img_h, img_w = image.shape[:2]
+        img_area = float(max(1, img_w * img_h))
+        min_face_ratio = 0.01
+        min_face_px = 40
+
+        def _detect_faces(gray_frame: np.ndarray, scale: float, neighbors: int, min_size: tuple) -> List[List[int]]:
+            faces = self.face_cascade.detectMultiScale(gray_frame, scale, neighbors, minSize=min_size)
+            faces_list = [list(f) for f in faces]
+
+            profile_faces = self.profile_face_cascade.detectMultiScale(gray_frame, scale, neighbors, minSize=min_size)
+            for f in profile_faces:
+                # Avoid duplicates (simple overlap check)
+                is_duplicate = False
+                fx, fy, fw, fh = f
+                for (x, y, w, h) in faces_list:
+                    if abs(fx - x) < 20 and abs(fy - y) < 20:
+                        is_duplicate = True
+                        break
+                if not is_duplicate:
+                    faces_list.append(list(f))
+            return faces_list
+
+        # Standard pass
+        faces_list = _detect_faces(gray, 1.1, 4, (30, 30))
+
+        # Fallback pass: more sensitive (handles mobile selfies and low contrast)
         if len(faces_list) == 0:
+            gray_eq = cv2.equalizeHist(gray)
+            faces_list = _detect_faces(gray_eq, 1.05, 3, (20, 20))
+        
+        filtered_faces = []
+        largest_ratio = 0.0
+        for (x, y, w, h) in faces_list:
+            if w < min_face_px or h < min_face_px:
+                continue
+            ratio = float(w * h) / img_area
+            if ratio < min_face_ratio:
+                continue
+            filtered_faces.append([x, y, w, h])
+            if ratio > largest_ratio:
+                largest_ratio = ratio
+
+        if len(filtered_faces) == 0:
             return {
                 "faces_detected": 0,
                 "privacy_protected": False,
                 "processed_image": None,
                 "feedback": "No faces detected",
+                "largest_face_ratio": 0.0,
             }
 
         blurred = image.copy()
-        blurred = image.copy()
-        for (x, y, w, h) in faces_list:
+        for (x, y, w, h) in filtered_faces:
             roi = blurred[y : y + h, x : x + w]
             # Aggressive blurring for privacy
             roi = cv2.GaussianBlur(roi, (99, 99), 30)
@@ -655,10 +679,11 @@ class ImageValidator:
         cv2.imwrite(processed_path, blurred)
 
         return {
-            "faces_detected": len(faces_list),
+            "faces_detected": len(filtered_faces),
             "privacy_protected": True,
             "processed_image": processed_path,
-            "feedback": f"Blurred {len(faces_list)} face(s)",
+            "feedback": f"Blurred {len(filtered_faces)} face(s)",
+            "largest_face_ratio": round(largest_ratio, 4),
         }
 
     def _generate_feedback(self, sharpness: Dict, objects: Dict, overall: float) -> str:

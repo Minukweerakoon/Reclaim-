@@ -1,6 +1,6 @@
 /**
  * Voshan detection API client for admin dashboard.
- * Base URL: VITE_VOSHAN_API_URL or /api (same-origin proxy to Node backend on 5000).
+ * Base URL: VITE_VOSHAN_API_URL or /api (same-origin proxy to the configured Voshan backend port).
  */
 
 function normalizeApiBase(rawBase?: string): string {
@@ -69,7 +69,7 @@ export const voshanDetectionApi = {
 
 /** WebSocket URL for Voshan alerts (Socket.IO). */
 export function getVoshanWsUrl(): string {
-  const base = import.meta.env.VITE_VOSHAN_API_URL as string;
+  const base = BASE;
   if (base && base.startsWith('http')) {
     const u = new URL(base);
     return `${u.protocol === 'https:' ? 'wss:' : 'ws:'}//${u.host}`;

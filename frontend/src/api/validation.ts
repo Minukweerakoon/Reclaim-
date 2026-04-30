@@ -1,13 +1,13 @@
 import axios from 'axios';
 import type { ValidationResponse } from '../types/api';
+import { apiOrigin } from './config';
 
 // Read API key from env; fall back to dev default so local dev still works
 const API_KEY = import.meta.env.VITE_API_KEY || 'test-api-key';
 
 // Separate axios instance for /validate/* endpoints (not under /api prefix)
-// Use direct URL to bypass Vite proxy issues
 const validationClient = axios.create({
-    baseURL: 'http://127.0.0.1:8000',
+    baseURL: apiOrigin,
     headers: {
         'X-API-Key': API_KEY,
     },

@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { SearchX, PackageCheck } from 'lucide-react';
 import { useChatStore } from '../store/useChatStore';
 import { useValidationStore } from '../store/useValidationStore';
 
@@ -38,7 +39,9 @@ function IntentSelectionPage() {
                         }}
                         className="glass-panel rounded-2xl p-8 text-left transition-all duration-300 group border border-red-500/25 hover:border-red-500/55 hover:shadow-[0_0_24px_rgba(239,68,68,0.1)]"
                     >
-                        <div className="text-5xl mb-5">😟</div>
+                        <div className="w-12 h-12 mb-5 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-300">
+                            <SearchX className="w-6 h-6" />
+                        </div>
                         <div className="text-2xl font-bold text-white mb-3">I LOST IT</div>
                         <p className="text-slate-400 leading-relaxed">
                             Report a missing item and walk through the guided questions.
@@ -55,7 +58,9 @@ function IntentSelectionPage() {
                         }}
                         className="glass-panel rounded-2xl p-8 text-left transition-all duration-300 group border border-indigo-500/25 hover:border-indigo-500/55 hover:shadow-[0_0_24px_rgba(99,102,241,0.12)]"
                     >
-                        <div className="text-5xl mb-5">😊</div>
+                        <div className="w-12 h-12 mb-5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-300">
+                            <PackageCheck className="w-6 h-6" />
+                        </div>
                         <div className="text-2xl font-bold text-white mb-3">I FOUND IT</div>
                         <p className="text-slate-400 leading-relaxed">
                             Log a found item so it can be matched quickly.

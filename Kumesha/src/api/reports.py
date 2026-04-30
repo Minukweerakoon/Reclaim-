@@ -8,7 +8,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Header, status, Query
 from pydantic import BaseModel, Field
 
 from src.database.supabase_client import get_supabase_manager
@@ -108,6 +108,11 @@ class ReportResponse(BaseModel):
     created_at: Optional[str] = None
 
 
+class UpdateReportStatusRequest(BaseModel):
+    """Request body for updating report workflow status."""
+    item_status: str = "open"
+
+
 # ------------------------------------------------------------------ #
 # Endpoints
 # ------------------------------------------------------------------ #
@@ -161,23 +166,25 @@ async def save_report(
     # ------------------------------------------------
 
     try:
-        AI_BACKEND_URL = "http://localhost:8001/items/process"
+        AI_BACKEND_URL = os.getenv("AI_BACKEND_URL", "").strip()
+        if not AI_BACKEND_URL:
+            logger.warning("AI_BACKEND_URL is not set; skipping AI processing trigger for report %s", report_id)
+        else:
+            requests.post(
+                AI_BACKEND_URL,
+                json={
+                    "item_id": report_id,
+                    "status": body.intention,
+                    "image_url": body.image_url,
+                    "user_category": body.user_category or body.item_type,
+                    "description": body.description,
+                    "location": body.location,
+                    "color": body.color,
+                },
+                timeout=10,
+            )
 
-        requests.post(
-            AI_BACKEND_URL,
-            json={
-                "item_id": report_id,
-                "status": body.intention,
-                "image_url": body.image_url,
-                "user_category": body.user_category or body.item_type,
-                "description": body.description,
-                "location": body.location,
-                "color": body.color,
-            },
-            timeout=10,
-        )
-
-        logger.info(f"AI processing triggered for item {report_id}")
+            logger.info("AI processing triggered for item %s via %s", report_id, AI_BACKEND_URL)
 
     except Exception as e:
         logger.warning(f"AI backend call failed: {e}")
@@ -196,12 +203,12 @@ async def list_my_reports(user: Dict = Depends(get_current_user)):
 
 
 @router.get("/all")
-async def list_all_reports():
+async def list_all_reports(limit: int = Query(default=200, ge=1, le=5000)):
     """List all reports (research access — no auth required for group members)."""
     sb = get_supabase_manager()
     if sb is None:
         raise HTTPException(status_code=503, detail="Supabase unavailable")
-    reports = sb.get_all_items(limit=200)
+    reports = sb.get_all_items(limit=limit)
     return {"reports": reports, "count": len(reports)}
 
 
@@ -215,3 +222,29 @@ async def get_report(report_id: str, intention: str = "lost"):
     if report is None:
         raise HTTPException(status_code=404, detail="Report not found")
     return report
+
+
+@router.patch("/{report_id}/status")
+async def update_report_status(
+    report_id: str,
+    body: UpdateReportStatusRequest,
+    user: Dict = Depends(get_current_user),
+):
+    """Update workflow status (open/claimed/returned/closed) for a report."""
+    allowed = {"open", "claimed", "returned", "closed"}
+    status_value = (body.item_status or "").strip().lower()
+    if status_value not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid item_status. Allowed: {', '.join(sorted(allowed))}",
+        )
+
+    sb = get_supabase_manager()
+    if sb is None:
+        raise HTTPException(status_code=503, detail="Supabase unavailable")
+
+    updated = sb.update_item_status(report_id, user["id"], status_value)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Report not found or not owned by user")
+
+    return updated

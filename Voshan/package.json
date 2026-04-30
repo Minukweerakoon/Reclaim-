@@ -5,8 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:all": "node scripts/start-all.js",
     "predev": "node scripts/kill-port-5000.js",
     "dev": "nodemon server.js",
+    "dev:all": "node scripts/dev-all.js",
     "test": "jest"
   },
   "keywords": [

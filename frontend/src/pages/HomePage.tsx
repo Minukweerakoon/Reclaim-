@@ -1,17 +1,44 @@
 // @ts-nocheck
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { Search, ShieldCheck, Zap, ArrowRight, MapPin, ShieldAlert } from 'lucide-react';
+import { reportsApi } from '../api/reports';
 
-const stats = [
-    { label: 'Items Returned', value: '12,405' },
-    { label: 'Success Rate', value: '94%' },
-    { label: 'Avg. Match Time', value: '2.5 hrs' },
-    { label: 'Active Users', value: '50k+' },
-];
+const formatCount = (value) => Number(value || 0).toLocaleString();
 
 export function HomePage({ onNavigate, user, onSignOut, showAdminLink }) {
+    const { data: stats, isLoading: statsLoading } = useQuery({
+        queryKey: ['home-report-stats'],
+        queryFn: async () => {
+            const data = await reportsApi.getReports(5000);
+            const reports = Array.isArray(data?.reports) ? data.reports : [];
+            const total = reports.length;
+            const activeUsers = new Set(
+                reports
+                    .map((r) => String(r?.user_id || '').trim())
+                    .filter(Boolean)
+            ).size;
+
+            return [
+                { label: 'Total Reports', value: formatCount(total) },
+                { label: 'Accuracy', value: '94%' },
+                { label: 'Reporting Users', value: formatCount(activeUsers) },
+            ];
+        },
+        staleTime: 30000,
+        refetchInterval: 60000,
+        retry: 1,
+    });
+
+    const statsCards = stats || [
+        { label: 'Total Reports', value: statsLoading ? '...' : '0' },
+        { label: 'Accuracy', value: '94%' },
+        { label: 'Reporting Users', value: statsLoading ? '...' : '0' },
+    ];
+    const statValueByLabel = Object.fromEntries(statsCards.map((card) => [card.label, card.value]));
+
     return (
         <div className="min-h-screen w-full bg-[#08080f] text-white relative overflow-x-hidden">
             <div className="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-600/10 blur-[120px] pointer-events-none" />
@@ -56,13 +83,21 @@ export function HomePage({ onNavigate, user, onSignOut, showAdminLink }) {
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-24 max-w-4xl mx-auto">
-                    {stats.map((stat, i) => (
-                        <div key={i} className="glass-panel p-6 rounded-2xl text-center">
-                            <div className="text-2xl md:text-3xl font-bold text-white mb-1">{stat.value}</div>
-                            <div className="text-xs text-slate-400 uppercase tracking-wider">{stat.label}</div>
+                <div className="mb-24 max-w-4xl mx-auto">
+                    <div className="glass-panel p-6 md:p-8 rounded-2xl text-center mb-3 md:mb-4">
+                        <div className="text-2xl md:text-3xl font-bold text-white mb-1">{statValueByLabel['Accuracy']}</div>
+                        <div className="text-xs text-slate-400 uppercase tracking-wider">Accuracy</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 md:gap-4">
+                        <div className="glass-panel p-4 md:p-5 rounded-2xl text-center">
+                            <div className="text-xl md:text-2xl font-bold text-white mb-1">{statValueByLabel['Total Reports']}</div>
+                            <div className="text-[10px] md:text-xs text-slate-400 uppercase tracking-wider">Total Reports</div>
                         </div>
-                    ))}
+                        <div className="glass-panel p-4 md:p-5 rounded-2xl text-center">
+                            <div className="text-xl md:text-2xl font-bold text-white mb-1">{statValueByLabel['Reporting Users']}</div>
+                            <div className="text-[10px] md:text-xs text-slate-400 uppercase tracking-wider">Reporting Users</div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Features */}
@@ -101,9 +136,9 @@ export function HomePage({ onNavigate, user, onSignOut, showAdminLink }) {
                 <div className="max-w-7xl mx-auto px-4 md:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="text-slate-500 text-sm">© 2026 Reclaim AI. All rights reserved.</div>
                     <div className="flex gap-6 text-sm text-slate-400">
-                        <a href="#" className="hover:text-white transition-colors">Privacy</a>
-                        <a href="#" className="hover:text-white transition-colors">Terms</a>
-                        <a href="#" className="hover:text-white transition-colors">Support</a>
+                        <Link to="/privacy" className="hover:text-white transition-colors">Privacy</Link>
+                        <Link to="/terms" className="hover:text-white transition-colors">Terms</Link>
+                        <a href="mailto:support@reclaim.ai" className="hover:text-white transition-colors">Support</a>
                     </div>
                 </div>
             </footer>

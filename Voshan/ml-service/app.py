@@ -8,6 +8,8 @@ import json
 import logging
 import time
 import re
+import urllib.request
+import urllib.error
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
@@ -87,15 +89,20 @@ def internal_error(error):
 @app.errorhandler(Exception)
 def handle_exception(e):
     """Handle all unhandled exceptions"""
+    # Pass through HTTPException (like 404, 400) without error-level noise.
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        if e.code == 404:
+            return jsonify({
+                "status": "error",
+                "message": "Route not found"
+            }), 404
+        return e
+
     error_trace = traceback.format_exc()
     logger.error(f"Unhandled exception: {str(e)}")
     logger.error(f"Exception type: {type(e).__name__}")
     logger.error(f"Traceback: {error_trace}")
-    
-    # Pass through HTTPException (like 404, 400) to Flask's default handler
-    from werkzeug.exceptions import HTTPException
-    if isinstance(e, HTTPException):
-        return e
     
     return jsonify({
         "status": "error",
@@ -104,6 +111,22 @@ def handle_exception(e):
         "error_type": type(e).__name__,
         "traceback": error_trace if app.debug else None
     }), 500
+
+
+@app.route('/', methods=['GET'])
+def root():
+    """Simple root endpoint so browser checks do not trigger 404 noise."""
+    return jsonify({
+        "status": "ok",
+        "service": "voshan-ml",
+        "health": "/api/v1/detect/status"
+    })
+
+
+@app.route('/favicon.ico', methods=['GET'])
+def favicon():
+    """Return empty favicon response for browser auto-requests."""
+    return ('', 204)
 
 # Before request handler to log requests
 @app.before_request
@@ -128,12 +151,50 @@ behavior_detector = None
 coco_extension = None  # Optional: COCO model for handbag, backpack, suitcase
 video_processor = VideoProcessor()
 
+
+def _resolve_primary_model_path() -> str:
+    """
+    Resolve a usable primary model path with safe fallbacks.
+
+    Order:
+    1) Configured local model path if present.
+    2) Download from VOSHAN_MODEL_URL into configured path.
+    3) Fallback to VOSHAN_MODEL_FALLBACK (default: yolo11n.pt).
+    """
+    model_cfg_path = config.get('model', {}).get('path', 'models/best.pt')
+    model_path = model_cfg_path
+    if not os.path.isabs(model_path):
+        model_path = os.path.join(os.path.dirname(__file__), model_path)
+
+    if os.path.exists(model_path):
+        return model_path
+
+    model_url = os.getenv('VOSHAN_MODEL_URL', '').strip()
+    if model_url:
+        try:
+            os.makedirs(os.path.dirname(model_path), exist_ok=True)
+            logger.warning(f"Primary model not found at {model_path}. Downloading from VOSHAN_MODEL_URL...")
+            with urllib.request.urlopen(model_url, timeout=180) as response, open(model_path, 'wb') as out:
+                out.write(response.read())
+            if os.path.exists(model_path):
+                logger.info(f"Downloaded primary model to {model_path}")
+                return model_path
+        except (urllib.error.URLError, TimeoutError, OSError) as download_err:
+            logger.warning(f"Model download failed from VOSHAN_MODEL_URL: {download_err}")
+
+    fallback_model = os.getenv('VOSHAN_MODEL_FALLBACK', 'yolo11n.pt').strip() or 'yolo11n.pt'
+    logger.warning(
+        f"Primary model unavailable at {model_path}. Falling back to {fallback_model}. "
+        "Set VOSHAN_MODEL_URL to restore custom weights."
+    )
+    return fallback_model
+
 def initialize_services():
     """Initialize ML services"""
     global detector, tracker, behavior_detector, coco_extension
     
     try:
-        model_path = os.path.join(os.path.dirname(__file__), config['model']['path'])
+        model_path = _resolve_primary_model_path()
         detector = YOLODetector(
             model_path=model_path,
             image_size=config['model']['image_size'],

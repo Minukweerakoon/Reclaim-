@@ -1,21 +1,28 @@
 /**
  * Admin user check for Reclaim/Voshan admin dashboard.
- * Only the user with this email can access the admin dashboard.
+ * Checks Supabase user metadata/app metadata for admin authorization.
  */
-
-const ADMIN_EMAIL = 'voshan1996@gmail.com';
-
-function getAdminEmail(): string {
-  return (import.meta.env.VITE_ADMIN_EMAIL as string) || ADMIN_EMAIL;
-}
 
 /**
- * Returns true if the given user is the allowed admin (by email).
+ * Returns true when the logged-in user is marked as admin in Supabase.
  */
-export function isAdminUser(user: { email?: string } | null): boolean {
-  if (!user?.email) return false;
-  const adminEmail = getAdminEmail().trim().toLowerCase();
-  return user.email.trim().toLowerCase() === adminEmail;
-}
+export function isAdminUser(user: { email?: string; user_metadata?: Record<string, any>; app_metadata?: Record<string, any> } | null): boolean {
+  if (!user) return false;
+  
+  // Prefer Supabase metadata checks from the currently logged-in user.
+  // Support both boolean `admin` and string `role` formats.
+  const userMetadata = user.user_metadata || {};
+  const appMetadata = user.app_metadata || {};
+  const adminValue = userMetadata.admin ?? appMetadata.admin;
+  const roleValue = userMetadata.role ?? appMetadata.role;
 
-export { getAdminEmail };
+  if (adminValue === true || adminValue === 'true') {
+    return true;
+  }
+
+  if (typeof roleValue === 'string' && roleValue.trim().toLowerCase() === 'admin') {
+    return true;
+  }
+
+  return false;
+}

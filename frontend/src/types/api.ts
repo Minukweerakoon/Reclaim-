@@ -78,6 +78,7 @@ export interface ImageValidationResult {
         privacy_protected: boolean;
         processed_image: string;
         feedback: string;
+        largest_face_ratio?: number;
     };
     overall_score: number;            // 0-100
     valid: boolean;
@@ -214,6 +215,7 @@ export interface ChatMessage {
         id?: string;
         rank?: number;
         category?: string;
+        model_category?: string;
         final_category?: string;
         image_url?: string;
         score?: number;

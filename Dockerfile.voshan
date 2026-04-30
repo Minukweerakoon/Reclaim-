@@ -1,0 +1,37 @@
+# Use official Node.js image as base
+FROM node:18-slim
+
+WORKDIR /app
+
+# Install system dependencies for ML service
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    python3 \
+    python3-pip \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsndfile1 \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Voshan directory
+COPY Voshan /app/Voshan
+
+# Install Node.js dependencies
+WORKDIR /app/Voshan
+RUN npm install
+
+# Install Python dependencies for ML service
+WORKDIR /app/Voshan/ml-service
+RUN python3 -m pip install --no-cache-dir --upgrade pip --break-system-packages && \
+        python3 -m pip install --no-cache-dir --break-system-packages \
+            --index-url https://download.pytorch.org/whl/cpu \
+            --extra-index-url https://pypi.org/simple \
+            -r requirements.txt
+
+# Expose ports for backend (5000) and ML service (5001)
+EXPOSE 5000 5001
+
+# Use start:all to run both Node backend + Python ML service together
+WORKDIR /app/Voshan
+CMD ["npm", "run", "start:all"]
