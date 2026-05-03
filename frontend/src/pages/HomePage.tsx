@@ -138,6 +138,7 @@ export function HomePage({ onNavigate, user, onSignOut, showAdminLink }) {
                     <div className="flex gap-6 text-sm text-slate-400">
                         <Link to="/privacy" className="hover:text-white transition-colors">Privacy</Link>
                         <Link to="/terms" className="hover:text-white transition-colors">Terms</Link>
+                        <Link to="/contact" className="hover:text-white transition-colors">Contact us</Link>
                         <a href="mailto:support@reclaim.ai" className="hover:text-white transition-colors">Support</a>
                     </div>
                 </div>
