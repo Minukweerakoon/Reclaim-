@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Upload, Bell, History, Filter } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { voshanDetectionApi, getVoshanWsUrl } from '../api/voshanDetectionApi';
+import { parseGroupedAlertPayload, parseNewAlertPayload } from '../schemas/voshanSocket';
 import reclaimLogo from '../../assets/reclaim-logo.png';
 
 /** Build URL for alert frame image (ML service saves to alert_frames/; Node serves at /api/voshan/detection/alert-frames/) */
@@ -190,9 +191,14 @@ export function AdminDashboard({ user, onSignOut }) {
     });
 
     socket.on('new-alert', (data) => {
-      const type = data?.type || 'Alert';
-      const severity = data?.severity || 'MEDIUM';
-      const cameraId = data?.cameraId ?? data?.camera_id;
+      const parsed = parseNewAlertPayload(data);
+      if (!parsed.success) {
+        if (import.meta.env.DEV) {
+          console.warn('[voshan] Invalid new-alert payload ignored');
+        }
+        return;
+      }
+      const { type, severity, cameraId } = parsed.value;
       const msg = cameraId ? `New alert: ${type} (${severity}) — Camera ${cameraId}` : `New alert: ${type} (${severity})`;
       addToast(type, severity, msg);
       addNotification(type, severity, msg, cameraId);
@@ -200,14 +206,14 @@ export function AdminDashboard({ user, onSignOut }) {
     });
 
     socket.on('grouped-alert', (data) => {
-      const type = data?.type || 'Alert';
-      const severity = data?.severity || 'MEDIUM';
-      const cameraId = data?.cameraId ?? data?.camera_id;
-      const count = data?.count ?? 0;
-      const frameStart = data?.frameStart ?? 0;
-      const frameEnd = data?.frameEnd ?? 0;
-      const itemType = data?.itemType ?? data?.item_type ?? null;
-      const frameImages = Array.isArray(data?.frameImages) ? data.frameImages : [];
+      const parsed = parseGroupedAlertPayload(data);
+      if (!parsed.success) {
+        if (import.meta.env.DEV) {
+          console.warn('[voshan] Invalid grouped-alert payload ignored');
+        }
+        return;
+      }
+      const { type, severity, cameraId, count, frameStart, frameEnd, itemType, frameImages } = parsed.value;
       const typeLabel = itemType ? `${type} (${String(itemType).replace(/_/g, ' ')})` : type;
       const msg = count > 0
         ? (cameraId ? `${count}× ${typeLabel} (frames ${frameStart}–${frameEnd}) — Camera ${cameraId}` : `${count}× ${typeLabel} (frames ${frameStart}–${frameEnd})`)
