@@ -7,6 +7,7 @@ import IntentSelectionPage from './pages/IntentSelectionPage';
 import Monitor from './pages/Monitor';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsPage from './pages/TermsPage';
+import ContactUsPage from './pages/ContactUsPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import ReclaimApp from './reclaim/ReclaimApp';
@@ -24,7 +25,8 @@ function App() {
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/reclaim/privacy" element={<PrivacyPolicyPage />} />
           <Route path="/reclaim/terms" element={<TermsPage />} />
-
+          <Route path="/contact" element={<ContactUsPage />} />
+          <Route path="/reclaim/contact" element={<ContactUsPage />} />
 
           {/* Group project Reclaim UI — manages its own auth flow internally */}
           <Route path="/reclaim/*" element={<ReclaimApp />} />
