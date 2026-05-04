@@ -1,0 +1,171 @@
+const WebSocket = require('ws');
+
+/**
+ * wsService
+ * - Provides a small WebSocket hub for:
+ *   1) Ingesting pings via WS (fallback: HTTP)
+ *   2) Broadcasting saved pings + alerts to dashboard clients
+ *
+ * Message format (JSON):
+ *  Client -> Server:
+ *   { type: 'ping', payload: { macAddress|deviceId, lat, lng, accuracy, speed?, ts? } }
+ *   { type: 'subscribe', payload: { macAddress?: string, deviceId?: string } }
+ *
+ *  Server -> Client:
+ *   { type: 'hello', payload: { ok: true } }
+ *   { type: 'ack', payload: { ok: true, requestId?: string } }
+ *   { type: 'ping_saved', payload: { ping, deviceStatus, zoneName } }
+ *   { type: 'alert', payload: { alert } }
+ */
+
+let wss = null;
+const clientMeta = new WeakMap();
+
+function safeSend(ws, obj) {
+  try {
+    if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+  } catch {
+    // ignore
+  }
+}
+
+function init(httpServer, { path = '/ws' } = {}) {
+  wss = new WebSocket.Server({ server: httpServer, path });
+
+  wss.on('connection', (ws) => {
+    clientMeta.set(ws, { subscribedTo: null });
+    safeSend(ws, { type: 'hello', payload: { ok: true } });
+
+    ws.on('message', async (raw) => {
+      let msg;
+      try {
+        msg = JSON.parse(String(raw));
+      } catch {
+        return safeSend(ws, { type: 'error', payload: { error: 'Invalid JSON' } });
+      }
+
+      if (!msg || typeof msg !== 'object') return;
+      const { type, payload, requestId } = msg;
+
+      if (type === 'subscribe') {
+        const meta = clientMeta.get(ws) || {};
+        meta.subscribedTo = payload?.macAddress || payload?.deviceId || null;
+        meta.userId = payload?.userId || null;        // owner identity for cross-device alarm
+        meta.isDesignated = payload?.isDesignated === true;  // only designated devices receive theft alarms
+        clientMeta.set(ws, meta);
+        return safeSend(ws, { type: 'ack', payload: { ok: true, subscribedTo: meta.subscribedTo }, requestId });
+      }
+
+      // Ingest is handled elsewhere (locationRoutes) via HTTP.
+      // For WS ingest, the server.js will attach a handler through onPing callback.
+      if (type === 'ping' && typeof exports._onPing === 'function') {
+        try {
+          const result = await exports._onPing(payload);
+          safeSend(ws, { type: 'ack', payload: { ok: true, result }, requestId });
+        } catch (e) {
+          safeSend(ws, { type: 'ack', payload: { ok: false, error: e?.message || 'Ping failed' }, requestId });
+        }
+      }
+    });
+  });
+
+  return wss;
+}
+
+function broadcast(type, payload, { match } = {}) {
+  if (!wss) return;
+  for (const ws of wss.clients) {
+    if (ws.readyState !== WebSocket.OPEN) continue;
+    if (typeof match === 'function') {
+      const meta = clientMeta.get(ws) || {};
+      if (!match(meta)) continue;
+    }
+    safeSend(ws, { type, payload });
+  }
+}
+
+/**
+ * Convenience: broadcast a ping to dashboard subscribers.
+ */
+function broadcastPingSaved({ ping, deviceStatus, zoneName, deviceKey }) {
+  broadcast(
+    'ping_saved',
+    { ping, deviceStatus, zoneName },
+    {
+      match: (meta) => {
+        if (!meta?.subscribedTo) return true; // broadcast to all if no filters
+        return (
+          meta.subscribedTo === ping?.deviceId?.toString?.() ||
+          meta.subscribedTo === deviceKey
+        );
+      }
+    }
+  );
+}
+
+/**
+ * Send a theft alarm to the browser tab subscribed to a specific device.
+ */
+function broadcastAlarm(deviceId) {
+  broadcast('alarm', { deviceId: deviceId.toString() }, {
+    match: (meta) => meta.subscribedTo === deviceId.toString()
+  });
+}
+
+/**
+ * Send a theft alarm to ALL open sessions belonging to the device owner.
+ * Matches on the device tab itself OR any other tab the owner has open
+ * (e.g. their phone, another laptop) that subscribed with the same userId.
+ */
+function broadcastAlarmToOwner(ownerId, deviceId) {
+  const ownerStr = ownerId.toString();
+  const deviceStr = deviceId.toString();
+  broadcast('alarm', { deviceId: deviceStr }, {
+    match: (meta) =>
+      meta.subscribedTo === deviceStr ||  // the stolen device's own tab
+      meta.userId === ownerStr            // owner's other open sessions
+  });
+}
+
+/**
+ * Send a theft alarm ONLY to the owner's DESIGNATED device sessions.
+ * Used by offline-detection so non-designated devices stay quiet.
+ */
+function broadcastAlarmToDesignated(ownerId, deviceId, deviceName) {
+  const ownerStr = ownerId.toString();
+  const deviceStr = deviceId.toString();
+  broadcast('alarm', { deviceId: deviceStr, deviceName: deviceName || '' }, {
+    match: (meta) =>
+      meta.userId === ownerStr && meta.isDesignated === true
+  });
+}
+
+/**
+ * Broadcast any message type exclusively to the owner's designated sessions.
+ * Used for anomaly_alert, offline_alert, etc.
+ */
+function broadcastToDesignated(ownerId, type, payload) {
+  const ownerStr = ownerId.toString();
+  broadcast(type, payload, {
+    match: (meta) => meta.userId === ownerStr && meta.isDesignated === true
+  });
+}
+
+/**
+ * Attach a WS-ingest handler.
+ * The callback should accept the payload and return the same shape as HTTP /api/location/ping.
+ */
+function setOnPing(handler) {
+  exports._onPing = handler;
+}
+
+module.exports = {
+  init,
+  broadcast,
+  broadcastPingSaved,
+  broadcastAlarm,
+  broadcastAlarmToOwner,
+  broadcastAlarmToDesignated,
+  broadcastToDesignated,
+  setOnPing,
+};
